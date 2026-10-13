@@ -111,14 +111,31 @@ Revert is available when actual metadata overrides exist.
 
 Use Workflow to inspect workflow JSON as a node graph when Ambit can parse one.
 
+For images, opening Workflow replaces the image with a ComfyUI-style view of the workflow: nodes at their saved positions, colored links, groups, and widget values. Drag empty space to pan, scroll to zoom, and use Fit to View to frame the whole graph. You can rearrange the graph the way you would in ComfyUI:
+
+- drag a node to move it, or drag its bottom-right corner to resize it
+- click the dot in a node's title bar to collapse or expand it
+- drag a group's title bar to move the group with everything inside it, or drag its bottom-right corner to resize it
+- Ctrl+click or Shift+click to add nodes to the selection, Ctrl+drag on empty space to box-select (Shift+drag adds to the selection), and drag any selected node to move them together
+- select widget text such as prompts, samplers, and model or LoRA names like any other text: drag to select, or click a field and press Ctrl+A, then Ctrl+C to copy. Values are read-only, and long prompts scroll inside their box. When zoomed out below 50%, widgets are drawn as part of the graph and can't be selected.
+
+These layout changes last only while the viewer shows that image. They are never saved to the file, the workflow JSON, or the catalog. Reset Layout restores the saved positions, sizes, collapsed states, and groups. Double-click a subgraph node to open it; the breadcrumb returns to the parent graph. Workflows without saved node positions, such as API-format prompts, are arranged automatically. The graph stays when you hide the sidebar; theater mode shows the image again.
+
+Bypassed nodes are purple and slightly faded, and muted nodes are faded further. Selecting a Use Everywhere node (Anything Everywhere, Anything Everywhere3, Anything Everywhere?, Prompts Everywhere, or Seed Everywhere) shows glowing links to the inputs it feeds. Recent versions of the extension save these connections in the workflow, and Ambit shows exactly those. For older workflows that don't save them, Ambit works them out the way the extension does: by matching type, by the title, input, and group patterns on Anything Everywhere?, by the positive and negative input names for Prompts Everywhere, and by seed inputs for Seed Everywhere. In that case, restrictions set from the node's context menu are not applied.
+
+Widget names come from the workflow when it records them. Older workflows and nodes skipped in the saved prompt (bypassed or muted nodes, and nodes inside subgraphs) often save only the values. For those, Ambit uses a copy of the node definitions in the official Comfy Registry, about 21,000 custom node types, which ships with the app. It picks the version of each node whose widgets match the saved values. Core ComfyUI nodes, which are not in the Registry, and a few older custom node versions come from a smaller built-in list. Ambit never contacts the Registry while you use it. Widgets that no source matches are shown without names.
+
 The Workflow tab can:
 
 - lazy-load workflow data from file headers if the catalog does not already have it
-- show Full Node Graph with a node count
-- search nodes by title or type
-- expand nodes to inspect simple input values
+- show the node count and whether the graph came from the workflow or the API prompt
+- search nodes by title or type; matches stay highlighted in the graph, and choosing one centers it
+- click a node in the graph to inspect its values and connections in the sidebar; following a connection moves the graph to that node
+- switch between All Nodes and Selected Branch; Selected Branch dims nodes outside the saved output's dependency branch
 - Copy workflow JSON
 - Download workflow JSON to a file
+
+Video Workflow keeps the node list in the sidebar, where you expand nodes to inspect simple input values.
 
 Some images have no recorded workflow. Some workflow data is valid JSON but not a standard node graph, especially complex InvokeAI session data or unusual generator formats. In those cases Ambit can still offer a JSON preview, Copy, or Download when raw workflow data exists.
 

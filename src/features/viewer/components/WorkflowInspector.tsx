@@ -1,7 +1,8 @@
 
 import * as React from 'react';
 import { useMemo, useState } from 'react';
-import { Box, Workflow, Search, ChevronDown, ChevronRight, Copy, Check, Download, Activity, AlertTriangle, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Box, Workflow, Search, ChevronDown, ChevronRight, Copy, Check, Download, Activity, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, MousePointerClick } from 'lucide-react';
 import { AIImage, isVideoAsset } from '../../../types';
 import { scanImageWorkflow } from '../../../services/metadataParser';
 import { updateImageWorkflow, updateImageWorkflowHint } from '../../../services/db/imageRepo';
@@ -30,11 +31,40 @@ import {
     type WorkflowInputs,
     type WorkflowNodeConnections
 } from './workflowGraphUtils';
+import { WorkflowCanvas } from './workflowCanvas/WorkflowCanvas';
+import {
+    buildAutoLayoutDocument,
+    locateCanvasNode,
+    parseWorkflowCanvasDocument,
+    resolveGraphAtPath,
+    type WorkflowCanvasDocument
+} from './workflowCanvas/workflowCanvasModel';
 
 interface WorkflowInspectorProps {
     image: AIImage;
     onWorkflowLoaded?: (workflowJson: string) => void;
+    /**
+     * When provided, the workflow is drawn as a ComfyUI-style node graph inside this element
+     * (the viewer's main stage) and the sidebar shows search results and the selected node instead of node cards.
+     */
+    graphStage?: HTMLElement | null;
 }
+
+/** Display node for a canvas-only node (no backend-normalized entry), built from its saved widgets. */
+const canvasNodeToDisplayNode = (
+    document: WorkflowCanvasDocument,
+    displayNodeId: string
+): WorkflowDisplayNode | undefined => {
+    const located = locateCanvasNode(document, displayNodeId);
+    if (!located) return undefined;
+    const node = resolveGraphAtPath(document, located.path).graph.nodeById.get(located.nodeId);
+    if (!node || node.kind !== 'node') return undefined;
+    const inputs: Record<string, string> = {};
+    node.widgets.forEach((widget, index) => {
+        inputs[widget.name || `value ${index + 1}`] = widget.value;
+    });
+    return { id: displayNodeId, title: node.title, type: node.type, inputs };
+};
 
 const formatDiagnosticLabel = (value: string) =>
     value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
@@ -556,9 +586,10 @@ const WorkflowNode: React.FC<{
     outputAmbiguous: boolean;
     isFocused: boolean;
     focusRequestId: number | null;
+    defaultExpanded?: boolean;
     onFollowConnection: (nodeId: string) => void;
-}> = ({ id, title, type, inputs, connections, nodeById, isSelectedOutput, isRootSampler, outputAmbiguous, isFocused, focusRequestId, onFollowConnection }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
+}> = ({ id, title, type, inputs, connections, nodeById, isSelectedOutput, isRootSampler, outputAmbiguous, isFocused, focusRequestId, defaultExpanded = false, onFollowConnection }) => {
+    const [isExpanded, setIsExpanded] = useState(defaultExpanded);
     const hasInputs = Object.keys(inputs).length > 0;
     const hasConnections = connections.incoming.length > 0 || connections.outgoing.length > 0;
     const hasContent = hasInputs || hasConnections;
@@ -744,8 +775,10 @@ const WorkflowNodeSection: React.FC<{
     );
 };
 
-export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onWorkflowLoaded }) => {
+export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onWorkflowLoaded, graphStage }) => {
+    const isCanvasMode = graphStage !== undefined;
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
     const [nodeMode, setNodeMode] = useState<'all' | 'selected'>('all');
     const [copied, setCopied] = useState(false);
     const [localWorkflow, setLocalWorkflow] = useState<string | undefined>(image.metadata.workflowJson);
@@ -845,11 +878,17 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
             setNodeMode('all');
         }
         setSearchQuery('');
+        setSelectedNodeId(nodeId);
         setFocusedConnection((current) => ({
             nodeId,
             requestId: (current?.requestId ?? 0) + 1
         }));
     }, [nodeMode, selectedBranchNodeIdSet]);
+
+    const handleCanvasSelectNode = React.useCallback((nodeId: string | null) => {
+        setSelectedNodeId(nodeId);
+        if (nodeId) setSearchQuery('');
+    }, []);
 
     React.useEffect(() => {
         setFocusedConnection(null);
@@ -983,6 +1022,32 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
     }, [modeNodes, searchQuery]);
     const filteredNodeGroups = useMemo(() => groupWorkflowNodes(filteredNodes), [filteredNodes]);
 
+    const preservedWorkflowJson = localWorkflow || image.metadata.workflowJson || originalWorkflow;
+    // Parse the saved layout independently so the backend report arriving later does not rebuild it.
+    // Clear the graph selection only for a different image or workflow. The backend graph report
+    // arrives after the graph is first drawn and must not drop a node the user already clicked.
+    React.useEffect(() => {
+        setSelectedNodeId(null);
+    }, [image.id, preservedWorkflowJson]);
+    const savedLayoutDocument = useMemo(
+        () => isCanvasMode ? parseWorkflowCanvasDocument(preservedWorkflowJson, originalPrompt) : null,
+        [isCanvasMode, originalPrompt, preservedWorkflowJson]
+    );
+    const canvasDocument = useMemo(() => {
+        if (!isCanvasMode) return null;
+        return savedLayoutDocument ?? buildAutoLayoutDocument(workflowNodes, workflowEdges);
+    }, [isCanvasMode, savedLayoutDocument, workflowEdges, workflowNodes]);
+    const canvasHighlightedNodeIds = useMemo(() => {
+        if (!isCanvasMode) return null;
+        if (searchQuery) return new Set(filteredNodes.map((node) => String(node.id)));
+        return nodeMode === 'selected' && selectedBranchAvailable ? selectedBranchNodeIdSet : null;
+    }, [filteredNodes, isCanvasMode, nodeMode, searchQuery, selectedBranchAvailable, selectedBranchNodeIdSet]);
+    const selectedDisplayNode = useMemo(() => {
+        if (!selectedNodeId) return undefined;
+        return nodeById.get(selectedNodeId)
+            ?? (canvasDocument ? canvasNodeToDisplayNode(canvasDocument, selectedNodeId) : undefined);
+    }, [canvasDocument, nodeById, selectedNodeId]);
+
     React.useEffect(() => {
         if (!focusedConnection || searchQuery) return;
 
@@ -1115,7 +1180,54 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
                         />
                     </div>
                 )}
-                {filteredNodes.length > 0 ? (
+                {isCanvasMode && canvasDocument ? (
+                    searchQuery ? (
+                        <section aria-label="Matching workflow nodes" className="space-y-1">
+                            {filteredNodes.length > 0 ? filteredNodes.map((node) => (
+                                <button
+                                    key={String(node.id)}
+                                    type="button"
+                                    onClick={() => handleFollowConnection(String(node.id))}
+                                    aria-label={`Show node ${node.title} (${node.id}) in the graph`}
+                                    className="flex w-full min-w-0 items-center gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-left transition-colors hover:border-sage-300 hover:bg-sage-50 dark:border-white/10 dark:bg-white/5 dark:hover:border-sage-700 dark:hover:bg-sage-900/20"
+                                >
+                                    <Box className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-xs font-semibold text-gray-800 dark:text-gray-200">{node.title}</span>
+                                        <span className="block truncate font-mono text-[10px] text-gray-400">{node.type} / #{node.id}</span>
+                                    </span>
+                                </button>
+                            )) : (
+                                <p className="py-6 text-center text-xs text-gray-400">No matching nodes found.</p>
+                            )}
+                        </section>
+                    ) : selectedDisplayNode ? (
+                        <WorkflowNode
+                            key={String(selectedDisplayNode.id)}
+                            id={selectedDisplayNode.id}
+                            title={selectedDisplayNode.title}
+                            type={selectedDisplayNode.type}
+                            inputs={selectedDisplayNode.inputs}
+                            connections={connectionIndex.get(String(selectedDisplayNode.id)) ?? { incoming: [], outgoing: [] }}
+                            nodeById={nodeById}
+                            isSelectedOutput={selectedOutputNodeIdSet.has(String(selectedDisplayNode.id))}
+                            isRootSampler={rootSamplerNodeIdSet.has(String(selectedDisplayNode.id))}
+                            outputAmbiguous={outputAmbiguous}
+                            isFocused
+                            focusRequestId={null}
+                            defaultExpanded
+                            onFollowConnection={handleFollowConnection}
+                        />
+                    ) : (
+                        <div className="mt-2 flex flex-col items-center gap-2 rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center dark:border-white/5">
+                            <MousePointerClick className="h-6 w-6 text-gray-300 dark:text-gray-600" />
+                            <p className="text-xs text-gray-400 text-balance">
+                                Click a node in the graph to inspect its values and connections. Drag to pan, scroll to zoom
+                                {canvasDocument.subgraphs.size > 0 ? ', and double-click a subgraph to open it.' : '.'}
+                            </p>
+                        </div>
+                    )
+                ) : filteredNodes.length > 0 ? (
                     <div className="space-y-4">
                         {filteredNodeGroups.map((group) => (
                             <WorkflowNodeSection
@@ -1166,6 +1278,32 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
                     </div>
                 )}
             </div>
+
+            {graphStage ? createPortal(
+                canvasDocument ? (
+                    <WorkflowCanvas
+                        workflowDocument={canvasDocument}
+                        selectedNodeId={selectedNodeId}
+                        focusRequest={focusedConnection}
+                        highlightedNodeIds={canvasHighlightedNodeIds}
+                        onSelectNode={handleCanvasSelectNode}
+                    />
+                ) : (
+                    <div className="absolute inset-0 flex items-center justify-center bg-[#1e1e1e] p-8">
+                        <div className="max-w-sm text-center">
+                            <Workflow className="mx-auto mb-3 h-10 w-10 text-gray-600" />
+                            <p className="text-sm text-gray-400 text-balance">
+                                {isLoading
+                                    ? 'Reading workflow data from file headers...'
+                                    : workflowJsonForActions
+                                        ? 'This workflow data cannot be drawn as a node graph. Copy or download the JSON from the sidebar.'
+                                        : 'No workflow data was found for this image.'}
+                            </p>
+                        </div>
+                    </div>
+                ),
+                graphStage
+            ) : null}
         </div>
     );
 };
