@@ -15,6 +15,9 @@ coverage
 coverage-*/
 *.local
 
+# Comfy Registry download cache for scripts/generate-comfy-registry-widgets.mjs.
+.cache/
+
 # ComfyUI parser support bundles contain exact private metadata chunks.
 ambit-comfyui-support*.json
 

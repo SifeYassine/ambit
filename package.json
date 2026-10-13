@@ -45,6 +45,7 @@
     "audit:prod": "pnpm audit --prod",
     "audit:rust": "node ./scripts/audit-rust.mjs",
     "audit:comfyui-catalog": "node ./scripts/audit-comfyui-catalog.mjs",
+    "comfyui:registry-widgets": "node ./scripts/generate-comfy-registry-widgets.mjs",
     "inspect:comfyui-support": "cargo run --quiet --manifest-path src-tauri/Cargo.toml --bin inspect_comfyui_support --",
     "inspect:comfyui-support-batch": "cargo run --quiet --manifest-path src-tauri/Cargo.toml --bin inspect_comfyui_support -- --batch",
     "prepare:comfyui-fixture": "cargo run --quiet --manifest-path src-tauri/Cargo.toml --bin inspect_comfyui_support -- --prepare-fixture",
