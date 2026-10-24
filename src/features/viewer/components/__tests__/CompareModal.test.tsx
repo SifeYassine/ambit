@@ -271,4 +271,37 @@ describe('CompareModal', () => {
         fireEvent.mouseMove(root, { clientX: 0, clientY: 0 });
         fireEvent.mouseUp(root);
     });
+
+    it('diffs positive and negative prompts by tag before the generation settings', () => {
+        const base = createImage('a');
+        renderModal({
+            imageA: { ...base, metadata: { ...base.metadata, positivePrompt: '1girl, (smile:0.7), blue eyes, castle, moonlight', negativePrompt: 'lowres, blurry' } },
+            imageB: { ...base, id: 'b', filename: 'C:/images/b.png', metadata: { ...base.metadata, positivePrompt: 'moonlight, 1girl, (smile:0.9), yellow eyes, castle', negativePrompt: 'lowres, watermark' } },
+        });
+        const spanWithText = (text: string) => Array.from(document.querySelectorAll('span')).find((span) => span.textContent === text);
+
+        expect(spanWithText('↑ moonlight')?.className).toContain('bg-blue-500');
+        expect(spanWithText('↓ moonlight')?.className).toContain('bg-blue-500');
+        expect(spanWithText('(smile:0.7)')?.className).toContain('bg-orange-500');
+        expect(spanWithText('blue')?.className).toContain('bg-red-500');
+        expect(spanWithText('yellow')?.className).toContain('bg-sage-500');
+        expect(spanWithText('blurry')?.className).toContain('bg-red-500');
+        expect(spanWithText('watermark')?.className).toContain('bg-sage-500');
+
+        const sectionOrder = ['Positive prompt', 'Negative prompt', 'Model'].map((label) => screen.getByText(label));
+        expect(sectionOrder[0].compareDocumentPosition(sectionOrder[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(sectionOrder[1].compareDocumentPosition(sectionOrder[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('lists each file SHA-256 below the generation settings and highlights differing hashes', async () => {
+        const hashA = 'a'.repeat(64);
+        const hashB = 'b'.repeat(64);
+        computeImageFileHashMock.mockImplementation(async (id: string) => (id === 'a' ? hashA : hashB));
+        renderModal();
+
+        const valueA = await screen.findByText(hashA);
+        expect(screen.getByText(hashB)).toBeTruthy();
+        expect(valueA.className).toContain('text-ember-300');
+        expect(screen.getByText('Size').compareDocumentPosition(screen.getByText('SHA-256')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
 });

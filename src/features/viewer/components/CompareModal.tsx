@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ZoomIn, ZoomOut, RotateCcw, ArrowRightLeft, Columns, Layers, PanelLeft, ChevronRight, Sidebar, SplitSquareHorizontal, Heart, GitCompare, Eye, EyeOff, Pin } from 'lucide-react';
 import { AIImage } from '../../../types';
@@ -14,6 +14,7 @@ import {
 } from '../../../utils/zoomMath';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { TooltipButton } from '../../../components/ui/InfoTooltip';
+import { buildTagSegments, diffPromptTags, hasTagChanges, PromptTagDiff, PromptTagEntry, PromptTagStatus } from '../utils/promptTags';
 
 interface CompareModalProps {
     imageA: AIImage;
@@ -34,6 +35,18 @@ const DIAGONAL_DIVIDER_WIDTH_PX = 4;
 const CANVAS_PADDING_PX = 24;
 const SLIDER_HIT_TARGET_WIDTH_PX = 80;
 const SLIDER_EDGE_TRAVEL_PX = DIAGONAL_OFFSET_PX + Math.ceil(DIAGONAL_DIVIDER_WIDTH_PX / 2) + 2;
+
+// Rounded tag box; `box-decoration-clone` keeps the padding and rounding on every wrapped line.
+const PILL_CLASS_NAME = 'rounded-md px-1.5 py-0.5 box-decoration-clone';
+
+const TAG_STATUS_CLASS_NAMES: Record<PromptTagStatus, string> = {
+    removed: `${PILL_CLASS_NAME} bg-red-500/50 text-white`,
+    added: `${PILL_CLASS_NAME} bg-sage-500/50 text-white`,
+    // Edited tags only color their changed characters (see `removed`/`added`).
+    edited: '',
+    reweighted: `${PILL_CLASS_NAME} bg-orange-500/40 text-orange-100`,
+    moved: `${PILL_CLASS_NAME} bg-blue-500/40 text-blue-100`,
+};
 
 interface MediaFrame {
     left: number;
@@ -259,6 +272,21 @@ export const CompareModal: React.FC<CompareModalProps> = ({
         height: 0
     });
 
+    // Diffs are only recomputed when a prompt or the view changes, not on every
+    // pan/zoom/slider re-render.
+    const positivePromptA = imageA.metadata.positivePrompt;
+    const positivePromptB = imageB.metadata.positivePrompt;
+    const negativePromptA = imageA.metadata.negativePrompt;
+    const negativePromptB = imageB.metadata.negativePrompt;
+    const positiveTagDiff = useMemo(
+        () => (diffMode === 'diff' && positivePromptA !== positivePromptB ? diffPromptTags(positivePromptA, positivePromptB) : null),
+        [diffMode, positivePromptA, positivePromptB],
+    );
+    const negativeTagDiff = useMemo(
+        () => (diffMode === 'diff' && negativePromptA !== negativePromptB ? diffPromptTags(negativePromptA, negativePromptB) : null),
+        [diffMode, negativePromptA, negativePromptB],
+    );
+
     useEffect(() => {
         if (privacyExposureBlocked) onClose();
     }, [onClose, privacyExposureBlocked]);
@@ -464,55 +492,76 @@ export const CompareModal: React.FC<CompareModalProps> = ({
     };
 
     // --- Diffing Logic ---
-    const renderPromptDiff = (promptA: string, promptB: string) => {
-        const wordsA = promptA.split(/(\s+)/);
-        const wordsB = promptB.split(/(\s+)/);
-
-        const setA = new Set(promptA.split(/\s+/).map(w => w.toLowerCase().replace(/[^\w]/g, '')));
-        const setB = new Set(promptB.split(/\s+/).map(w => w.toLowerCase().replace(/[^\w]/g, '')));
-
-        const renderDiffWords = (text: string, comparisonSet: Set<string>, colorClass: string) => {
-            return text.split(/(\s+)/).map((part, i) => {
-                if (part.match(/^\s+$/)) return <span key={i}>{part}</span>;
-                const clean = part.toLowerCase().replace(/[^\w]/g, '');
-                const isDiff = clean.length > 0 && !comparisonSet.has(clean);
+    // Tag-level diff (added/removed/moved/re-weighted tags) with character-level
+    // highlights inside tags that were edited.
+    const renderTagSegments = (prompt: string, entries: PromptTagEntry[], editedClass: string) =>
+        buildTagSegments(prompt, entries).map(({ text, status, move, parts }, i) => {
+            if (parts !== null) {
                 return (
-                    <span key={i} className={isDiff ? `${colorClass} px-0.5 rounded text-white font-bold` : ''}>
-                        {part}
+                    <span key={i}>
+                        {parts.map((part, j) => (
+                            <span key={j} className={part.type === 'equal' ? undefined : editedClass}>{part.text}</span>
+                        ))}
                     </span>
                 );
-            });
-        };
+            }
+            return (
+                <span key={i} className={status === null ? undefined : TAG_STATUS_CLASS_NAMES[status]}>
+                    {move === 'up' ? '↑ ' : move === 'down' ? '↓ ' : ''}
+                    {text}
+                </span>
+            );
+        });
 
-        return (
-            <div className="space-y-4">
-                {/* Left Prompt (A) */}
-                <div className="space-y-1">
-                    <div className="text-[10px] uppercase text-gray-500 font-bold">Original (Image A)</div>
-                    <div className="p-3 bg-zinc-900/50 rounded-lg border border-white/5 text-xs text-gray-400 font-mono leading-relaxed">
-                        {renderDiffWords(promptA, setB, 'bg-red-500/50')}
-                    </div>
-                </div>
-
-                {/* Right Prompt (B) */}
-                <div className="space-y-1">
-                    <div className="text-[10px] uppercase text-gray-500 font-bold">New (Image B)</div>
-                    <div className="p-3 bg-zinc-900/50 rounded-lg border border-white/5 text-xs text-gray-400 font-mono leading-relaxed">
-                        {renderDiffWords(promptB, setA, 'bg-sage-500/50')}
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
-    const renderRawPrompt = (prompt: string, title: string) => (
+    // Diff boxes get extra line height so wrapped highlight pills don't touch.
+    const renderPromptBox = (title: string, content: React.ReactNode, lineHeightClass: 'leading-relaxed' | 'leading-[2]') => (
         <div className="space-y-1">
             <div className="text-[10px] uppercase text-gray-500 font-bold">{title}</div>
-            <div className="p-3 bg-zinc-900/50 rounded-lg border border-white/5 text-xs text-gray-400 font-mono leading-relaxed whitespace-pre-wrap">
-                {prompt}
+            <div className={`p-3 bg-zinc-900/50 rounded-lg border border-white/5 text-xs text-gray-400 font-mono whitespace-pre-wrap break-words ${lineHeightClass}`}>
+                {content}
             </div>
         </div>
     );
+
+    const renderPromptNotice = (message: string) => (
+        <div className="text-sm text-gray-600 italic text-center py-4 bg-zinc-900/30 rounded-lg">{message}</div>
+    );
+
+    const renderPromptSection = (
+        title: string,
+        promptA: string,
+        promptB: string,
+        tagDiff: PromptTagDiff | null,
+    ) => {
+        let body: React.ReactNode;
+        if (promptA === promptB) {
+            body = renderPromptNotice(promptA ? 'Prompts are identical' : 'No prompt on either image');
+        } else if (tagDiff !== null && !hasTagChanges(tagDiff)) {
+            body = renderPromptNotice('Same tags, only formatting differs');
+        } else {
+            body = (
+                <div className="space-y-4">
+                    {tagDiff !== null ? (
+                        <>
+                            {renderPromptBox('Original (Image A)', renderTagSegments(promptA, tagDiff.original, TAG_STATUS_CLASS_NAMES.removed), 'leading-[2]')}
+                            {renderPromptBox('New (Image B)', renderTagSegments(promptB, tagDiff.modified, TAG_STATUS_CLASS_NAMES.added), 'leading-[2]')}
+                        </>
+                    ) : (
+                        <>
+                            {renderPromptBox('Original (Image A)', promptA, 'leading-relaxed')}
+                            {renderPromptBox('New (Image B)', promptB, 'leading-relaxed')}
+                        </>
+                    )}
+                </div>
+            );
+        }
+        return (
+            <div className="space-y-2">
+                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{title}</div>
+                {body}
+            </div>
+        );
+    };
 
     const commonImageProps = { position, scale, isDraggingCanvas };
     const sliderTravelLeft = activeMediaFrame.left - SLIDER_EDGE_TRAVEL_PX;
@@ -718,20 +767,16 @@ export const CompareModal: React.FC<CompareModalProps> = ({
                             <div className="truncate text-center" title={imageB.filename}>{getFilename(imageB.filename)}</div>
                         </div>
 
-                        <DiffRow label="Model" valA={imageA.metadata.model} valB={imageB.metadata.model} />
-                        <DiffRow label="Seed" valA={imageA.metadata.seed ?? 'Unknown'} valB={imageB.metadata.seed ?? 'Unknown'} />
-                        <DiffRow label="Steps" valA={imageA.metadata.steps} valB={imageB.metadata.steps} />
-                        <DiffRow label="CFG" valA={imageA.metadata.cfg} valB={imageB.metadata.cfg} />
-                        <DiffRow label="Size" valA={`${imageA.width}x${imageA.height}`} valB={`${imageB.width}x${imageB.height}`} />
-
-                        <div className="p-4">
+                        <div className="p-4 border-b border-white/10">
                             <div className="flex items-center justify-between mb-3">
-                                <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">Prompt Diff</div>
+                                <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">Prompts</div>
                                 <div className="flex items-center gap-2">
                                     {diffMode === 'diff' && (
-                                        <div className="flex gap-2 text-[10px] mr-2">
+                                        <div className="flex flex-wrap justify-end gap-1 text-[10px] mr-2">
                                             <span className="text-red-400 bg-red-900/20 px-1.5 py-0.5 rounded">Removed</span>
                                             <span className="text-sage-300 bg-sage-900/20 px-1.5 py-0.5 rounded">Added</span>
+                                            <span className="text-orange-300 bg-orange-900/20 px-1.5 py-0.5 rounded">Weight</span>
+                                            <span className="text-blue-300 bg-blue-900/20 px-1.5 py-0.5 rounded">↑↓ Moved</span>
                                         </div>
                                     )}
                                     <div className="flex bg-black rounded-lg p-0.5 border border-white/10">
@@ -741,19 +786,17 @@ export const CompareModal: React.FC<CompareModalProps> = ({
                                 </div>
                             </div>
 
-                            {imageA.metadata.positivePrompt === imageB.metadata.positivePrompt ? (
-                                <div className="text-sm text-gray-600 italic text-center py-4 bg-zinc-900/30 rounded-lg">Prompts are identical</div>
-                            ) : (
-                                diffMode === 'diff' ? (
-                                    renderPromptDiff(imageA.metadata.positivePrompt, imageB.metadata.positivePrompt)
-                                ) : (
-                                    <div className="space-y-4">
-                                        {renderRawPrompt(imageA.metadata.positivePrompt, "Original (Image A)")}
-                                        {renderRawPrompt(imageB.metadata.positivePrompt, "New (Image B)")}
-                                    </div>
-                                )
-                            )}
+                            <div className="space-y-6">
+                                {renderPromptSection('Positive prompt', positivePromptA, positivePromptB, positiveTagDiff)}
+                                {renderPromptSection('Negative prompt', negativePromptA, negativePromptB, negativeTagDiff)}
+                            </div>
                         </div>
+
+                        <DiffRow label="Model" valA={imageA.metadata.model} valB={imageB.metadata.model} />
+                        <DiffRow label="Seed" valA={imageA.metadata.seed ?? 'Unknown'} valB={imageB.metadata.seed ?? 'Unknown'} />
+                        <DiffRow label="Steps" valA={imageA.metadata.steps} valB={imageB.metadata.steps} />
+                        <DiffRow label="CFG" valA={imageA.metadata.cfg} valB={imageB.metadata.cfg} />
+                        <DiffRow label="Size" valA={`${imageA.width}x${imageA.height}`} valB={`${imageB.width}x${imageB.height}`} />
                     </div>
                 </div>
 
