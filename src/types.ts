@@ -251,6 +251,10 @@ export type LibraryAsset = AIImage | VideoAsset;
 
 export const isVideoAsset = (asset: AIImage): asset is VideoAsset => asset.mediaType === 'video';
 
+// Mirrors HAS_PROMPT_SQL in services/db/searchRepo.ts so the gallery badge and the 'prompt_first' sort agree.
+export const hasPrompt = (asset: AIImage): boolean =>
+  Boolean(asset.metadata.positivePrompt?.trim() || asset.metadata.negativePrompt?.trim());
+
 export interface FilterState {
   mediaType?: MediaTypeFilter;
   searchQuery: string;
@@ -316,7 +320,7 @@ export interface SmartCollection extends Collection {
   filters: FilterState;
 }
 
-export type SortOption = 'date_desc' | 'date_asc' | 'name_asc' | 'name_desc' | 'size_desc' | 'size_asc';
+export type SortOption = 'date_desc' | 'date_asc' | 'name_asc' | 'name_desc' | 'size_desc' | 'size_asc' | 'prompt_first';
 
 export type MetadataRefreshScope = 'full' | 'images-only';
 

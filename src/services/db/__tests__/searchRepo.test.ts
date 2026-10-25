@@ -147,6 +147,24 @@ describe('searchRepo basic queries', () => {
         expect(db.select.mock.calls[2]?.[1]).toEqual([0, 1, 1, 100, 1, 100, 'image-2']);
     });
 
+    it('sorts prompted images first through a single prompt_rank key that pages by cursor', async () => {
+        const db = { select: vi.fn().mockResolvedValue([]) };
+        getDbMock.mockResolvedValue(db);
+        const { searchImages, PROMPT_RANK_OFFSET, PROMPT_RANK_SORT_FIELD } = await import('../searchRepo');
+        const cursorVal = PROMPT_RANK_OFFSET + 100;
+
+        await searchImages('WHERE is_deleted = ?', [0], 10, PROMPT_RANK_SORT_FIELD, 'DESC', false, undefined, undefined, {
+            val: cursorVal, id: 'image-1'
+        });
+
+        const sql = (db.select.mock.calls[0]?.[0] as string).replace(/\s+/g, ' ');
+        expect(sql).not.toContain('images.prompt_rank');
+        expect(sql).toContain(`THEN ${PROMPT_RANK_OFFSET} ELSE 0 END) + COALESCE(images.display_timestamp, images.timestamp, 0)) DESC, images.id DESC`);
+        expect(sql).toContain("TRIM(COALESCE(images.positive_prompt, '')");
+        expect(sql).toMatch(/AND \(\(\(CASE WHEN .+\), images\.id\) < \(\?, \?\)/);
+        expect(db.select.mock.calls[0]?.[1]).toEqual([0, cursorVal, 'image-1']);
+    });
+
     it.each([
         ['timestamp', ''],
         ['timestamp', ' AND privacy_hidden = 0'],

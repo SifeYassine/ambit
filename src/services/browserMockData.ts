@@ -1,4 +1,4 @@
-import { AIImage, AppSettings, Collection, FacetType, FilterState, GeneratorTool, LibraryScopeCounts, SmartCollection, SortOption, getEffectiveSourceKind } from '../types';
+import { AIImage, AppSettings, Collection, FacetType, FilterState, GeneratorTool, LibraryScopeCounts, SmartCollection, SortOption, getEffectiveSourceKind, hasPrompt } from '../types';
 import type { AppState, IRepository } from './repository';
 import type { Facets, LibraryStats, LibraryStatsSummary, ValidFacetNames } from './db/searchRepo';
 import { getDateFilterBounds, getSearchDateBounds } from '../utils/dateFilters';
@@ -605,6 +605,10 @@ const sortImages = (images: AIImage[], sortOption: SortOption): AIImage[] => {
             case 'name_desc': return b.filename.localeCompare(a.filename);
             case 'size_asc': return (a.fileSize ?? 0) - (b.fileSize ?? 0);
             case 'size_desc': return (b.fileSize ?? 0) - (a.fileSize ?? 0);
+            case 'prompt_first':
+                return Number(hasPrompt(b)) - Number(hasPrompt(a))
+                    || getEffectiveDisplayTimestamp(b) - getEffectiveDisplayTimestamp(a)
+                    || b.id.localeCompare(a.id);
             case 'date_desc':
             default:
                 return getEffectiveDisplayTimestamp(b) - getEffectiveDisplayTimestamp(a) || b.id.localeCompare(a.id);

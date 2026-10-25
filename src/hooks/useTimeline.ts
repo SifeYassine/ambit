@@ -1,6 +1,6 @@
 
 import { useMemo } from 'react';
-import { AIImage, SortOption } from '../types';
+import { AIImage, SortOption, hasPrompt } from '../types';
 import { getEffectiveDisplayTimestamp, getImageCalendarParts, getImageDayStart } from '../utils/imageDates';
 
 export interface TimelineGroup {
@@ -84,6 +84,7 @@ export const useTimeline = (images: AIImage[], sortOption: SortOption = 'date_de
                     case 'name_desc': return b.filename.localeCompare(a.filename);
                     case 'size_desc': return (b.fileSize || 0) - (a.fileSize || 0);
                     case 'size_asc': return (a.fileSize || 0) - (b.fileSize || 0);
+                    case 'prompt_first': return Number(hasPrompt(b)) - Number(hasPrompt(a)) || getEffectiveDisplayTimestamp(b) - getEffectiveDisplayTimestamp(a);
                     case 'date_asc': return getEffectiveDisplayTimestamp(a) - getEffectiveDisplayTimestamp(b); // Oldest first within the group
                     case 'date_desc':
                     default: return getEffectiveDisplayTimestamp(b) - getEffectiveDisplayTimestamp(a); // Newest first within the group

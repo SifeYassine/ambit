@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { LayoutGrid, Columns, AlignJustify, Play, ArrowUpDown, Check, Sliders, Eye, CalendarArrowDown, CalendarArrowUp, ArrowDownAZ, ArrowUpAZ, ArrowDownWideNarrow, ArrowUpNarrowWide, type LucideIcon } from 'lucide-react';
+import { LayoutGrid, Columns, AlignJustify, Play, ArrowUpDown, Check, Sliders, Eye, CalendarArrowDown, CalendarArrowUp, ArrowDownAZ, ArrowUpAZ, ArrowDownWideNarrow, ArrowUpNarrowWide, MessageSquareText, type LucideIcon } from 'lucide-react';
 import { LayoutMode, SortOption } from '../../../types';
 import { useSearch } from '../../../contexts/SearchContext';
 import { TooltipButton } from '../../../components/ui/InfoTooltip';
@@ -44,6 +44,7 @@ const SORT_OPTIONS: Array<{ val: SortOption; label: string; icon: LucideIcon }> 
     { val: 'name_desc', label: 'Name (Z-A)', icon: ArrowUpAZ },
     { val: 'size_desc', label: 'Largest (Size)', icon: ArrowDownWideNarrow },
     { val: 'size_asc', label: 'Smallest (Size)', icon: ArrowUpNarrowWide },
+    { val: 'prompt_first', label: 'Has prompt', icon: MessageSquareText },
 ];
 
 const sortLabel = (sortOption: SortOption) => SORT_OPTIONS.find(option => option.val === sortOption)?.label ?? 'Sort';

@@ -539,6 +539,19 @@ export const searchImageIds = async (whereClause: string, params: unknown[]): Pr
     return rows.map(r => r.id);
 };
 
+const PROMPT_WHITESPACE_SQL = "' ' || char(9) || char(10) || char(13)";
+// Mirrors hasPrompt() in types.ts.
+const HAS_PROMPT_SQL = `(TRIM(COALESCE(images.positive_prompt, ''), ${PROMPT_WHITESPACE_SQL}) != ''
+    OR TRIM(COALESCE(images.negative_prompt, ''), ${PROMPT_WHITESPACE_SQL}) != '')`;
+// Millisecond timestamps stay below this until the year 2286, so prompted images
+// rank first and each half keeps newest-first order under a single sort key.
+export const PROMPT_RANK_OFFSET = 10_000_000_000_000;
+export const PROMPT_RANK_SORT_FIELD = 'prompt_rank';
+const SORT_EXPRESSIONS: Record<string, string> = {
+    [PROMPT_RANK_SORT_FIELD]: `((CASE WHEN ${HAS_PROMPT_SQL} THEN ${PROMPT_RANK_OFFSET} ELSE 0 END)
+        + COALESCE(images.display_timestamp, images.timestamp, 0))`,
+};
+
 export const searchImages = async (
     whereClause: string,
     params: unknown[],
@@ -555,9 +568,10 @@ export const searchImages = async (
     const finalWhere = whereClause ? whereClause : DEFAULT_VISIBLE_WHERE;
     const reason = describeDbQueryReason(finalWhere, collectionId, loraName);
 
+    const sortExpr = SORT_EXPRESSIONS[sortField] ?? `images.${sortField}`;
     const orderBy = prioritizePinned
-        ? `ORDER BY images.is_pinned DESC, images.${sortField} ${sortOrder}, images.id ${sortOrder === 'DESC' ? 'DESC' : 'ASC'}` // Strict tie-breaker
-        : `ORDER BY images.${sortField} ${sortOrder}, images.id ${sortOrder === 'DESC' ? 'DESC' : 'ASC'}`;
+        ? `ORDER BY images.is_pinned DESC, ${sortExpr} ${sortOrder}, images.id ${sortOrder === 'DESC' ? 'DESC' : 'ASC'}` // Strict tie-breaker
+        : `ORDER BY ${sortExpr} ${sortOrder}, images.id ${sortOrder === 'DESC' ? 'DESC' : 'ASC'}`;
 
     const buildCursorWhere = (): { sql: string; params: unknown[] } => {
         if (!cursor) return { sql: '', params: [] };
@@ -589,8 +603,8 @@ export const searchImages = async (
             return {
                 sql: `AND (
                     images.is_pinned < ?
-                    OR (images.is_pinned = ? AND images.${sortField} ${op} ?)
-                    OR (images.is_pinned = ? AND images.${sortField} = ? AND images.id ${op} ?)
+                    OR (images.is_pinned = ? AND ${sortExpr} ${op} ?)
+                    OR (images.is_pinned = ? AND ${sortExpr} = ? AND images.id ${op} ?)
                 )`,
                 params: [pinnedVal, pinnedVal, cursor.val, pinnedVal, cursor.val, cursor.id]
             };
@@ -598,7 +612,7 @@ export const searchImages = async (
 
         // Simple case: (sortField, id) < (val, id)
         return {
-            sql: `AND (images.${sortField}, images.id) ${op} (?, ?)`,
+            sql: `AND (${sortExpr}, images.id) ${op} (?, ?)`,
             params: [cursor.val, cursor.id]
         };
     };

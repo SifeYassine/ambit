@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { measureStartupPhase } from '../utils/startupDiagnostics';
-import { FilterState, SortOption, AppSettings, AIImage, Collection, PaginationCursor } from '../types';
-import { searchImages, countImages, countGlobalImages } from '../services/db/searchRepo';
+import { FilterState, SortOption, AppSettings, AIImage, Collection, PaginationCursor, hasPrompt } from '../types';
+import { searchImages, countImages, countGlobalImages, PROMPT_RANK_OFFSET, PROMPT_RANK_SORT_FIELD } from '../services/db/searchRepo';
 import { buildSqlWhereClause } from '../utils/sqlHelpers';
 import { isBrowserMockMode } from '../services/runtime';
 import { searchBrowserMockImages } from '../services/browserMockData';
@@ -45,6 +45,10 @@ const hasMatchingPrivacyScope = (
         && previousKeywords.every((keyword, index) => keyword === currentKey[5][index])
         && previousQueryMatchesInvokeScope(previousKey, currentKey[7]);
 };
+
+// Matches the prompt_rank SQL sort key in searchRepo, so keyset pagination resumes at the right row.
+const getPromptRank = (image: AIImage): number =>
+    (hasPrompt(image) ? PROMPT_RANK_OFFSET : 0) + (image.displayTimestamp ?? image.timestamp);
 
 export const useImagesQuery = ({
     filters,
@@ -112,6 +116,7 @@ export const useImagesQuery = ({
                 case 'name_desc': sortField = 'path'; sortOrder = 'DESC'; break;
                 case 'size_desc': sortField = 'file_size'; sortOrder = 'DESC'; break;
                 case 'size_asc': sortField = 'file_size'; sortOrder = 'ASC'; break;
+                case 'prompt_first': sortField = PROMPT_RANK_SORT_FIELD; sortOrder = 'DESC'; break;
                 case 'date_desc': default: sortField = 'display_timestamp'; sortOrder = 'DESC'; break;
             }
 
@@ -150,6 +155,7 @@ export const useImagesQuery = ({
             // Map sort options to field values
             if (sortOption === 'name_asc' || sortOption === 'name_desc') val = lastImage.filename;
             else if (sortOption === 'size_asc' || sortOption === 'size_desc') val = lastImage.fileSize || 0;
+            else if (sortOption === 'prompt_first') val = getPromptRank(lastImage);
             else val = lastImage.displayTimestamp ?? lastImage.timestamp;
 
             return {
