@@ -56,6 +56,19 @@ const setup = (overrides: Partial<React.ComponentProps<typeof ImageCard>> = {}) 
     return { ...result, props };
 };
 
+describe('ImageCard prompt indicator', () => {
+    it('marks only images that carry a prompt', () => {
+        const { rerender, props } = setup();
+        expect(screen.queryByRole('img', { name: 'Has prompt' })).toBeNull();
+
+        rerender(<ImageCard {...props} image={image({ metadata: { ...image().metadata, positivePrompt: '   ' } })} />);
+        expect(screen.queryByRole('img', { name: 'Has prompt' })).toBeNull();
+
+        rerender(<ImageCard {...props} image={image({ metadata: { ...image().metadata, negativePrompt: 'blurry' } })} />);
+        expect(screen.getByRole('img', { name: 'Has prompt' }).textContent).toBe('P');
+    });
+});
+
 const video = (overrides: Partial<VideoAsset> = {}): VideoAsset => ({
     ...image({ id: 'video-1', url: 'source.mp4', thumbnailUrl: 'source.mp4', filename: 'source.mp4' }),
     mediaType: 'video',

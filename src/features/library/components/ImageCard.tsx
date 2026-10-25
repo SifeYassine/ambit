@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useState } from 'react';
 import { formatImageDisplayDate } from '../../../utils/imageDates';
 import { Heart, CheckCircle, Pin, EyeOff, Unlink, Image as ImageIcon, Trash2, Play, Video } from 'lucide-react';
-import { AIImage, isVideoAsset, getEffectiveSourceKind } from '../../../types';
+import { AIImage, isVideoAsset, getEffectiveSourceKind, hasPrompt } from '../../../types';
 import { SmartImage } from '../../../features/library/components/SmartImage';
 import { formatModelName } from '../../../utils/formatUtils';
 import { TooltipButton } from '../../../components/ui/InfoTooltip';
@@ -173,6 +173,18 @@ export const ImageCard: React.FC<ImageCardProps> = ({
             className="transition-all duration-300 animate-in zoom-in"
           >
             <Heart className="w-5 h-5 fill-red-500 text-red-500 drop-shadow-md" />
+          </div>
+        )}
+
+        {/* Prompt Indicator */}
+        {hasPrompt(image) && !isMissing && (
+          <div
+            role="img"
+            aria-label="Has prompt"
+            title="Has prompt"
+            className="flex h-5 w-5 items-center justify-center rounded-[5px] border border-white/20 bg-black/60 text-[10px] font-bold leading-none text-white shadow-lg backdrop-blur-md pointer-events-auto"
+          >
+            P
           </div>
         )}
       </div>

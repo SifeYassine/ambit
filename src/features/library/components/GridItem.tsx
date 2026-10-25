@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { memo, useRef } from 'react';
-import { AIImage, isVideoAsset } from '../../../types';
+import { AIImage, hasPrompt, isVideoAsset } from '../../../types';
 import { ImageCard } from './ImageCard';
 import { Layers } from 'lucide-react';
 import { isImageMasked } from '../../../utils/maskingUtils';
@@ -136,7 +136,7 @@ export const GridItem: React.FC<GridItemProps> = memo(({
                 {/* Stack Badge - Moved to Top Right to avoid hover action overlap */}
                 {isStack && (
                     <div
-                        className={`absolute top-2 right-2 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1.5 border border-white/10 shadow-lg pointer-events-none z-30 transition-all duration-300 ${image.isPinned ? 'mt-8' : ''}`}
+                        className={`absolute top-2 right-2 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1.5 border border-white/10 shadow-lg pointer-events-none z-30 transition-all duration-300 ${image.isPinned || image.isFavorite || hasPrompt(image) ? 'mt-8' : ''}`}
                         title={`${stackSize} versions stacked`}
                     >
                         <Layers className="w-3 h-3 text-sage-400" />
