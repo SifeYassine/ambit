@@ -17,6 +17,11 @@ vi.mock('../../../library/components/SmartImage', () => ({
     )
 }));
 
+const computeImageFileHashMock = vi.hoisted(() => vi.fn());
+vi.mock('../../../../services/db/maintenanceRepo', () => ({
+    computeImageFileHash: computeImageFileHashMock,
+}));
+
 const originalResizeObserverDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'ResizeObserver');
 
 const createImage = (id: string, overrides: Partial<AIImage> = {}): AIImage => ({

@@ -15,6 +15,7 @@ import {
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { TooltipButton } from '../../../components/ui/InfoTooltip';
 import { buildTagSegments, diffPromptTags, hasTagChanges, PromptTagDiff, PromptTagEntry, PromptTagStatus } from '../utils/promptTags';
+import { formatImageFileHash, ImageFileHashState, useImageFileHash } from '../hooks/useImageFileHash';
 
 interface CompareModalProps {
     imageA: AIImage;
@@ -287,6 +288,9 @@ export const CompareModal: React.FC<CompareModalProps> = ({
         [diffMode, negativePromptA, negativePromptB],
     );
 
+    const fileHashA = useImageFileHash(imageA);
+    const fileHashB = useImageFileHash(imageB);
+
     useEffect(() => {
         if (privacyExposureBlocked) onClose();
     }, [onClose, privacyExposureBlocked]);
@@ -478,6 +482,11 @@ export const CompareModal: React.FC<CompareModalProps> = ({
         setIsDraggingSlider(true);
     };
 
+    // Key above, one rounded value box per image; differing values switch both boxes to ember.
+    const valueBoxClassName = (isDiff: boolean) => `rounded-md border px-2 py-1.5 ${isDiff
+        ? 'border-ember-500/40 bg-ember-500/10 text-ember-300 font-medium'
+        : 'border-white/10 bg-zinc-900 text-gray-300'}`;
+
     const DiffRow = ({ label, valA, valB }: { label: string, valA: string | number, valB: string | number }) => {
         const isDiff = valA !== valB;
         return (
@@ -486,6 +495,21 @@ export const CompareModal: React.FC<CompareModalProps> = ({
                 <div className="grid grid-cols-2 gap-4 px-4">
                     <div className={`truncate ${isDiff ? 'text-ember-300 font-medium' : 'text-gray-400'}`} title={String(valA)}>{valA}</div>
                     <div className={`truncate ${isDiff ? 'text-ember-300 font-medium' : 'text-gray-400'}`} title={String(valB)}>{valB}</div>
+                </div>
+            </div>
+        );
+    };
+
+    // Hashes are too long to truncate like DiffRow values, so they wrap in full.
+    const HashRow = ({ hashA, hashB }: { hashA: ImageFileHashState, hashB: ImageFileHashState }) => {
+        const isDiff = hashA.status === 'ready' && hashB.status === 'ready' && hashA.hash !== hashB.hash;
+        const valueClassName = `break-all font-mono text-xs ${valueBoxClassName(isDiff)}`;
+        return (
+            <div className="px-4 py-2 text-sm">
+                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1.5">SHA-256</div>
+                <div className="grid grid-cols-2 gap-2">
+                    <div className={valueClassName}>{formatImageFileHash(hashA)}</div>
+                    <div className={valueClassName}>{formatImageFileHash(hashB)}</div>
                 </div>
             </div>
         );
@@ -797,6 +821,7 @@ export const CompareModal: React.FC<CompareModalProps> = ({
                         <DiffRow label="Steps" valA={imageA.metadata.steps} valB={imageB.metadata.steps} />
                         <DiffRow label="CFG" valA={imageA.metadata.cfg} valB={imageB.metadata.cfg} />
                         <DiffRow label="Size" valA={`${imageA.width}x${imageA.height}`} valB={`${imageB.width}x${imageB.height}`} />
+                        <HashRow hashA={fileHashA} hashB={fileHashB} />
                     </div>
                 </div>
 

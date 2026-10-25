@@ -68,6 +68,7 @@ pub fn create_builder() -> tauri_specta::Builder<tauri::Wry> {
             db::commands::maintenance::set_collection_custom_thumbnail,
             db::commands::maintenance::backfill_image_file_hashes,
             db::commands::maintenance::cancel_image_file_hash_backfill,
+            db::commands::maintenance::compute_image_file_hash,
             db::commands::image_commands::refresh_boards_native,
             db::commands::image_commands::get_image_count_for_path_prefix,
             db::commands::image_commands::refresh_privacy_mask_index,

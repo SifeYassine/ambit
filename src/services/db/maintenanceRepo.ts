@@ -388,6 +388,11 @@ export const backfillImageFileHashes = async (): Promise<FileHashBackfillResult>
     return result;
 };
 
+export const computeImageFileHash = async (imageId: string): Promise<string | null> => {
+    if (isBrowserMockMode()) return null;
+    return unwrap(commands.computeImageFileHash(imageId));
+};
+
 export const cancelImageFileHashBackfill = async (): Promise<void> => {
     if (isBrowserMockMode()) return;
     await commands.cancelImageFileHashBackfill();

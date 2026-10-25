@@ -205,7 +205,6 @@ struct FileHashBackfillProgress {
     message: String,
 }
 
-#[cfg(test)]
 fn hash_file_sha256(path: &str) -> Result<String, String> {
     let is_cancelled = AtomicBool::new(false);
     hash_file_sha256_cancellable(path, &is_cancelled)?
@@ -2149,6 +2148,32 @@ pub async fn backfill_image_file_hashes(
         })
     })
     .await
+}
+
+/// Hashes one library file on demand for the viewer. The path is looked up by id,
+/// so the frontend cannot point this at arbitrary files, and the file is read
+/// after the database connection is released.
+#[tauri::command(rename_all = "camelCase")]
+#[specta::specta]
+pub async fn compute_image_file_hash(app: AppHandle, image_id: String) -> Result<String, String> {
+    let path: String = run_blocking(app, move |conn| {
+        conn.query_row(
+            "SELECT path FROM images WHERE id = ?1
+             UNION ALL
+             SELECT path FROM removed_images WHERE id = ?1
+             LIMIT 1",
+            params![image_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Image not found in library".to_string())
+    })
+    .await?;
+
+    tauri::async_runtime::spawn_blocking(move || hash_file_sha256(&path))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command(rename_all = "camelCase")]

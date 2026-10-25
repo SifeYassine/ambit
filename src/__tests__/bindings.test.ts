@@ -195,6 +195,7 @@ const commandCases: CommandCase[] = [
     { name: 'setCollectionCustomThumbnail', invokeName: 'set_collection_custom_thumbnail', args: ['collection', 'image'], payload: { collectionId: 'collection', imageId: 'image' }, returnsResult: true },
     { name: 'backfillImageFileHashes', invokeName: 'backfill_image_file_hashes', args: [10], payload: { limit: 10 }, returnsResult: true },
     { name: 'cancelImageFileHashBackfill', invokeName: 'cancel_image_file_hash_backfill', args: [], returnsResult: false },
+    { name: 'computeImageFileHash', invokeName: 'compute_image_file_hash', args: ['image-1'], payload: { imageId: 'image-1' }, returnsResult: true },
     { name: 'refreshBoardsNative', invokeName: 'refresh_boards_native', args: [{ board: 'collection' }], payload: { boardMapping: { board: 'collection' } }, returnsResult: true },
     { name: 'getImageCountForPathPrefix', invokeName: 'get_image_count_for_path_prefix', args: ['C:/library'], payload: { path: 'C:/library' }, returnsResult: true },
     { name: 'refreshPrivacyMaskIndex', invokeName: 'refresh_privacy_mask_index', args: [['nsfw']], payload: { maskedKeywords: ['nsfw'] }, returnsResult: true },

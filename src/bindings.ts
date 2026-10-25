@@ -176,6 +176,19 @@ async backfillImageFileHashes(limit: number | null) : Promise<Result<FileHashBac
 async cancelImageFileHashBackfill() : Promise<void> {
     await TAURI_INVOKE("cancel_image_file_hash_backfill");
 },
+/**
+ * Hashes one library file on demand for the viewer. The path is looked up by id,
+ * so the frontend cannot point this at arbitrary files, and the file is read
+ * after the database connection is released.
+ */
+async computeImageFileHash(imageId: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("compute_image_file_hash", { imageId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async refreshBoardsNative(boardMapping: Partial<{ [key in string]: string }>) : Promise<Result<number, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("refresh_boards_native", { boardMapping }) };
