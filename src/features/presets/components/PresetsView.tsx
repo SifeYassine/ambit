@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { create } from 'zustand';
-import { AlertCircle, Boxes, ImageOff, Layers, Loader2, RotateCcw, SlidersHorizontal } from 'lucide-react';
+import { AlertCircle, Boxes, ImageOff, Images, Layers, Loader2, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import type { FilterState, PresetFilter } from '../../../types';
 import type { GenerationPreset } from '../../../services/db/presetRepo';
 import { PrivacyAwareThumbnail } from '../../../components/ui/PrivacyAwareThumbnail';
@@ -46,7 +46,7 @@ const PresetSettingPills = ({ label, values, overflow = 0, emptyLabel, title }: 
     <div className="flex min-w-0 items-center gap-1.5" title={title ?? (values.join(', ') || emptyLabel)}>
         <span className={KEY_PILL_CLASS}>{label}</span>
         {values.length > 0
-            ? values.map((value, index) => <span key={`${value}-${index}`} className={`${VALUE_PILL_CLASS} max-w-[12rem]`}>{value}</span>)
+            ? values.map((value, index) => <span key={`${value}-${index}`} className={`${VALUE_PILL_CLASS} max-w-[9rem]`}>{value}</span>)
             : <span className={`${VALUE_PILL_CLASS} italic text-gray-400 dark:text-zinc-500`}>{emptyLabel}</span>}
         {overflow > 0 && <span className="shrink-0 text-xs font-medium text-gray-500 dark:text-zinc-400">+{overflow}</span>}
     </div>
@@ -58,18 +58,18 @@ const PresetSample = ({ preset }: { preset: GenerationPreset }) => {
     const image = preset.sampleImages[0];
 
     return (
-        <div className="h-full w-36 shrink-0 overflow-hidden rounded-xl bg-gray-100 dark:bg-white/5">
+        <div className="aspect-[4/5] w-full overflow-hidden rounded-xl bg-gray-100 dark:bg-white/5">
             {image ? (
                 <PrivacyAwareThumbnail
                     src={image.thumbnailUrl}
                     alt=""
                     isSensitive={isImageMasked(image, privacyEnabled, getEffectiveMaskedKeywords(settings))}
                     wrapperClassName="h-full w-full"
-                    fallback={<ImageOff className="h-6 w-6" />}
+                    fallback={<ImageOff className="h-8 w-8" />}
                 />
             ) : (
                 <div className="flex h-full w-full items-center justify-center text-gray-300 dark:text-zinc-600">
-                    <ImageOff className="h-6 w-6" aria-hidden="true" />
+                    <ImageOff className="h-8 w-8" aria-hidden="true" />
                 </div>
             )}
         </div>
@@ -84,36 +84,38 @@ const PresetCard = ({ preset, rank, onSelect }: { preset: GenerationPreset; rank
     const visibleLoras = preset.loras.slice(0, MAX_VISIBLE_LORAS);
 
     return (
-        <li>
+        <li className="h-full">
             <button
                 type="button"
                 onClick={onSelect}
                 aria-label={`Show ${preset.count} images using preset ${rank}: ${getPresetLabel(preset)}`}
-                className="flex h-44 w-full gap-4 rounded-2xl border border-gray-200 bg-white p-3 text-left transition-colors hover:border-sage-300 hover:bg-sage-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500 dark:border-white/10 dark:bg-zinc-900 dark:hover:border-sage-500/40 dark:hover:bg-sage-500/5"
+                className="group flex h-full w-full flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-sage-300 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500 dark:border-white/10 dark:bg-zinc-900 dark:hover:border-sage-500/40"
             >
                 <PresetSample preset={preset} />
-                <div className="flex min-w-0 flex-1 flex-col py-1">
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-zinc-500">Preset {rank}</span>
-                        <span className="shrink-0 rounded-full bg-sage-500 px-2 py-0.5 text-xs font-bold text-white" title={`${preset.count} images`}>
-                            {preset.count.toLocaleString()} {preset.count === 1 ? 'image' : 'images'}
-                        </span>
-                    </div>
-                    <div className="space-y-2">
-                        <PresetSettingPills label="Model" values={[formatModelName(preset.model)]} />
-                        <PresetSettingPills
-                            label="LoRAs"
-                            values={visibleLoras}
-                            overflow={preset.loras.length - visibleLoras.length}
-                            emptyLabel="None"
-                            title={preset.loras.join(', ') || 'None'}
-                        />
-                        <PresetSettingPills label="Sampler" values={[preset.sampler]} />
-                    </div>
-                    {typical.length > 0 && (
-                        <p className="mt-auto text-[11px] text-gray-500 dark:text-zinc-400">Usually {typical.join(' · ')}</p>
-                    )}
+                <div className="flex items-center justify-between gap-2 px-1">
+                    <h2 className="truncate text-base font-bold text-gray-900 dark:text-white">Preset {rank}</h2>
+                    <span className="shrink-0 rounded-full bg-sage-500 px-2.5 py-1 text-xs font-bold text-white" title={`${preset.count} images`}>
+                        {preset.count.toLocaleString()} {preset.count === 1 ? 'image' : 'images'}
+                    </span>
                 </div>
+                <div className="space-y-2 px-1">
+                    <PresetSettingPills label="Model" values={[formatModelName(preset.model)]} />
+                    <PresetSettingPills
+                        label="LoRAs"
+                        values={visibleLoras}
+                        overflow={preset.loras.length - visibleLoras.length}
+                        emptyLabel="None"
+                        title={preset.loras.join(', ') || 'None'}
+                    />
+                    <PresetSettingPills label="Sampler" values={[preset.sampler]} />
+                </div>
+                <p className="px-1 text-[11px] text-gray-500 dark:text-zinc-400">
+                    {typical.length > 0 ? `Usually ${typical.join(' · ')}` : 'No recorded steps or CFG'}
+                </p>
+                <span className="mt-auto flex items-center justify-center gap-2 rounded-xl bg-sage-500 py-2 text-sm font-bold text-white transition-colors group-hover:bg-sage-600">
+                    <Images className="h-4 w-4" aria-hidden="true" />
+                    Show images
+                </span>
             </button>
         </li>
     );
@@ -170,7 +172,7 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
                     <p>Presets appear once images with a recorded model or LoRA are in the library.</p>
                 </div>
             ) : (
-                <ol aria-label="Presets" className="grid grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-3">
+                <ol aria-label="Presets" className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-4">
                     {presets.map((preset, index) => (
                         <PresetCard
                             key={preset.key}
