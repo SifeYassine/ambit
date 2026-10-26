@@ -1935,5 +1935,9 @@ describe('searchRepo scoped stats queries', () => {
 
         await expect(getSettingBreakdown('lora')).resolves.toEqual([{ label: 'frostbite', value: 'frostbite', count: 3 }]);
         expect(db.select.mock.calls[1][0]).toContain('LIMIT 10');
+
+        db.select.mockResolvedValueOnce([{ value: '832x1216', count: 26 }]);
+        await expect(getSettingBreakdown('size')).resolves.toEqual([{ label: '832 × 1216', value: '832x1216', count: 26 }]);
+        expect(db.select.mock.calls[2][0]).toContain('GROUP BY width, height');
     });
 });

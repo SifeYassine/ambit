@@ -35,6 +35,7 @@ const DIMENSIONS: { value: SettingBreakdownDimension; label: string; title: stri
     { value: 'sampler', label: 'Samplers', title: 'Top 10 Samplers' },
     { value: 'steps', label: 'Steps', title: 'Top 10 Step Counts' },
     { value: 'cfg', label: 'CFG', title: 'Top 10 CFG Values' },
+    { value: 'size', label: 'Sizes', title: 'Top 10 Image Sizes' },
 ];
 
 type PromptKind = 'positive' | 'negative';

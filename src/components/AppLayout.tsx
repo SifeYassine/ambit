@@ -432,8 +432,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                                         else if (t === 'sampler') setFilters(p => ({ ...p, samplers: addTo(p.samplers) }));
                                         else if (t === 'steps' && typeof v === 'number') setFilters(p => ({ ...p, minSteps: v, maxSteps: v }));
                                         else if (t === 'cfg' && typeof v === 'number') setFilters(p => ({ ...p, minCfg: v, maxCfg: v }));
-                                        // Prompt tags arrive as ready-made search terms and append to the search.
-                                        else if (t === 'keyword') setFilters(p => ({ ...p, searchQuery: p.searchQuery.trim() ? `${p.searchQuery.trim()} ${v}` : String(v) }));
+                                        else {
+                                            // Prompt tags arrive as ready-made search terms; a WIDTHxHEIGHT size becomes `w:` and `h:` terms.
+                                            const [width, height] = String(v).split('x');
+                                            const term = t === 'size' ? `w:${width} h:${height}` : t === 'keyword' ? String(v) : '';
+                                            if (term) setFilters(p => ({ ...p, searchQuery: p.searchQuery.trim() ? `${p.searchQuery.trim()} ${term}` : term }));
+                                        }
                                         changeViewMode('grid');
                                     }} />
                                 </React.Suspense>

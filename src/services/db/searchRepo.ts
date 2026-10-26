@@ -1137,11 +1137,11 @@ export const getPromptTagStats = async (
     }
 };
 
-export type SettingBreakdownDimension = 'model' | 'lora' | 'sampler' | 'steps' | 'cfg';
+export type SettingBreakdownDimension = 'model' | 'lora' | 'sampler' | 'steps' | 'cfg' | 'size';
 
 export interface SettingBreakdownItem {
     label: string;
-    /** The filter value: a model/LoRA/sampler name, or the numeric steps/CFG value. */
+    /** The filter value: a model/LoRA/sampler name, the numeric steps/CFG value, or `WIDTHxHEIGHT`. */
     value: string | number;
     count: number;
 }
@@ -1179,12 +1179,18 @@ const settingBreakdownSql = (dimension: SettingBreakdownDimension, cteSql: strin
                 SELECT cfg AS value, count(*) AS count
                 FROM filtered_images WHERE cfg > 0
                 GROUP BY cfg ORDER BY count DESC, value ASC LIMIT ${limit}`;
+        case 'size':
+            return `${cteSql}
+                SELECT width || 'x' || height AS value, count(*) AS count
+                FROM filtered_images WHERE width > 0 AND height > 0
+                GROUP BY width, height ORDER BY count DESC, value ASC LIMIT ${limit}`;
     }
 };
 
 const formatBreakdownLabel = (dimension: SettingBreakdownDimension, value: string | number): string => {
     if (dimension === 'cfg' && typeof value === 'number') return String(Math.round(value * 100) / 100);
     if (dimension === 'steps') return `${value} steps`;
+    if (dimension === 'size') return String(value).replace('x', ' × ');
     return String(value);
 };
 
@@ -1203,7 +1209,9 @@ export const getSettingBreakdown = async (
         'images.model_name AS model_name',
         'images.sampler AS sampler',
         'images.steps AS steps',
-        'images.cfg AS cfg'
+        'images.cfg AS cfg',
+        'images.width AS width',
+        'images.height AS height'
     ], {});
     const query = settingBreakdownSql(dimension, scopedParts.cteSql, SETTING_BREAKDOWN_LIMIT);
     try {

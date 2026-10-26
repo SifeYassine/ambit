@@ -47,6 +47,7 @@ const BREAKDOWNS: Record<SettingBreakdownDimension, SettingBreakdownItem[]> = {
     sampler: [{ label: 'dpmpp 2m (karras)', value: 'dpmpp 2m (karras)', count: 367 }],
     steps: [{ label: '28 steps', value: 28, count: 300 }],
     cfg: [],
+    size: [{ label: '832 × 1216', value: '832x1216', count: 26 }],
 };
 
 describe('StatsDashboard', () => {
@@ -90,6 +91,11 @@ describe('StatsDashboard', () => {
 
         fireEvent.change(screen.getByLabelText('Chart setting'), { target: { value: 'cfg' } });
         expect(await screen.findByText('No cfg recorded')).toBeTruthy();
+
+        fireEvent.change(screen.getByLabelText('Chart setting'), { target: { value: 'size' } });
+        fireEvent.click(await screen.findByRole('button', { name: 'Filter by 832 × 1216 (26 images)' }));
+        expect(screen.getByText(/Top 10 Image Sizes/)).toBeTruthy();
+        expect(onFilter).toHaveBeenLastCalledWith('size', '832x1216');
     });
 
     it('switches between positive and negative prompt tags and filters the gallery by a clicked tag', () => {
