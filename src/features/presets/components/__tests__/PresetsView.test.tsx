@@ -47,6 +47,16 @@ describe('PresetsView', () => {
         expect(screen.getAllByText(/^Usually/)).toHaveLength(1);
     });
 
+    it('shows the first three LoRAs side by side with a count of the rest', () => {
+        presetsState.value.presets = [preset({ loras: ['one', 'two', 'three', 'four', 'five'] })];
+        render(<PresetsView filters={createDefaultFilters()} onSelectPreset={vi.fn()} />);
+
+        expect(['one', 'two', 'three'].every(name => screen.getByText(name))).toBe(true);
+        expect(screen.queryByText('four')).toBeNull();
+        expect(screen.getByText('+2')).toBeTruthy();
+        expect(screen.getByTitle('one, two, three, four, five')).toBeTruthy();
+    });
+
     it('opens the selected preset with its key, grouping, and label', () => {
         presetsState.value.presets = [preset()];
         const onSelectPreset = vi.fn();
