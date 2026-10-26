@@ -79,6 +79,15 @@ pub struct ImageMetadata {
     pub embeddings: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub hypernetworks: Vec<String>,
+    /// Supporting models: VAEs, upscale models, CLIP Vision encoders, and detection models.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vaes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub upscalers: Vec<String>,
+    #[serde(rename = "clipVisions", default, skip_serializing_if = "Vec::is_empty")]
+    pub clip_visions: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub detectors: Vec<String>,
     #[serde(rename = "variationId", skip_serializing_if = "Option::is_none")]
     pub variation_id: Option<String>,
     #[serde(rename = "isIntermediate", default)]
@@ -179,6 +188,61 @@ impl ImageMetadata {
                 self.hypernetworks.push(x);
             }
         }
+        self.merge_auxiliary_resources(other.vaes, other.upscalers, other.clip_visions, other.detectors);
+    }
+
+    /// The supporting-model lists, in `crate::db::SUPPORTING_MODEL_JUNCTIONS` order.
+    pub(crate) fn supporting_model_lists(&self) -> [&[String]; 4] {
+        [&self.vaes, &self.upscalers, &self.clip_visions, &self.detectors]
+    }
+
+    pub(crate) fn merge_auxiliary_resources(
+        &mut self,
+        vaes: Vec<String>,
+        upscalers: Vec<String>,
+        clip_visions: Vec<String>,
+        detectors: Vec<String>,
+    ) {
+        for (target, values) in [
+            (&mut self.vaes, vaes),
+            (&mut self.upscalers, upscalers),
+            (&mut self.clip_visions, clip_visions),
+            (&mut self.detectors, detectors),
+        ] {
+            for value in values {
+                if !target.contains(&value) {
+                    target.push(value);
+                }
+            }
+        }
+    }
+
+    /// Text-format generators (A1111, Forge, ...) record the VAE and hires upscaler as single
+    /// fields; list them as supporting models too. Placeholders and latent upscale modes are skipped.
+    pub fn finalize_auxiliary_resources(&mut self) {
+        let named = |value: &Option<String>| {
+            value
+                .as_deref()
+                .map(str::trim)
+                .filter(|name| {
+                    !name.is_empty()
+                        && !["none", "automatic", "auto", "unknown", "baked vae"]
+                            .contains(&name.to_ascii_lowercase().as_str())
+                })
+                .map(crate::metadata::guidance::GuidanceClassifier::clean_name)
+        };
+        if let Some(vae) = named(&self.vae) {
+            if !self.vaes.contains(&vae) {
+                self.vaes.push(vae);
+            }
+        }
+        if let Some(upscaler) = named(&self.hires_upscaler)
+            .filter(|name| !name.contains("latent") && !name.starts_with("nearest") && !name.starts_with("lanczos"))
+        {
+            if !self.upscalers.contains(&upscaler) {
+                self.upscalers.push(upscaler);
+            }
+        }
     }
 
     pub fn merge(&mut self, other: ImageMetadata) {
@@ -207,6 +271,10 @@ impl Default for ImageMetadata {
             ip_adapters: Vec::new(),
             embeddings: Vec::new(),
             hypernetworks: Vec::new(),
+            vaes: Vec::new(),
+            upscalers: Vec::new(),
+            clip_visions: Vec::new(),
+            detectors: Vec::new(),
             variation_id: None,
             is_intermediate: false,
             is_grid: false,
@@ -344,6 +412,12 @@ pub fn merge_metadata(base: &mut ImageMetadata, secondary: ImageMetadata) {
             base.hypernetworks.push(hn);
         }
     }
+    base.merge_auxiliary_resources(
+        secondary.vaes,
+        secondary.upscalers,
+        secondary.clip_visions,
+        secondary.detectors,
+    );
 }
 
 pub fn detect_generation_type(path: &std::path::Path) -> String {

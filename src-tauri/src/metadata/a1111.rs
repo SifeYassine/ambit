@@ -642,3 +642,27 @@ Steps: 20, TI hashes: "(oil on canvas by Rembrandt van Rijn)+++: invalid, EasyNe
         assert!(meta.hypernetworks.contains(&"detailer".to_string()));
     }
 }
+
+#[cfg(test)]
+mod supporting_model_tests {
+    use super::extract_a1111_metadata;
+
+    #[test]
+    fn a1111_vae_and_hires_upscaler_become_supporting_models() {
+        let mut meta = extract_a1111_metadata(
+            "a castle\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 1, Model: base, VAE: sdxl_vae.safetensors, Hires upscaler: 4x-UltraSharp",
+            None,
+        );
+        meta.finalize_auxiliary_resources();
+        assert_eq!(meta.vaes, vec!["sdxl_vae".to_string()]);
+        assert_eq!(meta.upscalers, vec!["4x_ultrasharp".to_string()]);
+
+        let mut latent = extract_a1111_metadata(
+            "a castle\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 1, VAE: Automatic, Hires upscaler: Latent (nearest-exact)",
+            None,
+        );
+        latent.finalize_auxiliary_resources();
+        assert!(latent.vaes.is_empty());
+        assert!(latent.upscalers.is_empty());
+    }
+}

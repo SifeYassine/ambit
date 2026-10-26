@@ -256,3 +256,86 @@ fn a_bypassed_ip_adapter_is_not_recorded() {
 
     assert!(meta.ip_adapters.is_empty(), "{:?}", meta.ip_adapters);
 }
+
+/// Supporting models count only when their loader is active and an active node consumes it.
+#[test]
+fn workflow_supporting_models_come_from_active_consumed_loaders() {
+    let node = |id: i64, node_type: &str, mode: i64, inputs: serde_json::Value, links: Vec<i64>, widgets: serde_json::Value| json!({
+        "id": id, "type": node_type, "mode": mode, "inputs": inputs,
+        "outputs": [{ "name": "OUT", "type": "*", "links": links }],
+        "widgets_values": widgets
+    });
+    let workflow = json!({
+        "nodes": [
+            node(1, "CheckpointLoaderSimple", 0, json!([]), vec![1], json!(["WAI-illustrious-SDXL-v10.0"])),
+            node(2, "VAELoader", 0, json!([]), vec![2], json!(["sdxl_vae.safetensors"])),
+            node(3, "VAELoader", 0, json!([]), vec![], json!(["unused_vae.safetensors"])),
+            node(4, "UpscaleModelLoader", 0, json!([]), vec![4], json!(["4x-UltraSharp.pth"])),
+            node(5, "UpscaleModelLoader", 4, json!([]), vec![5], json!(["4x-AnimeSharp.pth"])),
+            node(6, "UltralyticsDetectorProvider", 0, json!([]), vec![6], json!(["bbox/face_yolov8m.pt"])),
+            node(7, "SAMLoader", 0, json!([]), vec![7], json!(["sam_vit_b_01ec64.pth", "AUTO"])),
+            node(8, "CLIPVisionLoader", 0, json!([]), vec![8], json!(["CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors"])),
+            node(20, "KSampler", 0, json!([
+                { "name": "model", "type": "MODEL", "link": 1 },
+                { "name": "positive", "type": "CONDITIONING", "link": 40 },
+                { "name": "negative", "type": "CONDITIONING", "link": 41 }
+            ]), vec![20], json!([7, "fixed", 28, 6.5, "euler", "normal", 1])),
+            node(21, "VAEDecode", 0, json!([
+                { "name": "samples", "type": "LATENT", "link": 20 },
+                { "name": "vae", "type": "VAE", "link": 2 }
+            ]), vec![21], json!([])),
+            node(22, "ImageUpscaleWithModel", 0, json!([
+                { "name": "upscale_model", "type": "UPSCALE_MODEL", "link": 4 },
+                { "name": "image", "type": "IMAGE", "link": 21 }
+            ]), vec![22], json!([])),
+            node(23, "ImageUpscaleWithModel", 0, json!([
+                { "name": "upscale_model", "type": "UPSCALE_MODEL", "link": 5 }
+            ]), vec![], json!([])),
+            node(24, "FaceDetailer", 0, json!([
+                { "name": "image", "type": "IMAGE", "link": 22 },
+                { "name": "bbox_detector", "type": "BBOX_DETECTOR", "link": 6 },
+                { "name": "sam_model_opt", "type": "SAM_MODEL", "link": 7 }
+            ]), vec![], json!([])),
+            node(25, "IPAdapterAdvanced", 4, json!([
+                { "name": "clip_vision", "type": "CLIP_VISION", "link": 8 }
+            ]), vec![], json!([])),
+            node(40, "CLIPTextEncode", 0, json!([]), vec![40], json!(["a castle at dusk"])),
+            node(41, "CLIPTextEncode", 0, json!([]), vec![41], json!(["lowres"]))
+        ],
+        "links": [
+            [1, 1, 0, 20, 0, "MODEL"], [40, 40, 0, 20, 1, "CONDITIONING"], [41, 41, 0, 20, 2, "CONDITIONING"],
+            [2, 2, 0, 21, 1, "VAE"], [20, 20, 0, 21, 0, "LATENT"],
+            [4, 4, 0, 22, 0, "UPSCALE_MODEL"], [21, 21, 0, 22, 1, "IMAGE"],
+            [5, 5, 0, 23, 0, "UPSCALE_MODEL"],
+            [22, 22, 0, 24, 0, "IMAGE"], [6, 6, 0, 24, 1, "BBOX_DETECTOR"], [7, 7, 0, 24, 2, "SAM_MODEL"],
+            [8, 8, 0, 25, 0, "CLIP_VISION"]
+        ]
+    });
+    let meta = extract_comfyui_metadata(&HashMap::from([("workflow".to_string(), workflow.to_string())]));
+
+    assert_eq!(meta.vaes, vec![clean("sdxl_vae.safetensors")], "unused VAE loader is ignored");
+    assert_eq!(meta.upscalers, vec![clean("4x-UltraSharp.pth")], "bypassed upscaler is ignored");
+    assert_eq!(meta.detectors, vec![clean("bbox/face_yolov8m.pt"), clean("sam_vit_b_01ec64.pth")]);
+    assert!(meta.clip_visions.is_empty(), "a CLIP Vision feeding only a bypassed IP-Adapter is ignored");
+}
+
+#[test]
+fn api_prompt_supporting_models_are_read_from_inputs() {
+    let prompt = json!({
+        "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "base.safetensors" } },
+        "2": { "class_type": "VAELoader", "inputs": { "vae_name": "ae.sft" } },
+        "3": { "class_type": "CLIPVisionLoader", "inputs": { "clip_name": "clip_vision_h.safetensors" } },
+        "4": { "class_type": "KSampler", "inputs": {
+            "model": ["1", 0], "seed": 1, "steps": 20, "cfg": 7, "sampler_name": "euler",
+            "scheduler": "normal", "denoise": 1, "positive": ["6", 0], "negative": ["6", 0], "latent_image": ["7", 0]
+        } },
+        "5": { "class_type": "VAEDecode", "inputs": { "samples": ["4", 0], "vae": ["2", 0] } },
+        "6": { "class_type": "CLIPTextEncode", "inputs": { "text": "a castle", "clip": ["1", 1] } },
+        "7": { "class_type": "EmptyLatentImage", "inputs": { "width": 512, "height": 512, "batch_size": 1 } },
+        "8": { "class_type": "CLIPVisionEncode", "inputs": { "clip_vision": ["3", 0] } }
+    });
+    let meta = extract_comfyui_metadata(&HashMap::from([("prompt".to_string(), prompt.to_string())]));
+
+    assert_eq!(meta.vaes, vec![clean("ae.sft")]);
+    assert_eq!(meta.clip_visions, vec![clean("clip_vision_h.safetensors")]);
+}

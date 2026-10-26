@@ -902,7 +902,7 @@ export type ExactDuplicateKeeperState = { id: string; isFavorite: boolean; isPin
 export type ExactDuplicateResolution = { keepId: string; removeIds: string[] }
 export type ExactDuplicateResolutionResult = { resolvedGroups: number; removedIds: string[]; keepers: ExactDuplicateKeeperState[] }
 export type ExportOriginalResult = { assetId: string; outputPath: string; bytesCopied: number }
-export type FacetResourceTouches = { checkpoints: string[]; loras: string[]; embeddings: string[]; hypernetworks: string[]; controlNets: string[]; ipAdapters: string[]; tools: string[] }
+export type FacetResourceTouches = { checkpoints: string[]; loras: string[]; embeddings: string[]; hypernetworks: string[]; controlNets: string[]; ipAdapters: string[]; vaes?: string[]; upscalers?: string[]; clipVisions?: string[]; detectors?: string[]; tools: string[] }
 export type FacetScopeCacheState = "missing" | "dirty" | "building" | "ready"
 export type FacetScopeCacheStatus = { state: FacetScopeCacheState; generation: number; builtGeneration: number | null; facetCount: number; collectionCount: number }
 export type FileEntry = { path: string; modified: number; size: number; mediaType: MediaCandidateKind }
@@ -916,7 +916,11 @@ export type ImageMetadata = { tool: string; model: string; rawParameters?: strin
 /**
  * Model strength per entry of `loras`, for parsers whose LoRA names carry no weight.
  */
-loraWeights: Partial<{ [key in string]: number }>; controlNets: string[]; ipAdapters: string[]; embeddings: string[]; hypernetworks: string[]; variationId?: string | null; isIntermediate?: boolean; isGrid?: boolean; workflowJson?: string | null; vae?: string | null; clipSkip?: number | null; denoisingStrength?: number | null; hiresUpscale?: number | null; hiresSteps?: number | null; hiresUpscaler?: string | null; modelHash?: string | null; generationType: string; isFavorite?: boolean; hasWorkflowHint?: boolean }
+loraWeights: Partial<{ [key in string]: number }>; controlNets: string[]; ipAdapters: string[]; embeddings: string[]; hypernetworks: string[]; 
+/**
+ * Supporting models: VAEs, upscale models, CLIP Vision encoders, and detection models.
+ */
+vaes: string[]; upscalers: string[]; clipVisions: string[]; detectors: string[]; variationId?: string | null; isIntermediate?: boolean; isGrid?: boolean; workflowJson?: string | null; vae?: string | null; clipSkip?: number | null; denoisingStrength?: number | null; hiresUpscale?: number | null; hiresSteps?: number | null; hiresUpscaler?: string | null; modelHash?: string | null; generationType: string; isFavorite?: boolean; hasWorkflowHint?: boolean }
 export type ImagePathIdentityMove = { oldId: string; newId: string; thumbnailPath: string | null; thumbnailSource: string | null }
 export type ImagePathIdentityMoveResult = { moved: number; skippedTargetExists: number; skippedSourceMissing: number }
 export type ImageRecord = { id: string; path: string; width: number; height: number; fileSize: number; fileHash: string | null; timestamp: number; metadataJson: string; thumbnailPath: string; 
@@ -1023,7 +1027,7 @@ export type UpdateAmbitCollectionScopeResult = { collectionId: string; invokeSou
 /**
  * Valid facet names result - used for drill-down filtering
  */
-export type ValidFacetNames = { checkpoints: string[]; loras: string[]; embeddings: string[]; hypernetworks: string[]; tools: string[]; controlNets: string[]; ipAdapters: string[] }
+export type ValidFacetNames = { checkpoints: string[]; loras: string[]; embeddings: string[]; hypernetworks: string[]; tools: string[]; controlNets: string[]; ipAdapters: string[]; vaes: string[]; upscalers: string[]; clipVisions: string[]; detectors: string[] }
 export type VideoAssetRecord = { id: string; path: string; width: number; height: number; fileSize: number; timestamp: number; mediaContainer: string | null; mediaMimeType: string | null; durationMs: number; videoCodec: string; videoProfile: string | null; audioPresent: boolean; audioCodec: string | null; frameRateNum: number | null; frameRateDen: number | null; rotationDegrees: number; metadata: VideoGenerationMetadata; originalMetadataJson: string }
 export type VideoGenerationMetadata = { tool: string; model: string; seed: number | null; steps: number; cfg: number; sampler: string; positivePrompt: string; negativePrompt: string; loras: string[]; controlNets: string[]; ipAdapters: string[]; generationType: string; generationMode: VideoGenerationMode; workflowJson: string | null; fieldSources: Partial<{ [key in string]: MetadataEvidenceSource }>; conflicts: VideoMetadataConflict[]; diagnostics: VideoMetadataDiagnostic[]; parserVersion: number }
 export type VideoGenerationMode = "text_to_video" | "image_to_video" | "first_last_frame_to_video" | "video_editing" | "audio_lip_sync" | "guided_video" | "unknown"

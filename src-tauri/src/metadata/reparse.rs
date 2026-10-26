@@ -29,6 +29,9 @@ pub fn reparse_from_json(original_json: &str, tool: &str) -> Option<ReparseResul
         reparse_a1111(original_json, Some(tool.to_string()))?
     };
 
+    let mut metadata = metadata;
+    metadata.finalize_auxiliary_resources();
+
     // Serialize the new metadata to JSON
     let metadata_json = serde_json::to_string(&metadata).ok()?;
 

@@ -225,6 +225,8 @@ pub fn scan_image_internal(
         has_generated_evidence = true;
     }
 
+    parsed_metadata.finalize_auxiliary_resources();
+
     if parsed_metadata.generation_type == "unknown" {
         parsed_metadata.generation_type = metadata::detect_generation_type(&path_buf);
     }
@@ -386,6 +388,7 @@ pub fn read_image_metadata(
         parsed_metadata.tool = "ComfyUI".to_string();
     }
 
+    parsed_metadata.finalize_auxiliary_resources();
     Ok(parsed_metadata)
 }
 

@@ -705,6 +705,8 @@ fn core_loader_widget_index(node_type: &str, key: &str) -> Option<usize> {
         | ("LoraLoader" | "LoraLoaderModelOnly", "lora_name") => Some(0),
         ("LoraLoader" | "LoraLoaderModelOnly", "strength_model") => Some(1),
         ("IPAdapterModelLoader", "ipadapter_file") => Some(0),
+        ("VAELoader", "vae_name") | ("CLIPVisionLoader", "clip_name") => Some(0),
+        ("UpscaleModelLoader" | "UltralyticsDetectorProvider" | "ONNXDetectorProvider" | "SAMLoader", "model_name") => Some(0),
         ("LoraLoader", "strength_clip") => Some(2),
         _ => None,
     }

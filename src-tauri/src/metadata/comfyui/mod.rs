@@ -3,6 +3,7 @@ use super::{
 };
 use std::collections::{BTreeMap, HashMap};
 
+mod auxiliary_resources;
 mod conditioning;
 mod diagnostics;
 mod eval_core;
@@ -23,6 +24,7 @@ use self::diagnostics::{
     metadata_resource_values, resource_fields, ComfyMetadataField, ComfyMetadataSnapshot,
     ComfyParseDiagnostics, ComfyParseLayer,
 };
+use self::auxiliary_resources::collect_auxiliary_resources;
 use self::evaluator::{is_sampler_node, ComfyEvaluator};
 use self::graph::ComfyGraph;
 use self::strategies::{global_scan, scan_explicit_nodes};
@@ -976,6 +978,8 @@ fn extract_comfyui_graph_with_diagnostics(
     }
 
     meta.lora_weights = lora_weights_from_sources(&graph, &meta.loras, &diagnostics);
+    let auxiliary = collect_auxiliary_resources(&graph);
+    meta.merge_auxiliary_resources(auxiliary.vaes, auxiliary.upscalers, auxiliary.clip_visions, auxiliary.detectors);
     (meta, diagnostics)
 }
 
