@@ -177,8 +177,8 @@ export const useGlobalShortcuts = ({
             // 7. Selection Shortcuts
             if (hasPrimaryModifier && key === 'a') {
                 e.preventDefault();
-                // Prevent bleed into Maintenance Mode or Dashboard which have their own context
-                if (viewMode === 'maintenance' || viewMode === 'dashboard') return;
+                // Prevent bleed into Maintenance Mode, Dashboard, or Presets which have their own context
+                if (viewMode === 'maintenance' || viewMode === 'dashboard' || viewMode === 'presets') return;
 
                 const allIds = filteredImages.map(img => img.id);
                 setSelectedIds(new Set(allIds));

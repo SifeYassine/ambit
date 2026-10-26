@@ -523,6 +523,13 @@ export const buildSqlWhereClause = (
         conditions.push(`(${samplerConditions.join(' OR ')})`);
     }
 
+    // 9b. Generation preset (cache rebuilt by the Presets page)
+    if (filters.preset && !excludeCategories.includes('preset')) {
+        const keyColumn = filters.preset.matchWeights ? 'strict_key' : 'loose_key';
+        conditions.push(`id IN (SELECT image_id FROM image_presets WHERE ${keyColumn} = ?)`);
+        params.push(filters.preset.key);
+    }
+
     // 10. Generation Types
     if (filters.generationTypes && filters.generationTypes.length > 0 && !excludeCategories.includes('generationTypes')) {
         const genTypeConditions = filters.generationTypes.map(() => {

@@ -788,3 +788,29 @@ describe('sqlHelpers', () => {
         });
     });
 });
+
+describe('sqlHelpers preset filter', () => {
+    const baseFilters: FilterState = {
+        searchQuery: '', models: [], tools: [], loras: [], embeddings: [], hypernetworks: [],
+        controlNets: [], ipAdapters: [], samplers: [], generationTypes: [], dateRange: 'all',
+        favoritesOnly: false, collectionId: null,
+    };
+
+    it('matches the strict key when LoRA weights count, and the loose key when they are merged', () => {
+        const strict = buildSqlWhereClause({ ...baseFilters, preset: { key: 'abc', matchWeights: true, label: 'WAI' } }, false, 'blur', []);
+        expect(strict.where).toContain('id IN (SELECT image_id FROM image_presets WHERE strict_key = ?)');
+        expect(strict.params).toContain('abc');
+
+        const loose = buildSqlWhereClause({ ...baseFilters, preset: { key: 'def', matchWeights: false, label: 'WAI' } }, false, 'blur', []);
+        expect(loose.where).toContain('id IN (SELECT image_id FROM image_presets WHERE loose_key = ?)');
+        expect(loose.params).toContain('def');
+    });
+
+    it('adds no preset condition without a preset or when the preset is excluded', () => {
+        expect(buildSqlWhereClause(baseFilters, false, 'blur', []).where).not.toContain('image_presets');
+        const excluded = buildSqlWhereClause(
+            { ...baseFilters, preset: { key: 'abc', matchWeights: true, label: 'WAI' } }, false, 'blur', [], undefined, false, ['preset']
+        );
+        expect(excluded.where).not.toContain('image_presets');
+    });
+});

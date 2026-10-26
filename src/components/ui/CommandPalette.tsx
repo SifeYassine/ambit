@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Monitor, Moon, Sun, LayoutGrid, Clock, BarChart3, Eraser, Settings, Import, FolderPlus, Sparkles } from 'lucide-react';
+import { Search, Monitor, Moon, Sun, LayoutGrid, Clock, BarChart3, Boxes, Eraser, Settings, Import, FolderPlus, Sparkles } from 'lucide-react';
 import { AppSettings, ViewMode } from '../../types';
 
 interface CommandPaletteProps {
@@ -42,6 +42,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { id: 'nav-grid', label: 'Go to Grid View', icon: <LayoutGrid className="w-4 h-4" />, group: 'Navigation', action: () => onNavigate('grid') },
     { id: 'nav-timeline', label: 'Go to Timeline', icon: <Clock className="w-4 h-4" />, group: 'Navigation', action: () => onNavigate('timeline') },
     { id: 'nav-stats', label: 'Go to Dashboard', icon: <BarChart3 className="w-4 h-4" />, group: 'Navigation', action: () => onNavigate('dashboard') },
+    { id: 'nav-presets', label: 'Go to Presets', icon: <Boxes className="w-4 h-4" />, group: 'Navigation', action: () => onNavigate('presets') },
     { id: 'nav-maint', label: 'Go to Maintenance', icon: <Eraser className="w-4 h-4" />, group: 'Navigation', action: () => onNavigate('maintenance') },
     
     { id: 'act-import', label: 'Import Images', icon: <Import className="w-4 h-4" />, group: 'Actions', action: onImport },

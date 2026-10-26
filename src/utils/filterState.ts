@@ -1,4 +1,4 @@
-import { FilterState, type ImageKindFilter, type MediaTypeFilter } from '../types';
+import { FilterState, type ImageKindFilter, type MediaTypeFilter, type PresetFilter } from '../types';
 
 type PreservedViewFilters = Pick<FilterState, 'showGrids' | 'showIntermediates' | 'showInvokeImageAssets' | 'sortOption'>;
 
@@ -25,11 +25,15 @@ export const getEffectiveImageKind = (
     : 'all';
 
 /** Save effective constraints, not dormant browsing preferences. */
-export const normalizeCollectionScope = (filters: FilterState): FilterState => ({
-    ...filters,
-    mediaType: normalizeMediaTypeFilter(filters.mediaType, filters.sourceKind),
-    sourceKind: getEffectiveImageKind(filters),
-});
+export const normalizeCollectionScope = (filters: FilterState): FilterState => {
+    // Presets come from a cache rebuilt on the Presets page, so they are a browsing filter only.
+    const { preset: _preset, ...rest } = filters;
+    return {
+        ...rest,
+        mediaType: normalizeMediaTypeFilter(filters.mediaType, filters.sourceKind),
+        sourceKind: getEffectiveImageKind(filters),
+    };
+};
 
 export const createDefaultFilters = (
     overrides: Partial<FilterState> = {}
@@ -95,7 +99,8 @@ export const hasNonCollectionResultFilters = (filters: FilterState): boolean => 
     hasRangeFilter(filters.minSteps) ||
     hasRangeFilter(filters.maxSteps) ||
     hasRangeFilter(filters.minCfg) ||
-    hasRangeFilter(filters.maxCfg)
+    hasRangeFilter(filters.maxCfg) ||
+    !!filters.preset
 );
 
 export const hasActiveResultFilters = (filters: FilterState): boolean => (
@@ -122,6 +127,19 @@ const preserveViewFilters = (filters: FilterState): PreservedViewFilters => ({
     showInvokeImageAssets: filters.showInvokeImageAssets,
     sortOption: filters.sortOption,
 });
+
+/** The library a preset is counted over: no result filters, current view toggles. */
+export const createPresetScopeFilters = (previousFilters: FilterState): FilterState => createDefaultFilters({
+    ...preserveViewFilters(previousFilters),
+    mediaType: 'all',
+    sourceKind: 'all',
+});
+
+/** Shows exactly one preset over the same scope its count was taken from. */
+export const createPresetSelectionFilters = (
+    previousFilters: FilterState,
+    preset: PresetFilter
+): FilterState => ({ ...createPresetScopeFilters(previousFilters), preset });
 
 export const createCollectionSelectionFilters = (
     previousFilters: FilterState,

@@ -10,7 +10,8 @@ import { TimelineView } from '../features/library/components/TimelineView';
 import { VirtualGrid, type VirtualGridHandle } from '../features/library/components/VirtualGrid';
 import { GridItem } from '../features/library/components/GridItem';
 import { ActivityDock } from './ui/ActivityDock';
-import { AIImage, Collection, ContextMenuState, FilterState, LayoutMode, SmartCollection, SortOption, ToastMessage, ViewMode, type SourceKind } from '../types';
+import { AIImage, Collection, ContextMenuState, FilterState, LayoutMode, SmartCollection, SortOption, ToastMessage, ViewMode } from '../types';
+import { createPresetSelectionFilters } from '../utils/filterState';
 import { Search } from 'lucide-react';
 import { useSearch } from '../contexts/SearchContext';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -30,6 +31,7 @@ import { getEffectiveMaskedKeywords } from '../utils/maskingUtils';
 setupGlobalLogging();
 
 const StatsDashboard = React.lazy(() => import('./ui/Charts').then(module => ({ default: module.StatsDashboard })));
+const PresetsView = React.lazy(() => import('../features/presets/components/PresetsView').then(module => ({ default: module.PresetsView })));
 const MaintenanceView = React.lazy(() => import('../features/maintenance/components/MaintenanceView').then(module => ({ default: module.MaintenanceView })));
 const LibraryEmptyState = React.lazy(() => import('../features/library/components/LibraryEmptyState'));
 const FILTER_PANEL_LAYOUT_TRANSITION_MS = 540;
@@ -429,6 +431,16 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                                         }
                                         changeViewMode('grid');
                                     }} />
+                                </React.Suspense>
+                            ) : viewMode === 'presets' ? (
+                                <React.Suspense fallback={<ViewLoadingFallback />}>
+                                    <PresetsView
+                                        filters={filters}
+                                        onSelectPreset={(preset) => {
+                                            setFilters(previous => createPresetSelectionFilters(previous, preset));
+                                            changeViewMode('grid');
+                                        }}
+                                    />
                                 </React.Suspense>
                             ) : viewMode === 'maintenance' ? (
                                 <React.Suspense fallback={<ViewLoadingFallback />}>

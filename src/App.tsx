@@ -549,7 +549,7 @@ export default function App() {
         }
 
         void submitSearch(query);
-        if (viewMode === 'dashboard' || viewMode === 'maintenance') {
+        if (viewMode === 'dashboard' || viewMode === 'maintenance' || viewMode === 'presets') {
             changeViewMode('grid');
         }
     }, [changeViewMode, submitSearch, viewMode]);

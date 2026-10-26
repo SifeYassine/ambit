@@ -242,7 +242,7 @@ export const AppHeader = React.memo(({
                                 scopeName={scopeName}
                                 displayedCount={displayedCount}
                                 isFiltering={isFiltering ?? false}
-                                submitNavigatesToGrid={viewMode === 'dashboard' || viewMode === 'maintenance'}
+                                submitNavigatesToGrid={viewMode === 'dashboard' || viewMode === 'maintenance' || viewMode === 'presets'}
                                 onDraftPendingChange={onSearchDraftPendingChange}
                             />
                         </React.Suspense>

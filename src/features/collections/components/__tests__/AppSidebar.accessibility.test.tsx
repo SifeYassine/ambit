@@ -7,7 +7,7 @@ import { ShortcutsModal } from '../../../../components/ui/ShortcutsModal';
 import { AppSidebar } from '../AppSidebar';
 
 const SidebarHarness = () => {
-    const [viewMode, setViewMode] = React.useState<'grid' | 'timeline' | 'dashboard' | 'maintenance'>('grid');
+    const [viewMode, setViewMode] = React.useState<'grid' | 'timeline' | 'dashboard' | 'maintenance' | 'presets'>('grid');
     const [filters, setFilters] = React.useState(createDefaultFilters());
     const [isFilterPanelOpen, setIsFilterPanelOpen] = React.useState(false);
 
@@ -28,7 +28,7 @@ const SidebarHarness = () => {
 };
 
 const SidebarModalHarness = () => {
-    const [viewMode, setViewMode] = React.useState<'grid' | 'timeline' | 'dashboard' | 'maintenance'>('grid');
+    const [viewMode, setViewMode] = React.useState<'grid' | 'timeline' | 'dashboard' | 'maintenance' | 'presets'>('grid');
     const [filters, setFilters] = React.useState(createDefaultFilters());
     const [isFilterPanelOpen, setIsFilterPanelOpen] = React.useState(false);
     const [modal, setModal] = React.useState<'donation' | 'shortcuts' | null>(null);

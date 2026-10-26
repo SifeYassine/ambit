@@ -39,7 +39,7 @@ export enum ModelType {
   ANIMAGINE = 'Animagine XL'
 }
 
-export type ViewMode = 'grid' | 'timeline' | 'dashboard' | 'maintenance';
+export type ViewMode = 'grid' | 'timeline' | 'dashboard' | 'maintenance' | 'presets';
 
 export type LayoutMode = 'grid' | 'masonry' | 'justified';
 
@@ -255,6 +255,14 @@ export const isVideoAsset = (asset: AIImage): asset is VideoAsset => asset.media
 export const hasPrompt = (asset: AIImage): boolean =>
   Boolean(asset.metadata.positivePrompt?.trim() || asset.metadata.negativePrompt?.trim());
 
+/** A model + LoRA + sampler preset picked on the Presets page. */
+export interface PresetFilter {
+  key: string;
+  /** True when LoRA weights are part of the preset (strict key), false when merged (loose key). */
+  matchWeights: boolean;
+  label: string;
+}
+
 export interface FilterState {
   mediaType?: MediaTypeFilter;
   searchQuery: string;
@@ -285,6 +293,7 @@ export interface FilterState {
   sortOption?: SortOption;
   matchModes?: Record<string, 'any' | 'all'>; // Key: filter key (e.g. 'loras'), Value: 'any' (OR) | 'all' (AND)
   assetFilterAliases?: Partial<Record<'models' | 'loras' | 'embeddings' | 'hypernetworks' | 'controlNets' | 'ipAdapters', Record<string, string[]>>>;
+  preset?: PresetFilter;
 }
 
 

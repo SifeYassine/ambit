@@ -30,6 +30,7 @@ describe('CommandPalette', () => {
             ['Go to Grid View', view.onNavigate, 'grid'],
             ['Go to Timeline', view.onNavigate, 'timeline'],
             ['Go to Dashboard', view.onNavigate, 'dashboard'],
+            ['Go to Presets', view.onNavigate, 'presets'],
             ['Go to Maintenance', view.onNavigate, 'maintenance'],
             ['Import Images', view.onImport, undefined],
             ['Create Collection', view.onCreateCollection, undefined],
@@ -41,14 +42,14 @@ describe('CommandPalette', () => {
             fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${label}`) }));
             argument === undefined ? expect(callback).toHaveBeenCalled() : expect(callback).toHaveBeenCalledWith(argument);
         }
-        expect(view.onClose).toHaveBeenCalledTimes(9);
+        expect(view.onClose).toHaveBeenCalledTimes(10);
     });
 
     it('filters commands, handles empty results, and executes keyboard selection', () => {
         const view = setup();
         const input = screen.getByPlaceholderText('Type a command...');
         fireEvent.change(input, { target: { value: 'Go to' } });
-        expect(screen.getAllByRole('button')).toHaveLength(4);
+        expect(screen.getAllByRole('button')).toHaveLength(5);
         fireEvent.keyDown(window, { key: 'ArrowDown' });
         fireEvent.keyDown(window, { key: 'Enter' });
         expect(view.onNavigate).toHaveBeenCalledWith('timeline');

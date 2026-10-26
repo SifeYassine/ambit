@@ -3,6 +3,9 @@ import { FilterState, GeneratorTool } from '../../types';
 import {
     createCollectionSelectionFilters,
     createDefaultFilters,
+    createPresetScopeFilters,
+    createPresetSelectionFilters,
+    normalizeCollectionScope,
     getEffectiveImageKind,
     hasActiveResultFilters,
     hasNonCollectionResultFilters,
@@ -151,5 +154,23 @@ describe('filterState', () => {
         expect(shouldPrefetchResultPages(createDefaultFilters({ searchQuery: 'portrait' }), true, false, 1)).toBe(false);
         expect(shouldPrefetchResultPages(createDefaultFilters(), true, false, 3)).toBe(false);
         expect(shouldPrefetchResultPages(createDefaultFilters(), true, true, 1)).toBe(false);
+    });
+});
+
+describe('preset filters', () => {
+    const preset = { key: 'abc', matchWeights: true, label: 'WAI · euler' };
+
+    it('selects one preset over the library, keeping only view toggles', () => {
+        const selected = createPresetSelectionFilters(
+            createDefaultFilters({ searchQuery: 'portrait', models: ['other'], collectionId: 'c1', showGrids: true, sortOption: 'prompt_first' }),
+            preset
+        );
+        expect(selected).toMatchObject({ preset, searchQuery: '', models: [], collectionId: null, showGrids: true, sortOption: 'prompt_first' });
+        expect(createPresetScopeFilters(selected).preset).toBeUndefined();
+    });
+
+    it('counts a preset as an active filter but never saves it into a collection', () => {
+        expect(hasNonCollectionResultFilters(createDefaultFilters({ preset }))).toBe(true);
+        expect(normalizeCollectionScope(createDefaultFilters({ preset, models: ['WAI'] }))).not.toHaveProperty('preset');
     });
 });

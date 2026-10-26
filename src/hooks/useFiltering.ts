@@ -73,7 +73,8 @@ export const useFiltering = (
             minCfg: undefined,
             maxCfg: undefined,
             collectionId: null, // Clear collection too
-            assetFilterAliases: undefined
+            assetFilterAliases: undefined,
+            preset: undefined,
         }));
     };
 

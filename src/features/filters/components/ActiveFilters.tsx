@@ -36,7 +36,8 @@ const hasChipVisibleCriteria = (filters: FilterState, dateLabel: string | null, 
     filters.minSteps !== undefined ||
     filters.maxSteps !== undefined ||
     filters.minCfg !== undefined ||
-    filters.maxCfg !== undefined
+    filters.maxCfg !== undefined ||
+    !!filters.preset
 );
 
 export const ActiveFilters: React.FC<ActiveFiltersProps> = () => {
@@ -269,6 +270,25 @@ export const ActiveFilters: React.FC<ActiveFiltersProps> = () => {
                     <button type="button" aria-label={`Clear Hypernetwork Filter ${h}`} onClick={() => setFilters(f => ({ ...f, hypernetworks: f.hypernetworks.filter(x => x !== h) }))}><X className="w-3 h-3" /></button>
                 </div>
             ))}
+
+            {filters.preset && (
+                <div title={filters.preset.label} className="flex items-center gap-1 rounded-full border border-sage-200 bg-sage-50 px-2 py-0.5 text-xs text-sage-700 dark:border-sage-500/30 dark:bg-sage-500/10 dark:text-sage-200">
+                    <span className={WIDE_FILTER_CHIP_LABEL_CLASS}>Preset: {filters.preset.label}</span>
+                    <button type="button" aria-label="Clear Preset Filter" onClick={() => setFilters(f => ({ ...f, preset: undefined }))}><X className="w-3 h-3" /></button>
+                </div>
+            )}
+
+            {SUPPORTING_MODEL_TYPES.flatMap(type => {
+                const smartValues = activeSmartCol?.filters?.[type.key] ?? [];
+                return Array.from(new Set(filters[type.key] ?? []))
+                    .filter(value => !smartValues.includes(value))
+                    .map(value => (
+                        <div key={`${type.key}-${value}`} title={value} className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-300">
+                            <span className={FILTER_CHIP_LABEL_CLASS}>{value}</span>
+                            <button type="button" aria-label={`Clear ${type.singular} Filter ${value}`} onClick={() => setFilters(f => ({ ...f, [type.key]: (f[type.key] ?? []).filter(x => x !== value) }))}><X className="w-3 h-3" /></button>
+                        </div>
+                    ));
+            })}
 
             {visibleSamplers.map(s => (
                 <div key={s} title={s} className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-300">

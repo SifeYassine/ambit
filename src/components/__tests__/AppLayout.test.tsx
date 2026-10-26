@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { AppLayout } from '../AppLayout';
 import { useLibraryStore } from '../../stores/libraryStore';
 import { useSettingsStore } from '../../stores/settingsStore';
-import type { AIImage } from '../../types';
+import type { AIImage, FilterState } from '../../types';
+import { createDefaultFilters } from '../../utils/filterState';
 
 const searchState = vi.hoisted(() => ({
     value: {
@@ -71,6 +72,11 @@ vi.mock('../ui/Charts', () => ({
             <button data-testid="stats-dashboard" onClick={() => onFilter('model', 'Flux')}>dashboard</button>
             <button data-testid="stats-dashboard-other" onClick={() => onFilter('tool', 'Invoke')}>other</button>
         </div>
+    )
+}));
+vi.mock('../../features/presets/components/PresetsView', () => ({
+    PresetsView: ({ onSelectPreset }: { onSelectPreset: (preset: { key: string; matchWeights: boolean; label: string }) => void }) => (
+        <button data-testid="presets-view" onClick={() => onSelectPreset({ key: 'k1', matchWeights: false, label: 'WAI · euler' })}>presets</button>
     )
 }));
 vi.mock('../../features/maintenance/components/MaintenanceView', () => ({
@@ -388,6 +394,19 @@ describe('AppLayout', () => {
         expect(updater({ models: [] }).models).toEqual(['Flux']);
         expect(updater({ models: ['Flux'] }).models).toEqual(['Flux']);
         fireEvent.click(screen.getByTestId('stats-dashboard-other'));
+        expect(changeViewMode).toHaveBeenCalledWith('grid');
+    });
+
+    it('opens a selected preset in the grid with only that preset filtered', async () => {
+        const setFilters = vi.fn();
+        const changeViewMode = vi.fn();
+        render(<AppLayout {...defaultProps} viewMode="presets" setFilters={setFilters} changeViewMode={changeViewMode} />);
+
+        fireEvent.click(await screen.findByTestId('presets-view'));
+
+        const updater = setFilters.mock.calls[0][0] as (filters: FilterState) => FilterState;
+        const next = updater(createDefaultFilters({ models: ['Other'], searchQuery: 'cat', showGrids: true }));
+        expect(next).toMatchObject({ preset: { key: 'k1', matchWeights: false, label: 'WAI · euler' }, models: [], searchQuery: '', showGrids: true });
         expect(changeViewMode).toHaveBeenCalledWith('grid');
     });
 
