@@ -179,7 +179,8 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
 
             <div className="custom-scrollbar flex-1 overflow-y-auto px-6 pb-8" style={{ scrollbarGutter: 'stable' }}>
             {/* Same round check as gallery selection; the native checkbox stays for keyboard and screen readers. */}
-            <label htmlFor={toggleId} className="mb-4 inline-flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-zinc-200">
+            <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <label htmlFor={toggleId} className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-zinc-200">
                 <input
                     id={toggleId}
                     type="checkbox"
@@ -196,12 +197,18 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
                     {matchWeights && <CheckCircle className="h-3.5 w-3.5 text-white" />}
                 </span>
                 Group by LoRA weights
-                {isRefreshing && (
-                    <span role="status" className="ml-2 inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-zinc-400">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Updating…
-                    </span>
-                )}
             </label>
+            {!isLoading && !error && (
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-zinc-300">
+                    {presets.length.toLocaleString()} {presets.length === 1 ? 'preset' : 'presets'}
+                </span>
+            )}
+            {isRefreshing && (
+                <span role="status" className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-zinc-400">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Updating…
+                </span>
+            )}
+            </div>
 
 
             {error ? (

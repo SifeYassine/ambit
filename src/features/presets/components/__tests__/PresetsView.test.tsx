@@ -40,6 +40,7 @@ describe('PresetsView', () => {
 
         expect(screen.getAllByRole('button', { name: /^Show / })).toHaveLength(1);
         expect(screen.getByText('Updating…')).toBeTruthy();
+        expect(screen.getByText('1 preset')).toBeTruthy();
         expect(screen.queryByText(/Analyzing generation settings/)).toBeNull();
     });
 
@@ -49,6 +50,7 @@ describe('PresetsView', () => {
 
         const cards = screen.getAllByRole('button', { name: /^Show / });
         expect(cards).toHaveLength(2);
+        expect(screen.getByText('2 presets')).toBeTruthy();
         expect(screen.getByText('128 images')).toBeTruthy();
         expect(screen.getByText('1 image')).toBeTruthy();
         expect(screen.getByText('Frostbite (0.80)')).toBeTruthy();
