@@ -30,11 +30,15 @@ describe('createDefaultAppSettings', () => {
         expect(createDefaultAppSettings({ librarySourceKind: 'invalid' as AppSettings['librarySourceKind'] }).librarySourceKind).toBe('all');
     });
 
-    it('starts on Details and retains a supported global viewer preference', () => {
-        expect(createDefaultAppSettings().viewerPreferredTab).toBe('details');
+    it('starts on Metadata and retains a supported global viewer preference', () => {
+        expect(createDefaultAppSettings().viewerPreferredTab).toBe('metadata');
         expect(createDefaultAppSettings({ viewerPreferredTab: 'workflow' }).viewerPreferredTab).toBe('workflow');
         expect(createDefaultAppSettings({ viewerPreferredTab: 'metadata' }).viewerPreferredTab).toBe('metadata');
-        expect(createDefaultAppSettings({ viewerPreferredTab: 'invalid' as AppSettings['viewerPreferredTab'] }).viewerPreferredTab).toBe('details');
+        expect(createDefaultAppSettings({ viewerPreferredTab: 'invalid' as AppSettings['viewerPreferredTab'] }).viewerPreferredTab).toBe('metadata');
+    });
+
+    it('moves a saved preference for the retired Details tab to Metadata', () => {
+        expect(createDefaultAppSettings({ viewerPreferredTab: 'details' as AppSettings['viewerPreferredTab'] }).viewerPreferredTab).toBe('metadata');
     });
 
     it('upgrades a legacy image kind to Images only when no media scope was saved', () => {

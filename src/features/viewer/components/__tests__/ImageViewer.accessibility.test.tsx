@@ -60,10 +60,6 @@ vi.mock('../../../../hooks/useZoomPan', () => ({
     }),
 }));
 
-vi.mock('../../../../hooks/usePalette', () => ({
-    usePalette: () => ({ palette: [], isLoading: false }),
-}));
-
 vi.mock('../../../../hooks/useImageAI', () => ({
     useImageAI: () => ({
         closeModal: vi.fn(),
@@ -85,12 +81,6 @@ vi.mock('../../../../stores/settingsStore', () => ({
             privacyEnabled: false,
             privacyMaskIndexStatus: 'ready',
         })
-    ),
-}));
-
-vi.mock('../../../../stores/collectionStore', () => ({
-    useCollectionStore: (selector: (state: { collections: never[] }) => unknown) => (
-        selector({ collections: [] })
     ),
 }));
 
@@ -130,7 +120,6 @@ describe('ImageViewer full metadata loading', () => {
         mockGetImageWithFullMetadata.mockResolvedValue(lightImage);
         const viewerProps = {
             image: lightImage,
-            onSetCollectionMembership: vi.fn().mockResolvedValue(true),
             onClose: vi.fn(),
             onNext: vi.fn(),
             onPrev: vi.fn(),

@@ -8,7 +8,7 @@ const mockGetImageWithFullMetadata = vi.fn();
 const mockMetadataSidebar = vi.fn();
 const mockSetViewerTab = vi.fn();
 const viewerSettings = vi.hoisted(() => ({
-    viewerPreferredTab: undefined as 'details' | 'metadata' | 'workflow' | undefined,
+    viewerPreferredTab: undefined as 'metadata' | 'workflow' | undefined,
 }));
 const captures = vi.hoisted(() => ({
     toolbar: null as Record<string, unknown> | null,
@@ -95,10 +95,6 @@ vi.mock('../../../../hooks/useZoomPan', () => ({
     }),
 }));
 
-vi.mock('../../../../hooks/usePalette', () => ({
-    usePalette: () => ({ palette: [], isLoading: false }),
-}));
-
 vi.mock('../../../../hooks/useImageAI', () => ({
     useImageAI: (config: Record<string, unknown>) => {
         captures.aiConfig = config;
@@ -120,12 +116,6 @@ vi.mock('../../../../stores/settingsStore', () => ({
             privacyEnabled: false,
             privacyMaskIndexStatus: 'ready',
         })
-    ),
-}));
-
-vi.mock('../../../../stores/collectionStore', () => ({
-    useCollectionStore: (selector: (state: { collections: never[] }) => unknown) => (
-        selector({ collections: [] })
     ),
 }));
 
@@ -168,7 +158,6 @@ const lightImage: AIImage = {
 const renderViewer = (overrides: Partial<React.ComponentProps<typeof ImageViewer>> = {}) => {
     const props: React.ComponentProps<typeof ImageViewer> = {
         image: lightImage,
-        onSetCollectionMembership: vi.fn().mockResolvedValue(true),
         onClose: vi.fn(),
         onNext: vi.fn(),
         onPrev: vi.fn(),
@@ -249,17 +238,48 @@ describe('ImageViewer full metadata loading', () => {
         expect(mockGetImageWithFullMetadata).toHaveBeenCalledWith(lightImage.id);
     });
 
-    it('opens new image viewers on Details and persists an explicit tab selection', async () => {
+    it('opens new image viewers on Metadata and persists an explicit tab selection', async () => {
         const view = renderViewer();
 
         await waitFor(() => expect(captures.sidebar).toBeTruthy());
-        expect(captures.sidebar?.activeTab).toBe('details');
+        expect(captures.sidebar?.activeTab).toBe('metadata');
 
         act(() => (captures.sidebar?.setActiveTab as (tab: 'metadata') => void)('metadata'));
         expect(mockSetViewerTab).toHaveBeenCalledWith({ viewerPreferredTab: 'metadata' });
         view.rerender(<ImageViewer {...view.props} image={{ ...lightImage, id: 'C:/library/next.png' }} />);
         await waitFor(() => expect(mockGetImageWithFullMetadata).toHaveBeenCalledWith('C:/library/next.png'));
         expect(captures.sidebar?.activeTab).toBe('metadata');
+    });
+
+    it('replaces the image with the workflow stage on the Workflow tab, even with the sidebar hidden', async () => {
+        viewerSettings.viewerPreferredTab = 'workflow';
+        const workflowImage: AIImage = {
+            ...lightImage,
+            sourceKind: 'generated',
+            metadata: { ...metadata('Prompt'), tool: GeneratorTool.COMFYUI, workflowJson: '{"nodes":[]}' },
+        };
+        mockGetImageWithFullMetadata.mockResolvedValue(workflowImage);
+        const view = renderViewer({ image: workflowImage, isSidebarOpen: true });
+
+        await waitFor(() => expect(captures.sidebar?.activeTab).toBe('workflow'));
+        const stage = screen.getByTestId('workflow-stage');
+        expect(screen.queryByTestId('image-canvas')).toBeNull();
+        await waitFor(() => expect(captures.sidebar?.workflowStage).toBe(stage));
+
+        view.rerender(<ImageViewer {...view.props} isSidebarOpen={false} />);
+        expect(screen.getByTestId('workflow-stage')).toBe(stage);
+        expect(screen.queryByTestId('image-canvas')).toBeNull();
+        expect(captures.sidebar?.workflowStage).toBe(stage);
+
+        fireEvent.keyDown(window, { key: 'z' });
+        expect(screen.queryByTestId('workflow-stage')).toBeNull();
+        expect(screen.getByTestId('image-canvas')).toBeTruthy();
+        fireEvent.keyDown(window, { key: 'z' });
+
+        view.rerender(<ImageViewer {...view.props} isSidebarOpen />);
+        act(() => (captures.sidebar?.setActiveTab as (tab: 'metadata') => void)('metadata'));
+        view.rerender(<ImageViewer {...view.props} isSidebarOpen />);
+        expect(screen.getByTestId('image-canvas')).toBeTruthy();
     });
 
     it('keeps persisted original metadata when a lightweight image omits it after restart', async () => {
@@ -285,7 +305,6 @@ describe('ImageViewer full metadata loading', () => {
 
         render(<ImageViewer
             image={lightImage}
-            onSetCollectionMembership={vi.fn().mockResolvedValue(true)}
             onClose={vi.fn()}
             onNext={vi.fn()}
             onPrev={vi.fn()}
@@ -322,7 +341,6 @@ describe('ImageViewer full metadata loading', () => {
 
         const { rerender } = render(<ImageViewer
             image={staleFullImage}
-            onSetCollectionMembership={vi.fn().mockResolvedValue(true)}
             onClose={vi.fn()}
             onNext={vi.fn()}
             onPrev={vi.fn()}
@@ -342,7 +360,6 @@ describe('ImageViewer full metadata loading', () => {
         };
         rerender(<ImageViewer
             image={automaticImage}
-            onSetCollectionMembership={vi.fn().mockResolvedValue(true)}
             onClose={vi.fn()}
             onNext={vi.fn()}
             onPrev={vi.fn()}
@@ -478,53 +495,46 @@ describe('ImageViewer full metadata loading', () => {
         expect(onToggleFavorite).not.toHaveBeenCalled();
     });
 
-    it('forwards sidebar edits, searches, collections, and AI commands', async () => {
+    it('forwards sidebar edits, searches, and AI commands', async () => {
         aiState.value.result = 'analysis result';
         const callbacks = {
-            onUpdateNotes: vi.fn(), onUpdatePrompt: vi.fn(), onUpdateNegativePrompt: vi.fn(),
-            onUpdateModel: vi.fn(), onUpdateTool: vi.fn(), onSetCollectionMembership: vi.fn().mockResolvedValue(true),
+            onUpdatePrompt: vi.fn(), onUpdateNegativePrompt: vi.fn(),
+            onUpdateModel: vi.fn(), onUpdateTool: vi.fn(),
             onSearch: vi.fn(), onRecoverMetadata: vi.fn(), onRevertMetadata: vi.fn(), onOpenSettings: vi.fn()
         };
         renderViewer(callbacks);
         await waitFor(() => expect(captures.sidebar).toBeTruthy());
         const sidebar = captures.sidebar as {
             setActiveTab: (tab: 'edit') => void;
-            setNotes: (value: string) => void; setPromptValue: (value: string) => void;
+            setPromptValue: (value: string) => void;
             setNegativePromptValue: (value: string) => void;
-            onUpdateNotes: (id: string, value: string) => void;
             onUpdatePrompt: (id: string, value: string) => void;
             onUpdateNegativePrompt: (id: string, value: string) => void;
             onUpdateModel: (id: string, value: string) => void;
             onUpdateTool: (id: string, value: GeneratorTool) => void;
-            onSetCollectionMembership: (id: string, collection: string, shouldBelong: boolean) => Promise<boolean>;
             onSearch: (term: string) => void;
             onRecoverMetadata: () => void; onRevertMetadata: (id: string) => void;
             onAIAnalysis: () => void; onGenerateVariations: () => void; onOpenAIResult: () => void;
         };
         act(() => {
             sidebar.setActiveTab('edit');
-            sidebar.setNotes('note');
             sidebar.setPromptValue('prompt');
             sidebar.setNegativePromptValue('negative');
         });
-        sidebar.onUpdateNotes('id', 'note');
         sidebar.onUpdatePrompt('id', 'prompt');
         sidebar.onUpdateNegativePrompt('id', 'negative');
         sidebar.onUpdateModel('id', 'Flux');
         sidebar.onUpdateTool('id', GeneratorTool.COMFYUI);
-        await sidebar.onSetCollectionMembership('id', 'collection', true);
         sidebar.onSearch('term');
         sidebar.onRecoverMetadata();
         sidebar.onRevertMetadata('id');
         sidebar.onAIAnalysis();
         sidebar.onGenerateVariations();
         sidebar.onOpenAIResult();
-        expect(callbacks.onUpdateNotes).toHaveBeenCalledWith('id', 'note');
         expect(callbacks.onUpdatePrompt).toHaveBeenCalledWith('id', 'prompt');
         expect(callbacks.onUpdateNegativePrompt).toHaveBeenCalledWith('id', 'negative');
         expect(callbacks.onUpdateModel).toHaveBeenCalledWith('id', 'Flux');
         expect(callbacks.onUpdateTool).toHaveBeenCalledWith('id', GeneratorTool.COMFYUI);
-        expect(callbacks.onSetCollectionMembership).toHaveBeenCalledWith('id', 'collection', true);
         expect(aiState.value.analyzePrompt).toHaveBeenCalledWith('Recovered prompt', callbacks.onOpenSettings);
         expect(aiState.value.generateVariations).toHaveBeenCalledWith('Recovered prompt', callbacks.onOpenSettings);
         expect(aiState.value.openModal).toHaveBeenCalled();
@@ -534,8 +544,6 @@ describe('ImageViewer full metadata loading', () => {
         renderViewer({
             onToggleFavorite: undefined,
             onTogglePin: undefined,
-            onSetCollectionMembership: undefined,
-            onUpdateNotes: undefined,
             onUpdatePrompt: undefined,
             onUpdateNegativePrompt: undefined,
             onUpdateModel: undefined,
@@ -545,8 +553,6 @@ describe('ImageViewer full metadata loading', () => {
         await waitFor(() => expect(captures.sidebar).toBeTruthy());
         expect(captures.toolbar?.onToggleFavorite).toBeUndefined();
         expect(captures.toolbar?.onTogglePin).toBeUndefined();
-        expect(captures.sidebar?.onSetCollectionMembership).toBeUndefined();
-        expect(captures.sidebar?.onUpdateNotes).toBeUndefined();
         expect(captures.sidebar?.onUpdatePrompt).toBeUndefined();
         expect(captures.sidebar?.onUpdateNegativePrompt).toBeUndefined();
         expect(captures.sidebar?.onUpdateModel).toBeUndefined();
@@ -706,9 +712,9 @@ describe('ImageViewer full metadata loading', () => {
         await act(async () => Promise.resolve());
         expect(container.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe('not liked, pinned');
         const sidebar = captures.sidebar as {
-            notes: string; promptValue: string; negativePromptValue: string; image: AIImage;
+            promptValue: string; negativePromptValue: string; image: AIImage;
         };
-        expect(sidebar).toMatchObject({ notes: '', promptValue: '', negativePromptValue: '' });
+        expect(sidebar).toMatchObject({ promptValue: '', negativePromptValue: '' });
         expect(sidebar.image.metadata.overrideModel).toBe('Override Model');
 
         const selector = captures.versions as { onVersionSelect: (id: string) => void };

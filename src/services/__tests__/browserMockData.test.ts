@@ -727,7 +727,7 @@ describe('browserMockData filtering', () => {
             settings: { librarySourceKind: 'photograph', viewerPreferredTab: 'unknown' },
         }));
         await expect(repository.load()).resolves.toEqual(expect.objectContaining({
-            settings: expect.objectContaining({ librarySourceKind: 'photograph', libraryMediaType: 'image', viewerPreferredTab: 'details' }),
+            settings: expect.objectContaining({ librarySourceKind: 'photograph', libraryMediaType: 'image', viewerPreferredTab: 'metadata' }),
         }));
     });
 });

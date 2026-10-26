@@ -9,7 +9,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   autoCheckForUpdates: true,
   confirmDelete: true,
   defaultTheaterMode: false,
-  viewerPreferredTab: 'details',
+  viewerPreferredTab: 'metadata',
   monitoredFolders: [],
   promptMaskingEnabled: true,
   maskedKeywords: ['nsfw', 'blood', 'gore'],

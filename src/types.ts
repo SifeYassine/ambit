@@ -4,7 +4,7 @@ export type { PhotoMetadata, SourceKind } from './bindings';
 
 export type ImageKindFilter = 'all' | SourceKind;
 export type MediaTypeFilter = 'all' | 'image' | 'video';
-export type ViewerTab = 'details' | 'metadata' | 'workflow';
+export type ViewerTab = 'metadata' | 'workflow';
 
 export interface SourceKindCounts {
   all: number;

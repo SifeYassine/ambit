@@ -2,14 +2,12 @@ import * as React from 'react';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, Pin } from 'lucide-react';
-import { AIImage, GeneratorTool, type SourceKind } from '../../../types';
+import { AIImage, GeneratorTool } from '../../../types';
 import { useZoomPan } from '../../../hooks/useZoomPan';
 import { ImageCanvas } from './ImageCanvas';
 import { MetadataSidebar } from './MetadataSidebar';
-import { usePalette } from '../../../hooks/usePalette';
 import { useImageAI } from '../../../hooks/useImageAI';
 import { useSettingsStore } from '../../../stores/settingsStore';
-import { useCollectionStore } from '../../../stores/collectionStore';
 import { ensureAssetPathAccessible } from '../../../services/assetScope';
 import { getFilename } from '../../../utils/pathUtils';
 import { getImageWithFullMetadata } from '../../../services/db/imageRepo';
@@ -33,19 +31,16 @@ interface ImageViewerProps {
     initiallyRevealed?: boolean;
     availableTags?: string[];
     modelOptions?: readonly string[];
-    onSetCollectionMembership?: (imageId: string, collectionId: string, shouldBelong: boolean) => Promise<boolean>;
     onClose: () => void;
     onNext: () => void;
     onPrev: () => void;
     canNavigateNext?: boolean;
     canNavigatePrevious?: boolean;
     onSearch: (term: string) => void;
-    onUpdateNotes?: (imageId: string, notes: string) => void;
     onUpdatePrompt?: (imageId: string, prompt: string) => void;
     onUpdateNegativePrompt?: (imageId: string, negativePrompt: string) => void;
     onUpdateModel?: (imageId: string, newModel: string) => void;
     onUpdateTool?: (imageId: string, tool: GeneratorTool) => void;
-    onSetImageKind?: (imageId: string, sourceKindOverride: SourceKind | null) => void | Promise<void>;
     onToggleFavorite?: (id: string) => void;
     onTogglePin?: (id: string, isPinned: boolean) => void;
     onRecoverMetadata?: () => void;
@@ -122,19 +117,16 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     initiallyRevealed = false,
     availableTags = [],
     modelOptions = [],
-    onSetCollectionMembership,
     onClose,
     onNext,
     onPrev,
     canNavigateNext = true,
     canNavigatePrevious = true,
     onSearch,
-    onUpdateNotes,
     onUpdatePrompt,
     onUpdateNegativePrompt,
     onUpdateModel,
     onUpdateTool,
-    onSetImageKind,
     onToggleFavorite,
     onTogglePin,
     onRecoverMetadata,
@@ -160,7 +152,6 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
         && !initiallyRevealed
         && revealedImageId !== image.id;
     const mediaExposureBlocked = privacyExposureBlocked || itemExposureBlocked;
-    const collections = useCollectionStore(s => s.collections);
     const [fullImage, setFullImage] = useState<AIImage | null>(null);
     const [isLoadingFull, setIsLoadingFull] = useState(false);
     const [settledMetadataId, setSettledMetadataId] = useState<string | null>(null);
@@ -253,9 +244,6 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
 
     // --- Hooks ---
     const { scale, position, isDragging, resetZoom, zoomIn, zoomOut, handlers } = useZoomPan();
-    const { palette, isLoading: isPaletteLoading } = usePalette(
-        mediaExposureBlocked ? null : displayImage.url
-    );
     const { addToast } = useToast();
     const ai = useImageAI({
         aiModel: getEffectiveAiModel(settings),
@@ -272,26 +260,27 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     );
     const { activeTab, onExplicitTabChange } = useViewerPreferredTab(availableViewerTabs);
     const [isTheaterMode, setIsTheaterMode] = useState(false);
+    // The graph replaces the image while the Workflow tab is selected, including with the sidebar
+    // hidden (the inspector stays mounted off-screen); theater mode always shows the image.
+    const showWorkflowStage = activeTab === 'workflow' && !isTheaterMode;
+    const [workflowStage, setWorkflowStage] = useState<HTMLDivElement | null>(null);
     const [showControls, setShowControls] = useState(true);
     const [showStatusHud, setShowStatusHud] = useState(true);
     const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const statusHudTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // --- Buffers (Notes/Prompt editing local to displayImage) ---
-    const [notes, setNotes] = useState(displayImage.notes || '');
+    // --- Buffers (Prompt editing local to displayImage) ---
     const [promptValue, setPromptValue] = useState(displayImage.metadata.positivePrompt || '');
     const [negativePromptValue, setNegativePromptValue] = useState(displayImage.metadata.negativePrompt || '');
 
     // Sync state when display image changes (version switch or nav)
     useEffect(() => {
-        setNotes(displayImage.notes || '');
         setPromptValue(displayImage.metadata.positivePrompt || '');
         setNegativePromptValue(displayImage.metadata.negativePrompt || '');
         resetZoom();
         ai.closeModal();
     }, [
         displayImage.id,
-        displayImage.notes,
         displayImage.metadata.positivePrompt,
         displayImage.metadata.negativePrompt,
         displayImage.originalMetadata,
@@ -479,24 +468,32 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
                     onClose={onClose}
                 />
 
-                <ImageCanvas
-                    image={displayImage}
-                    scale={scale}
-                    position={position}
-                    isDragging={isDragging}
-                    showControls={showControls}
-                    onPrev={onPrev}
-                    onNext={onNext}
-                    canNavigatePrevious={canNavigatePrevious}
-                    canNavigateNext={canNavigateNext}
-                    onClose={onClose}
-                    onZoomIn={zoomIn}
-                    onZoomOut={zoomOut}
-                    onResetZoom={resetZoom}
-                    isTheaterMode={isTheaterMode}
-                    onToggleTheater={() => setIsTheaterMode(!isTheaterMode)}
-                    handlers={handlers}
-                />
+                {showWorkflowStage ? (
+                    <div
+                        ref={setWorkflowStage}
+                        data-testid="workflow-stage"
+                        className="relative flex-1 h-full overflow-hidden"
+                    />
+                ) : (
+                    <ImageCanvas
+                        image={displayImage}
+                        scale={scale}
+                        position={position}
+                        isDragging={isDragging}
+                        showControls={showControls}
+                        onPrev={onPrev}
+                        onNext={onNext}
+                        canNavigatePrevious={canNavigatePrevious}
+                        canNavigateNext={canNavigateNext}
+                        onClose={onClose}
+                        onZoomIn={zoomIn}
+                        onZoomOut={zoomOut}
+                        onResetZoom={resetZoom}
+                        isTheaterMode={isTheaterMode}
+                        onToggleTheater={() => setIsTheaterMode(!isTheaterMode)}
+                        handlers={handlers}
+                    />
+                )}
 
                 <ViewerStatusHud
                     isFavorite={Boolean(displayImage.isFavorite)}
@@ -523,23 +520,17 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
                     image={displayImage} // Pass active version
                     activeTab={activeTab}
                     setActiveTab={onExplicitTabChange}
-                    collections={collections}
                     availableTags={availableTags}
                     modelOptions={modelOptions}
                     disclosure={metadataDisclosure}
-                    notes={notes}
-                    setNotes={setNotes}
                     promptValue={promptValue}
                     setPromptValue={setPromptValue}
                     negativePromptValue={negativePromptValue}
                     setNegativePromptValue={setNegativePromptValue}
-                    onUpdateNotes={onUpdateNotes}
                     onUpdatePrompt={onUpdatePrompt}
                     onUpdateNegativePrompt={onUpdateNegativePrompt}
                     onUpdateModel={onUpdateModel}
                     onUpdateTool={onUpdateTool}
-                    onSetImageKind={onSetImageKind}
-                    onSetCollectionMembership={onSetCollectionMembership}
                     onSearch={onSearch}
                     onClose={onClose}
                     onRecoverMetadata={onRecoverMetadata}
@@ -548,11 +539,10 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
                     onGenerateVariations={() => ai.generateVariations(displayImage.metadata.positivePrompt, onOpenSettings)}
                     isAnalyzing={ai.isAnalyzing}
                     onOpenAIResult={ai.result ? ai.openModal : undefined}
-                    palette={palette}
-                    isPaletteLoading={isPaletteLoading}
                     isLoading={isReallyLoading}
                     searchHighlights={searchHighlights}
                     onOpenReferencedImage={onOpenReferencedImage}
+                    workflowStage={showWorkflowStage ? workflowStage : undefined}
                 />
             </div>
 

@@ -2,11 +2,9 @@ import * as React from 'react';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import type { ViewerTabId } from './viewerTabAvailability';
 
-const fallbackTab = (availableTabs: readonly ViewerTabId[]): ViewerTabId => {
-    if (availableTabs.includes('metadata')) return 'metadata';
-    if (availableTabs.includes('details')) return 'details';
-    return availableTabs[0] ?? 'details';
-};
+const fallbackTab = (availableTabs: readonly ViewerTabId[]): ViewerTabId => (
+    availableTabs.includes('metadata') ? 'metadata' : availableTabs[0] ?? 'metadata'
+);
 
 export interface ViewerPreferredTabState {
     activeTab: ViewerTabId;
@@ -28,13 +26,10 @@ export const useViewerPreferredTab = (
         if (isLoaded && preHydrationTab !== undefined) setPreHydrationTab(undefined);
     }, [isLoaded, preHydrationTab]);
 
-    const defaultDetailsTab = availableTabs.includes('details') ? 'details' : defaultTab;
     const selectedTab = isLoaded ? preferredTab : preHydrationTab;
     const activeTab = selectedTab && availableTabs.includes(selectedTab)
         ? selectedTab
-        : selectedTab
-            ? defaultTab
-            : defaultDetailsTab;
+        : defaultTab;
 
     const onExplicitTabChange = React.useCallback((tab: ViewerTabId) => {
         if (!availableTabs.includes(tab)) return;

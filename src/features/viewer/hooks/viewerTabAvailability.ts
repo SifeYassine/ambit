@@ -4,12 +4,11 @@ import type { ViewerTabDefinition } from '../components/ViewerTabs';
 export type ViewerTabId = ViewerTab;
 
 export const IMAGE_VIEWER_TABS: readonly ViewerTabDefinition<ViewerTabId>[] = [
-    { id: 'details', label: 'Details' },
     { id: 'metadata', label: 'Metadata' },
     { id: 'workflow', label: 'Workflow' },
 ];
 
-const IMAGE_VIEWER_TABS_WITHOUT_WORKFLOW = IMAGE_VIEWER_TABS.slice(0, 2);
+const IMAGE_VIEWER_TABS_WITHOUT_WORKFLOW = IMAGE_VIEWER_TABS.slice(0, 1);
 
 export const getImageViewerTabs = (image: AIImage): readonly ViewerTabDefinition<ViewerTabId>[] => {
     const isGenerated = getEffectiveSourceKind(image) === 'generated';

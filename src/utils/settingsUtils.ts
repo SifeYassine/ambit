@@ -6,8 +6,9 @@ import {
 } from '../constants/aiModels';
 import type { AiThinkingMode, AppSettings, ViewerTab } from '../types';
 
+// Settings saved before the Details tab was removed may still hold 'details'.
 export const normalizeViewerPreferredTab = (value: unknown): ViewerTab => (
-  value === 'metadata' || value === 'workflow' ? value : 'details'
+  value === 'workflow' ? value : 'metadata'
 );
 
 type DeveloperSettings = Pick<AppSettings, 'devMode'>;

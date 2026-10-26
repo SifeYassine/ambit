@@ -243,6 +243,7 @@ const isPersistedSettings = (value: unknown): boolean => {
             ['all', 'generated', 'photograph', 'other'].includes(String(item)))
         && hasValidOptionalValue(value, 'libraryMediaType', item =>
             item === 'all' || item === 'image' || item === 'video')
+        // 'details' is a retired tab still accepted from older settings; it normalizes to 'metadata'.
         && hasValidOptionalValue(value, 'viewerPreferredTab', item =>
             item === 'details' || item === 'metadata' || item === 'workflow')
         && hasValidOptionalValue(value, 'thumbnailOptimizationProfile', item =>

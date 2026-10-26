@@ -1,8 +1,7 @@
 import * as React from 'react';
-import { getEffectiveSourceKind, type AIImage, type Collection, type GeneratorTool, type SourceKind } from '../../../types';
+import { getEffectiveSourceKind, type AIImage, type GeneratorTool } from '../../../types';
 import { getImageViewerTabs, type ViewerTabId } from '../hooks/viewerTabAvailability';
 import type { PromptHighlightSpec } from '../utils/searchHighlights';
-import { ImageDetailsTab } from './metadata/ImageDetailsTab';
 import { MetadataInfoTab } from './metadata/MetadataInfoTab';
 import { PhotoDetailsTab } from './metadata/PhotoDetailsTab';
 import { ViewerSidebarShell } from './ViewerSidebarShell';
@@ -15,23 +14,17 @@ interface MetadataSidebarProps {
     image: AIImage;
     activeTab: ImageViewerTab;
     setActiveTab: (tab: ImageViewerTab) => void;
-    collections: Collection[];
     availableTags: string[];
     modelOptions?: readonly string[];
     disclosure?: MetadataDisclosureController;
-    notes: string;
-    setNotes: (value: string) => void;
     promptValue: string;
     setPromptValue: React.Dispatch<React.SetStateAction<string>>;
     negativePromptValue: string;
     setNegativePromptValue: React.Dispatch<React.SetStateAction<string>>;
-    onUpdateNotes?: (imageId: string, notes: string) => void;
     onUpdatePrompt?: (imageId: string, prompt: string) => void;
     onUpdateNegativePrompt?: (imageId: string, negativePrompt: string) => void;
     onUpdateModel?: (imageId: string, newModel: string) => void;
     onUpdateTool?: (id: string, tool: GeneratorTool) => void;
-    onSetImageKind?: (imageId: string, sourceKindOverride: SourceKind | null) => void | Promise<void>;
-    onSetCollectionMembership?: (imageId: string, collectionId: string, shouldBelong: boolean) => Promise<boolean>;
     onSearch: (term: string) => void;
     onClose: () => void;
     onRecoverMetadata?: () => void;
@@ -40,34 +33,28 @@ interface MetadataSidebarProps {
     onGenerateVariations: () => void;
     isAnalyzing: boolean;
     onOpenAIResult?: () => void;
-    palette: string[];
-    isPaletteLoading: boolean;
     isLoading?: boolean;
     searchHighlights?: PromptHighlightSpec;
     onOpenReferencedImage?: (imageId: string) => Promise<boolean>;
+    /** Viewer stage that replaces the image while the Workflow tab is active. */
+    workflowStage?: HTMLElement | null;
 }
 
 export const MetadataSidebar: React.FC<MetadataSidebarProps> = ({
     image,
     activeTab,
     setActiveTab,
-    collections,
     availableTags,
     modelOptions,
     disclosure,
-    notes,
-    setNotes,
     promptValue,
     setPromptValue,
     negativePromptValue,
     setNegativePromptValue,
-    onUpdateNotes,
     onUpdatePrompt,
     onUpdateNegativePrompt,
     onUpdateModel,
     onUpdateTool,
-    onSetImageKind,
-    onSetCollectionMembership,
     onSearch,
     onClose,
     onRecoverMetadata,
@@ -76,11 +63,10 @@ export const MetadataSidebar: React.FC<MetadataSidebarProps> = ({
     onGenerateVariations,
     isAnalyzing,
     onOpenAIResult,
-    palette,
-    isPaletteLoading,
     isLoading,
     searchHighlights,
     onOpenReferencedImage,
+    workflowStage,
 }) => {
     const isGenerated = getEffectiveSourceKind(image) === 'generated';
     const tabs = getImageViewerTabs(image);
@@ -95,20 +81,6 @@ export const MetadataSidebar: React.FC<MetadataSidebarProps> = ({
         ariaLabel="Image viewer sections"
     >
         {!isGenerated && effectiveActiveTab === 'metadata' ? <PhotoDetailsTab key={image.id} image={image} isLoading={isLoading} /> : null}
-
-        {effectiveActiveTab === 'details' ? (
-            <ImageDetailsTab
-                image={image}
-                collections={collections}
-                notes={notes}
-                setNotes={setNotes}
-                onUpdateNotes={onUpdateNotes}
-                onSetImageKind={onSetImageKind}
-                onSetCollectionMembership={onSetCollectionMembership}
-                palette={palette}
-                isPaletteLoading={isPaletteLoading}
-            />
-        ) : null}
 
         {isGenerated && effectiveActiveTab === 'metadata' ? (
             <MetadataInfoTab
@@ -138,6 +110,6 @@ export const MetadataSidebar: React.FC<MetadataSidebarProps> = ({
             />
         ) : null}
 
-        {isGenerated && effectiveActiveTab === 'workflow' ? <WorkflowInspector key={image.id} image={image} /> : null}
+        {isGenerated && effectiveActiveTab === 'workflow' ? <WorkflowInspector key={image.id} image={image} graphStage={workflowStage} /> : null}
     </ViewerSidebarShell>;
 };

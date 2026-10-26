@@ -1,9 +1,9 @@
 import * as React from 'react';
-import { Code, FileText, Pencil } from 'lucide-react';
+import { FileText, Pencil } from 'lucide-react';
 import { MetadataSourceBadge } from './MetadataSourceBadge';
 import { MetadataSectionHeader } from './MetadataSectionHeader';
 
-type MetadataTextAreaKind = 'positivePrompt' | 'negativePrompt' | 'notes';
+type MetadataTextAreaKind = 'positivePrompt' | 'negativePrompt';
 
 interface MetadataTextAreaFieldProps {
     kind: MetadataTextAreaKind;
@@ -27,7 +27,7 @@ const FIELD_PRESENTATION = {
         placeholder: 'Enter positive prompt...',
         icon: FileText,
         iconClassName: 'text-sage-500',
-        heightClassName: 'h-32',
+        heightClassName: 'min-h-32',
         textareaClassName: 'bg-white dark:bg-zinc-800/50 focus:border-sage-500 focus:ring-1 focus:ring-sage-500',
     },
     negativePrompt: {
@@ -35,18 +35,13 @@ const FIELD_PRESENTATION = {
         placeholder: 'Enter negative prompt...',
         icon: FileText,
         iconClassName: 'text-red-400',
-        heightClassName: 'h-24',
+        heightClassName: 'min-h-24',
         textareaClassName: 'bg-white dark:bg-zinc-800/50 focus:border-red-400 focus:ring-1 focus:ring-red-400',
     },
-    notes: {
-        label: 'Notes',
-        placeholder: 'Add your notes here...',
-        icon: Code,
-        iconClassName: 'text-gray-400',
-        heightClassName: 'h-32',
-        textareaClassName: 'bg-gray-50 dark:bg-zinc-800/30 focus:bg-white dark:focus:bg-zinc-800/50 focus:border-sage-500',
-    },
 } as const;
+
+// Fields grow with their text (from the kind's minimum height) and scroll past this cap.
+const FIT_CONTENT_CLASS_NAME = 'max-h-[60vh]';
 
 export const MetadataTextAreaField: React.FC<MetadataTextAreaFieldProps> = ({
     kind,
@@ -66,7 +61,7 @@ export const MetadataTextAreaField: React.FC<MetadataTextAreaFieldProps> = ({
     const field = FIELD_PRESENTATION[kind];
     const Icon = field.icon;
     const textareaId = React.useId();
-    const dirtyClassName = isDirty && kind !== 'notes'
+    const dirtyClassName = isDirty
         ? 'border-ember-300 bg-ember-50/70 dark:border-ember-500/50 dark:bg-ember-500/10'
         : 'border-gray-200 dark:border-white/10';
     const [isEditing, setIsEditing] = React.useState(readContent === undefined);
@@ -134,7 +129,7 @@ export const MetadataTextAreaField: React.FC<MetadataTextAreaFieldProps> = ({
                         aria-readonly="true"
                         aria-multiline="true"
                         aria-labelledby={textareaId + '-heading'}
-                        className={'w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl border p-3 font-sans text-sm text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-sage-500/50 dark:text-zinc-200 ' + field.heightClassName + ' ' + field.textareaClassName + ' ' + dirtyClassName + (readOnly ? ' cursor-default opacity-80' : '')}
+                        className={'w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl border p-3 font-sans text-sm text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-sage-500/50 dark:text-zinc-200 ' + FIT_CONTENT_CLASS_NAME + ' ' + field.heightClassName + ' ' + field.textareaClassName + ' ' + dirtyClassName + (readOnly ? ' cursor-default opacity-80' : '')}
                     >
                         {value ? readContent : <span className="text-gray-400">{field.placeholder}</span>}
                     </div>
@@ -149,7 +144,7 @@ export const MetadataTextAreaField: React.FC<MetadataTextAreaFieldProps> = ({
                         autoFocus={readContent !== undefined}
                         readOnly={readOnly}
                         placeholder={field.placeholder}
-                        className={`w-full resize-none rounded-xl border p-3 font-sans text-sm text-gray-800 outline-none transition-colors placeholder:text-gray-400 dark:text-zinc-200 ${field.heightClassName} ${field.textareaClassName} ${dirtyClassName} ${readOnly ? 'cursor-default opacity-80' : ''}`}
+                        className={`block w-full resize-none rounded-xl border p-3 font-sans text-sm text-gray-800 outline-none transition-colors placeholder:text-gray-400 dark:text-zinc-200 [field-sizing:content] ${FIT_CONTENT_CLASS_NAME} ${field.heightClassName} ${field.textareaClassName} ${dirtyClassName} ${readOnly ? 'cursor-default opacity-80' : ''}`}
                     />
                 )}
                 {status}

@@ -89,7 +89,6 @@ export const PhotoDetailsTab = ({ image, isLoading = false }: PhotoDetailsTabPro
                 <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-5 py-8 text-center dark:border-white/10 dark:bg-zinc-900/50">
                     <FileQuestion className="mx-auto mb-3 h-8 w-8 text-gray-400 dark:text-zinc-500" aria-hidden="true" />
                     <h2 className="text-sm font-semibold text-gray-700 dark:text-zinc-200">No supported metadata found</h2>
-                    <p className="mt-2 text-xs text-gray-500 dark:text-zinc-400">File information is available in Details.</p>
                 </div>
             ) : null}
         </div>

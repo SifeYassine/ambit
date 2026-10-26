@@ -4,8 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { GeneratorTool, type AIImage } from '../../../../types';
 import { MetadataSidebar } from '../MetadataSidebar';
 
-const captures = vi.hoisted(() => ({ details: vi.fn(), metadata: vi.fn(), workflow: vi.fn() }));
-vi.mock('../metadata/ImageDetailsTab', () => ({ ImageDetailsTab: (props: Record<string, unknown>) => { captures.details(props); return <div>details-content</div>; } }));
+const captures = vi.hoisted(() => ({ metadata: vi.fn(), workflow: vi.fn() }));
 vi.mock('../metadata/MetadataInfoTab', () => ({ MetadataInfoTab: (props: Record<string, unknown>) => { captures.metadata(props); return <div>metadata-content</div>; } }));
 vi.mock('../WorkflowInspector', () => ({ WorkflowInspector: (props: Record<string, unknown>) => { captures.workflow(props); return <div>workflow-content</div>; } }));
 
@@ -15,13 +14,13 @@ const image = (metadata: Partial<AIImage['metadata']> = {}): AIImage => ({
     metadata: { tool: GeneratorTool.COMFYUI, model: 'flux_dev', seed: 1, steps: 1, cfg: 1, sampler: '', positivePrompt: '', negativePrompt: '', ...metadata },
 });
 
-const setup = (activeTab: 'details' | 'metadata' | 'workflow', target = image()) => {
+const setup = (activeTab: 'metadata' | 'workflow', target = image()) => {
     const props: React.ComponentProps<typeof MetadataSidebar> = {
-        image: target, activeTab, setActiveTab: vi.fn(), collections: [], availableTags: [], notes: '', setNotes: vi.fn(),
+        image: target, activeTab, setActiveTab: vi.fn(), availableTags: [],
         promptValue: 'prompt', setPromptValue: vi.fn(), negativePromptValue: 'negative', setNegativePromptValue: vi.fn(),
-        onUpdateNotes: vi.fn(), onUpdatePrompt: vi.fn(), onUpdateNegativePrompt: vi.fn(), onUpdateModel: vi.fn(), onUpdateTool: vi.fn(),
-        onSetCollectionMembership: vi.fn().mockResolvedValue(true), onSearch: vi.fn(), onClose: vi.fn(), onRecoverMetadata: vi.fn(), onRevertMetadata: vi.fn(),
-        onAIAnalysis: vi.fn(), onGenerateVariations: vi.fn(), isAnalyzing: false, onOpenAIResult: vi.fn(), palette: ['#fff'], isPaletteLoading: false,
+        onUpdatePrompt: vi.fn(), onUpdateNegativePrompt: vi.fn(), onUpdateModel: vi.fn(), onUpdateTool: vi.fn(),
+        onSearch: vi.fn(), onClose: vi.fn(), onRecoverMetadata: vi.fn(), onRevertMetadata: vi.fn(),
+        onAIAnalysis: vi.fn(), onGenerateVariations: vi.fn(), isAnalyzing: false, onOpenAIResult: vi.fn(),
     };
     return { ...render(<MetadataSidebar {...props} />), props };
 };
@@ -61,27 +60,23 @@ describe('MetadataSidebar', () => {
         expect(screen.getByText('No supported metadata found')).toBeTruthy();
     });
 
-    it('keeps Other file information in shared Details and explicitly explains unsupported metadata', () => {
-        const { props, rerender } = setup('metadata', { ...image(), sourceKind: 'other', detectedSourceKind: 'other' });
+    it('explains unsupported metadata for Other images without a Details tab', () => {
+        setup('metadata', { ...image(), sourceKind: 'other', detectedSourceKind: 'other' });
         const emptyHeading = screen.getByRole('heading', { name: 'No supported metadata found' });
         expect(emptyHeading).toBeTruthy();
         expect(emptyHeading.parentElement?.classList.contains('text-center')).toBe(true);
         expect(emptyHeading.parentElement?.parentElement?.classList.contains('min-h-full')).toBe(false);
-        expect(screen.getByText('File information is available in Details.')).toBeTruthy();
+        expect(screen.queryByText('File information is available in Details.')).toBeNull();
         expect(screen.queryByRole('tab', { name: 'Workflow' })).toBeNull();
-        rerender(<MetadataSidebar {...props} activeTab="details" />);
-        expect(screen.getByText('details-content')).toBeTruthy();
+        expect(screen.queryByRole('tab', { name: 'Details' })).toBeNull();
     });
 
-    it('uses the shared image title and Details, Metadata, and Workflow tabs', () => {
-        const { props } = setup('details', image({ workflowJson: '{}' }));
+    it('offers only Metadata and Workflow tabs', () => {
+        const { props } = setup('metadata', image({ workflowJson: '{}' }));
         expect(screen.queryByRole('heading', { name: 'Image' })).toBeNull();
-        expect(screen.getByText('details-content')).toBeTruthy();
-        expect(captures.details).toHaveBeenCalledWith(expect.objectContaining({ image: props.image, notes: '' }));
-        fireEvent.click(screen.getByRole('tab', { name: 'Metadata' }));
+        expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Metadata', 'Workflow']);
         fireEvent.click(screen.getByRole('tab', { name: 'Workflow' }));
-        expect(props.setActiveTab).toHaveBeenNthCalledWith(1, 'metadata');
-        expect(props.setActiveTab).toHaveBeenNthCalledWith(2, 'workflow');
+        expect(props.setActiveTab).toHaveBeenCalledWith('workflow');
     });
 
     it('forwards metadata and workflow contracts and hides unsupported workflow tabs', () => {
@@ -112,7 +107,7 @@ describe('MetadataSidebar', () => {
         expect(props.setActiveTab).not.toHaveBeenCalled();
     });
 
-    it('separates photo Metadata from shared Details without generation controls', () => {
+    it('shows photo Metadata without generation controls', () => {
         const { props, rerender } = setup('metadata', {
             ...image({ workflowJson: '{}' }),
             detectedSourceKind: 'photograph',
@@ -132,7 +127,7 @@ describe('MetadataSidebar', () => {
 
         expect(screen.getByText('Test Camera Co Camera One')).toBeTruthy();
         expect(screen.queryByText('Camera One')).toBeNull();
-        expect(screen.getByRole('tab', { name: 'Details' })).toBeTruthy();
+        expect(screen.queryByRole('tab', { name: 'Details' })).toBeNull();
         expect(screen.getByRole('tab', { name: 'Metadata' })).toBeTruthy();
         expect(screen.queryByRole('tab', { name: 'Library' })).toBeNull();
         expect(screen.queryByText('workflow')).toBeNull();
@@ -159,8 +154,5 @@ describe('MetadataSidebar', () => {
         expect(screen.getByText('51.500000, -0.120000')).toBeTruthy();
         rerender(<MetadataSidebar {...props} image={{ ...props.image, id: 'next-photo' }} />);
         expect(screen.getByRole('button', { name: 'Local GPS coordinates' }).getAttribute('aria-expanded')).toBe('false');
-        rerender(<MetadataSidebar {...props} activeTab="details" />);
-        expect(screen.queryByText('Test Camera Co Camera One')).toBeNull();
-        expect(screen.getByText('details-content')).toBeTruthy();
     });
 });

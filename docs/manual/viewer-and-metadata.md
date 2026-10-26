@@ -2,7 +2,7 @@
 
 [Back to manual index](index.md)
 
-Ambit opens images and videos in media-specific viewers with shared Details, Metadata, and Workflow surfaces. Images offer zoom, versions, and optional AI actions; videos offer playback and original-file export.
+Ambit opens images and videos in media-specific viewers with shared Metadata and Workflow surfaces. Images offer zoom, versions, and optional AI actions; videos offer playback and original-file export.
 
 ## Open And Navigate The Viewer
 
@@ -37,21 +37,20 @@ Remove from Library removes the image record from Ambit's active library. It doe
 
 ## Metadata Sidebar
 
-Both viewers initially open on Details. Explicit tab selections are remembered globally across images, videos, and app restarts. If a preferred tab is unavailable, the viewer temporarily shows Metadata (or Details if Metadata is unavailable), without replacing the saved preference. Expanded metadata sections remain viewer-session state.
+Both viewers initially open on Metadata. Explicit tab selections are remembered globally across images, videos, and app restarts. If a preferred tab is unavailable, the viewer temporarily shows Metadata without replacing the saved preference. Expanded metadata sections remain viewer-session state.
 
-- Details: technical file facts, notes, and the searchable collection membership picker; images also show a color palette.
-- Metadata: prompts, generator and model editors, generation parameters, provenance, and populated resource sections.
+- Metadata: prompts, generator and model editors, generation parameters, provenance, and populated resource sections, including VAEs, upscale models, CLIP Vision, and detection models.
 - Workflow: workflow inspection, copy, and download when recorded data is available.
 
 For images, Workflow may disappear after Ambit confirms that no workflow was recorded. Video Workflow shows an explanatory empty state when no workflow is available. Use the arrow keys while a tab is focused to switch tabs; Home and End select the first and last tabs.
 
-Photos and Other images show only Details and Metadata. Details contains technical file facts, the Image Kind dropdown, color palette, notes, and collection membership. Metadata shows captured time, camera and lens, exposure settings, attribution, and local GPS coordinates when available. Ambit stores and displays GPS coordinates locally and does not contact a map or network service.
+Photos and Other images show only Metadata. It shows captured time, camera and lens, exposure settings, attribution, and local GPS coordinates when available. Ambit stores and displays GPS coordinates locally and does not contact a map or network service.
 
 ### Photo coverage
 
 Ambit reads selected embedded EXIF fields from JPEG, PNG eXIf, and WebP EXIF containers. Camera/capture, lens/exposure, orientation, attribution, and GPS fields are shown when supported values are present; GPS starts collapsed. This is not an all-tags inspector or comprehensive IPTC, XMP, MakerNotes, or RAW workflow. Missing EXIF does not make a file a photo by extension alone, and strong generator evidence takes precedence over camera metadata unless you choose a manual Image Kind.
 
-Photo probes are limited to 64 MiB of input. Malformed or over-budget probes remain retryable through metadata refresh. The updated photo-refresh workflow revisits previously imported eligible PNG/WebP records while preserving notes, collections, and manual classifications. Files with no supported metadata show “No supported metadata found” and “File information is available in Details.”
+Photo probes are limited to 64 MiB of input. Malformed or over-budget probes remain retryable through metadata refresh. The updated photo-refresh workflow revisits previously imported eligible PNG/WebP records while preserving notes, collections, and manual classifications. Files with no supported metadata show “No supported metadata found”.
 
 ## Metadata Tab
 
@@ -66,8 +65,6 @@ The Positive Prompt section can show:
 - Revert when local metadata edits can be restored to the imported original
 
 The Negative Prompt field supports viewing and editing negative prompt data.
-
-The Color Palette section under Details shows extracted colors when Ambit can derive them from the image. Select a swatch to copy its color value.
 
 For images imported with InvokeAI source facts, Source identifies InvokeAI and can show the original image name, category, and origin. This section is available even when the image has no generation parameters. Unrecognized source categories are displayed as recorded instead of being guessed or discarded.
 
@@ -90,19 +87,15 @@ Smart Tags are short prompt fragments extracted from the positive prompt. Select
 
 Internal Metadata opens a technical inspector with Parsed, Text, and, when workflow JSON exists, JSON views. This is useful when a generator embedded raw parameters or workflow data that is not shown elsewhere.
 
-## Details And Local Edits
+## Local Edits
 
-Details contains technical file information, Notes, and Collections. Use the collection picker to search and change membership. Notes save on blur when changed.
-
-The image **Modified** row shows the filesystem modification date and time. It is separate from the camera's **Captured** value in Metadata; captured time may also determine a photo's timeline position.
+The viewer no longer has a Details tab. Change collection membership from the library context menu or selection bar, and Image Kind from the context menu or selection bar. Notes saved by earlier versions stay in the catalog but are not shown or edited in the viewer. The image comparison sidebar lists both files' SHA-256 hashes below the generation settings and highlights them when they differ.
 
 Positive and negative prompt corrections live under Metadata. For A1111, Forge, and unknown generator records, Parse Prompt from Clipboard can read A1111-style parameter text containing `Steps:` and apply the prompts it finds.
 
 Image Kind offers Automatic, Generated, Photo, and Other. Automatic follows Ambit's conservative metadata detection. Manual choices are catalog-only and survive rescans; they do not rewrite the image file.
 
 Positive Prompt and Negative Prompt fields save local prompt corrections to Ambit's catalog on blur. Unchanged fields do not create overrides. Imported original prompts remain available for read-only inspection.
-
-Notes stores local notes for the image and saves changed text on blur.
 
 These edits update Ambit's catalog. They do not rewrite the original image file or change the original generator workflow.
 Revert is available when actual metadata overrides exist.
@@ -145,7 +138,7 @@ Videos open with playback controls and start muted. Space toggles playback; J an
 
 Grid and timeline cards use static posters or a generic placeholder. A masked video does not create a player or play audio until revealed; re-enabling privacy protection stops playback and restores the gate.
 
-Video Details includes duration, dimensions, codec, container, audio presence, notes, and collections. Metadata can show ComfyUI prompts, generation mode, model, parameters, LoRAs, ControlNet, and IP-Adapter resources with evidence-source badges. Missing metadata is left unknown. User edits are local overrides; Revert user overrides restores the recovered metadata.
+Video Metadata can show ComfyUI prompts, generation mode, model, parameters, LoRAs, ControlNet, and IP-Adapter resources with evidence-source badges. Missing metadata is left unknown. User edits are local overrides; Revert user overrides restores the recovered metadata.
 
 Ambit reads embedded ComfyUI evidence and an exact sibling sidecar: for `clip.mp4`, use `clip.workflow.json` containing a `media` value of `clip.mp4` and a `workflow` value containing the workflow. Sidecars must be regular non-symlink UTF-8 JSON files no larger than 2 MiB. Valid matching sidecar evidence takes precedence over embedded evidence; conflicting values are retained rather than blended. Live Watch tracks sidecar changes for cataloged videos, and Refresh All Metadata can reconcile changes made while Ambit was closed.
 

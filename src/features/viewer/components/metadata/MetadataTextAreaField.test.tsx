@@ -7,7 +7,6 @@ describe('MetadataTextAreaField', () => {
     it.each([
         ['positivePrompt', 'Positive prompt', 'Enter positive prompt...'],
         ['negativePrompt', 'Negative prompt', 'Enter negative prompt...'],
-        ['notes', 'Notes', 'Add your notes here...'],
     ] as const)('provides the shared %s label and placeholder', (kind, label, placeholder) => {
         render(<MetadataTextAreaField kind={kind} value="" onChange={vi.fn()} />);
 
@@ -20,15 +19,15 @@ describe('MetadataTextAreaField', () => {
         const onBlur = vi.fn();
         render(
             <MetadataTextAreaField
-                kind="notes"
-                value="Existing note"
+                kind="positivePrompt"
+                value="Existing prompt"
                 onChange={onChange}
                 onBlur={onBlur}
             />,
         );
 
-        const textarea = screen.getByLabelText('Notes');
-        fireEvent.change(textarea, { target: { value: 'Updated note' } });
+        const textarea = screen.getByLabelText('Positive prompt');
+        fireEvent.change(textarea, { target: { value: 'Updated prompt' } });
         fireEvent.blur(textarea);
 
         expect(onChange).toHaveBeenCalledOnce();
@@ -58,7 +57,6 @@ describe('MetadataTextAreaField', () => {
     it.each([
         ['positivePrompt', 'Positive prompt', 'text-sage-500'],
         ['negativePrompt', 'Negative prompt', 'text-red-400'],
-        ['notes', 'Notes', 'text-gray-400'],
     ] as const)('keeps %s icon color aligned with its semantic role', (kind, label, iconClassName) => {
         render(<MetadataTextAreaField kind={kind} value="" onChange={vi.fn()} />);
 

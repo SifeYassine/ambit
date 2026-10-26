@@ -2,7 +2,6 @@ import * as React from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { ExternalLink, Film, Heart, Link, Pin, Puzzle, RotateCcw, RotateCw, Save, Target, Trash2, X } from 'lucide-react';
 import { commands } from '../../../bindings';
-import { useCollectionStore } from '../../../stores/collectionStore';
 import { GeneratorTool, isVideoAsset, VideoAsset, type VideoGenerationMode } from '../../../types';
 import { openFileInDefaultApp } from '../../../services/osOpen';
 import { getImageWithFullMetadata, updateVideoPlaybackStatus } from '../../../services/db/imageRepo';
@@ -10,13 +9,11 @@ import { unwrap } from '../../../utils/spectaUtils';
 import { useToast } from '../../../hooks/useToast';
 import { MaskedViewerGate } from './MaskedViewerGate';
 import { WorkflowInspector } from './WorkflowInspector';
-import { CollectionMembershipPicker } from './CollectionMembershipPicker';
 import { MetadataTextAreaField } from './metadata/MetadataTextAreaField';
 import type { ViewerTabDefinition } from './ViewerTabs';
 import { ViewerToolbarButton } from './ViewerToolbarButton';
 import { ViewerToolbarFrame } from './ViewerToolbarFrame';
 import { ViewerSidebarShell } from './ViewerSidebarShell';
-import { AssetTechnicalDetails } from './metadata/AssetTechnicalDetails';
 import { MetadataField } from './metadata/MetadataField';
 import { MetadataParameterList } from './metadata/MetadataParameterList';
 import { ResourcesSection } from './metadata/ResourcesSection';
@@ -27,10 +24,9 @@ import { MetadataModelField } from './metadata/MetadataModelField';
 import { useMetadataDisclosureState } from '../hooks/useMetadataDisclosureState';
 import { useViewerPreferredTab } from '../hooks/useViewerPreferredTab';
 
-type VideoViewerTab = 'details' | 'metadata' | 'workflow';
+type VideoViewerTab = 'metadata' | 'workflow';
 
 const VIDEO_VIEWER_TABS: readonly ViewerTabDefinition<VideoViewerTab>[] = [
-    { id: 'details', label: 'Details' },
     { id: 'metadata', label: 'Metadata' },
     { id: 'workflow', label: 'Workflow' },
 ];
@@ -46,7 +42,6 @@ interface VideoViewerProps {
     onToggleFavorite?: (id: string) => void;
     onTogglePin?: (id: string, isPinned: boolean) => void;
     onDelete?: (id: string) => void;
-    onUpdateNotes?: (id: string, notes: string) => void;
     onUpdatePrompt?: (id: string, prompt: string) => void;
     onUpdateNegativePrompt?: (id: string, prompt: string) => void;
     onUpdateModel?: (id: string, model: string) => void;
@@ -54,7 +49,6 @@ interface VideoViewerProps {
     onUpdateGenerationMode?: (id: string, mode: VideoGenerationMode) => void;
     onRevertMetadata?: (id: string) => void;
     onSearch?: (term: string) => void;
-    onSetCollectionMembership?: (assetId: string, collectionId: string, shouldBelong: boolean) => Promise<boolean>;
     modelOptions?: readonly string[];
     isShortcutBlocked?: boolean;
     canNavigateNext?: boolean;
@@ -71,7 +65,6 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
     onToggleFavorite,
     onTogglePin,
     onDelete,
-    onUpdateNotes,
     onUpdatePrompt,
     onUpdateNegativePrompt,
     onUpdateModel,
@@ -79,7 +72,6 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
     onUpdateGenerationMode,
     onRevertMetadata,
     onSearch,
-    onSetCollectionMembership,
     modelOptions = [],
     isShortcutBlocked = false,
     canNavigateNext = true,
@@ -87,7 +79,6 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
 }) => {
     const metadataDisclosure = useMetadataDisclosureState();
     const { addToast } = useToast();
-    const collections = useCollectionStore(state => state.collections);
     const playerRef = React.useRef<HTMLVideoElement>(null);
     const [revealedVideoId, setRevealedVideoId] = React.useState<string | null>(
         initiallyRevealed ? video.id : null
@@ -99,14 +90,12 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
         status: video.playbackStatus,
         url: null as string | null,
     });
-    const [notesState, setNotesState] = React.useState({ videoId: video.id, value: video.notes ?? '' });
     const { activeTab, onExplicitTabChange } = useViewerPreferredTab(VIDEO_VIEWER_TAB_IDS);
     const [positivePromptState, setPositivePromptState] = React.useState({ videoId: video.id, value: video.metadata.positivePrompt });
     const [negativePromptState, setNegativePromptState] = React.useState({ videoId: video.id, value: video.metadata.negativePrompt });
     const [fullVideo, setFullVideo] = React.useState<VideoAsset | null>(null);
     const playbackStatus = playbackState.videoId === video.id ? playbackState.status : video.playbackStatus;
     const playbackUrl = playbackState.videoId === video.id ? playbackState.url : null;
-    const notes = notesState.videoId === video.id ? notesState.value : (video.notes ?? '');
     const positivePrompt = positivePromptState.videoId === video.id ? positivePromptState.value : video.metadata.positivePrompt;
     const negativePrompt = negativePromptState.videoId === video.id ? negativePromptState.value : video.metadata.negativePrompt;
 
@@ -123,10 +112,9 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
     }, [video.id, video.playbackStatus]);
 
     React.useEffect(() => {
-        setNotesState({ videoId: video.id, value: video.notes ?? '' });
         setPositivePromptState({ videoId: video.id, value: video.metadata.positivePrompt });
         setNegativePromptState({ videoId: video.id, value: video.metadata.negativePrompt });
-    }, [video.id, video.notes, video.metadata]);
+    }, [video.id, video.metadata]);
 
     React.useEffect(() => {
         if (!revealed || video.isMissing) {
@@ -378,35 +366,6 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
                 onTabChange={onExplicitTabChange}
                 ariaLabel="Video viewer sections"
             >
-                {activeTab === 'details' && <div className="custom-scrollbar h-full overflow-y-auto p-5">
-                <AssetTechnicalDetails rows={[
-                    { label: 'Duration', value: formatDuration(video.durationMs) },
-                    { label: 'Dimensions', value: `${video.width}×${video.height}` },
-                    { label: 'Codec', value: video.videoCodec },
-                    { label: 'Container', value: video.mediaContainer ?? 'Unknown' },
-                    { label: 'Audio', value: video.audioPresent ? (video.audioCodec ?? 'Present') : 'None' },
-                ]} />
-
-                <MetadataTextAreaField
-                    kind="notes"
-                    value={notes}
-                    onChange={event => setNotesState({ videoId: video.id, value: event.target.value })}
-                    onBlur={() => {
-                        if (notes !== (video.notes ?? '')) onUpdateNotes?.(video.id, notes);
-                    }}
-                    readOnly={!onUpdateNotes}
-                    className="mt-6"
-                />
-
-                {onSetCollectionMembership ? <div className="mt-6">
-                    <CollectionMembershipPicker
-                        assetId={video.id}
-                        collections={collections}
-                        onSetCollectionMembership={onSetCollectionMembership}
-                    />
-                </div> : null}
-                </div>}
-
                 {activeTab === 'metadata' && <div className="custom-scrollbar h-full space-y-5 overflow-y-auto p-5 text-sm">
                     <MetadataTextAreaField
                         kind="positivePrompt"
@@ -489,8 +448,3 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
 
 const formatSource = (source: string): string => source.replaceAll('_', ' ');
 
-const formatDuration = (durationMs: number): string => {
-    const seconds = Math.max(0, Math.round(durationMs / 1000));
-    const minutes = Math.floor(seconds / 60);
-    return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
-};
