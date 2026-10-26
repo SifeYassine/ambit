@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { create } from 'zustand';
-import { AlertCircle, Boxes, ImageOff, Layers, Loader2, RotateCcw, SlidersHorizontal } from 'lucide-react';
+import { AlertCircle, Boxes, CheckCircle, ImageOff, Layers, Loader2, RotateCcw } from 'lucide-react';
 import type { FilterState, PresetFilter } from '../../../types';
 import type { GenerationPreset } from '../../../services/db/presetRepo';
 import { PrivacyAwareThumbnail } from '../../../components/ui/PrivacyAwareThumbnail';
@@ -183,21 +183,30 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
                         Your most used model, LoRA, and sampler combinations. Select a preset to see its images.
                     </p>
                 </div>
-                <label htmlFor={toggleId} className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-white/10 dark:text-zinc-200">
-                    <SlidersHorizontal className="h-4 w-4 text-gray-400" aria-hidden="true" />
-                    Group by LoRA weights
-                    <input
-                        id={toggleId}
-                        type="checkbox"
-                        checked={matchWeights}
-                        onChange={event => setMatchWeights(event.target.checked)}
-                        className="h-4 w-4 accent-sage-500"
-                    />
-                </label>
             </header>
             </div>
 
             <div className="custom-scrollbar flex-1 overflow-y-auto px-6 pb-8" style={{ scrollbarGutter: 'stable' }}>
+            {/* Same round check as gallery selection; the native checkbox stays for keyboard and screen readers. */}
+            <label htmlFor={toggleId} className="mb-4 inline-flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-zinc-200">
+                <input
+                    id={toggleId}
+                    type="checkbox"
+                    checked={matchWeights}
+                    onChange={event => setMatchWeights(event.target.checked)}
+                    className="peer sr-only"
+                />
+                <span
+                    aria-hidden="true"
+                    className={`flex h-5 w-5 items-center justify-center rounded-full border shadow-sm transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-sage-500 ${matchWeights
+                        ? 'border-sage-500 bg-sage-500'
+                        : 'border-gray-300 bg-white hover:bg-gray-100 dark:border-white/30 dark:bg-black/40 dark:hover:bg-black/60'}`}
+                >
+                    {matchWeights && <CheckCircle className="h-3.5 w-3.5 text-white" />}
+                </span>
+                Group by LoRA weights
+            </label>
+
 
             {error ? (
                 <div role="alert" className="flex flex-col items-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
