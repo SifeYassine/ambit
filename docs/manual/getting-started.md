@@ -45,7 +45,7 @@ The main Ambit workspace has a left sidebar, a library area, and an optional fil
 
 - Grid View shows image thumbnails for everyday browsing.
 - Timeline View groups browsing around image time.
-- Statistics shows library-level summaries.
+- Statistics charts your most used models, LoRAs, samplers, steps, and CFG, plus your most used prompt tags.
 - Maintenance helps resolve missing files, duplicates, removed items, and other cleanup tasks.
 - Filters opens the library filter panel.
 - Settings opens preferences and integrations.

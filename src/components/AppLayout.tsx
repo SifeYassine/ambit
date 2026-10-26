@@ -423,12 +423,17 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                             {viewMode === 'dashboard' ? (
                                 <React.Suspense fallback={<ViewLoadingFallback />}>
                                     <StatsDashboard images={images} onFilter={(t, v) => {
-                                        if (t === 'model') {
-                                            setFilters(p => ({
-                                                ...p,
-                                                models: p.models.includes(v) ? p.models : [...p.models, v]
-                                            }));
-                                        }
+                                        const addTo = (list: string[] | undefined) => {
+                                            const values = list ?? [];
+                                            return values.includes(String(v)) ? values : [...values, String(v)];
+                                        };
+                                        if (t === 'model') setFilters(p => ({ ...p, models: addTo(p.models) }));
+                                        else if (t === 'lora') setFilters(p => ({ ...p, loras: addTo(p.loras) }));
+                                        else if (t === 'sampler') setFilters(p => ({ ...p, samplers: addTo(p.samplers) }));
+                                        else if (t === 'steps' && typeof v === 'number') setFilters(p => ({ ...p, minSteps: v, maxSteps: v }));
+                                        else if (t === 'cfg' && typeof v === 'number') setFilters(p => ({ ...p, minCfg: v, maxCfg: v }));
+                                        // Prompt tags arrive as ready-made search terms and append to the search.
+                                        else if (t === 'keyword') setFilters(p => ({ ...p, searchQuery: p.searchQuery.trim() ? `${p.searchQuery.trim()} ${v}` : String(v) }));
                                         changeViewMode('grid');
                                     }} />
                                 </React.Suspense>

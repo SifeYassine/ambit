@@ -1,16 +1,22 @@
 
 import * as React from 'react';
 import { useState } from 'react';
-import { Lightbulb, X, BarChart3 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Lightbulb, X, BarChart3, ChevronDown } from 'lucide-react';
 import { AIImage } from '../../types';
 // Note: useLibraryStats hook is deprecated for large library performance. Using DB stats.
 import { useLibraryContext } from '../../hooks/useLibraryContext';
 import { useLibraryStore } from '../../stores/libraryStore';
+import { getSettingBreakdown, type SettingBreakdownDimension, type SettingBreakdownItem } from '../../services/db/searchRepo';
+import { isBrowserMockMode } from '../../services/runtime';
 import { WordCloud } from './stats/WordCloud';
+import { SettingBarChart } from './stats/SettingBarChart';
+
+export type StatsFilterType = 'keyword' | SettingBreakdownDimension;
 
 interface ChartsProps {
     images: AIImage[];
-    onFilter: (type: 'model' | 'keyword', value: string) => void;
+    onFilter: (type: StatsFilterType, value: string | number) => void;
 }
 
 const TIPS = [
@@ -23,35 +29,60 @@ const TIPS = [
     "Drag and drop images to import them."
 ];
 
-type ModelChartStat = {
-    name: string;
-    fullName?: string;
-    count: number;
+const DIMENSIONS: { value: SettingBreakdownDimension; label: string; title: string }[] = [
+    { value: 'model', label: 'Models', title: 'Top 10 Models' },
+    { value: 'lora', label: 'LoRAs', title: 'Top 10 LoRAs' },
+    { value: 'sampler', label: 'Samplers', title: 'Top 10 Samplers' },
+    { value: 'steps', label: 'Steps', title: 'Top 10 Step Counts' },
+    { value: 'cfg', label: 'CFG', title: 'Top 10 CFG Values' },
+];
+
+type PromptKind = 'positive' | 'negative';
+
+export const buildTagSearchTerm = (tag: string, kind: PromptKind): string => {
+    const value = kind === 'negative' ? `neg:${tag}` : tag;
+    return /[\s"]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
 };
 
-const SKELETON_BAR_WIDTHS = ['92%', '76%', '84%', '63%', '71%'];
+// The native arrow ignores padding and sits on the border, so it is hidden and drawn inset instead.
+const SELECT_CLASS = 'appearance-none cursor-pointer rounded-lg border border-gray-200 bg-white py-1.5 pl-3 pr-8 text-xs font-medium text-gray-700 outline-none focus:border-sage-500 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-200';
 
-const formatAnalysisTarget = (globalTotal: number) =>
-    globalTotal > 0
-        ? `Analyzing ${globalTotal.toLocaleString()} library images`
-        : 'Analyzing library images';
+const StatsSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = ({ children, ...props }) => (
+    <div className="relative">
+        <select {...props} className={SELECT_CLASS}>{children}</select>
+        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+    </div>
+);
+const CARD_CLASS = 'rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900';
+const CARD_TITLE_CLASS = 'text-sm font-bold uppercase tracking-wider text-gray-400';
+
+const ClickToFilter = () => <span className="normal-case tracking-normal font-medium">(click to filter)</span>;
 
 export const StatsDashboard: React.FC<ChartsProps> = ({ images, onFilter }) => {
     const setKeywordStatsEnabled = useLibraryStore(state => state.setKeywordStatsEnabled);
     // Use DB-backed global stats
     const {
         stats,
-        setFilters,
         isFiltering,
-        globalTotal,
         isStatsSummaryLoading,
-        isKeywordStatsLoading
+        isKeywordStatsLoading,
+        statsScope
     } = useLibraryContext();
-    const { totalGenerations, totalItems, totalImages, totalVideos, avgSteps, estSizeMB, modelStats, keywordStats } = stats;
-    const modelChartStats: ModelChartStat[] = modelStats ?? [];
-    const maxModelCount = Math.max(1, ...modelChartStats.map(stat => stat.count));
-    const shouldShowWordCloudLoading = isStatsSummaryLoading || (isKeywordStatsLoading && keywordStats.length === 0);
-    const analysisTargetLabel = formatAnalysisTarget(globalTotal);
+    const { keywordStats, negativeKeywordStats } = stats;
+    const [dimension, setDimension] = useState<SettingBreakdownDimension>('model');
+    const [promptKind, setPromptKind] = useState<PromptKind>('positive');
+    const promptKeywords = promptKind === 'positive' ? keywordStats : (negativeKeywordStats ?? []);
+    const shouldShowWordCloudLoading = isStatsSummaryLoading || (isKeywordStatsLoading && promptKeywords.length === 0);
+    const dimensionConfig = DIMENSIONS.find(item => item.value === dimension) ?? DIMENSIONS[0];
+
+    const breakdownQuery = useQuery({
+        queryKey: ['statsBreakdown', dimension, statsScope?.cacheKey ?? null],
+        queryFn: (): Promise<SettingBreakdownItem[]> => statsScope && !isBrowserMockMode()
+            ? getSettingBreakdown(dimension, statsScope.where, statsScope.params, statsScope.collectionId, statsScope.loraName)
+            : Promise.resolve([]),
+        enabled: Boolean(statsScope) || isBrowserMockMode(),
+        staleTime: 1000 * 60 * 5,
+    });
 
     const [showTip, setShowTip] = useState(true);
 
@@ -98,145 +129,50 @@ export const StatsDashboard: React.FC<ChartsProps> = ({ images, onFilter }) => {
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-                        <StatCard
-                            label="Total Items"
-                            value={totalItems ?? totalGenerations}
-                            isLoading={isStatsSummaryLoading}
-                            loadingText={analysisTargetLabel}
-                        />
-                        <StatCard label="Images" value={totalImages} isLoading={isStatsSummaryLoading} />
-                        <StatCard label="Videos" value={totalVideos ?? 0} isLoading={isStatsSummaryLoading} />
-                        <StatCard
-                            label="Avg. Steps"
-                            value={avgSteps > 0 ? avgSteps : '—'}
-                            isLoading={isStatsSummaryLoading}
-                            loadingText="Computing generation summary"
-                        />
-                        <StatCard
-                            label="Storage Used"
-                            value={`${estSizeMB} MB`}
-                            isLoading={isStatsSummaryLoading}
-                            loadingText="Measuring library files"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Bar Chart */}
-                        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 rounded-xl p-6 h-80 shadow-sm flex flex-col">
-                            <h3 className="text-sm font-bold text-gray-400 mb-6 uppercase tracking-wider flex-shrink-0">Generations per Model (Click to Filter)</h3>
-                            <div className="flex-1 min-h-0 w-full overflow-y-auto custom-scrollbar pr-1 space-y-3">
-                                {isStatsSummaryLoading ? (
-                                    <div className="h-full flex flex-col justify-center gap-4">
-                                        <div className="space-y-3">
-                                            {SKELETON_BAR_WIDTHS.map((width) => (
-                                                <div key={width} className="space-y-2">
-                                                    <div className="h-3 w-32 rounded-full bg-gray-200/70 dark:bg-white/10 animate-pulse" />
-                                                    <div className="h-2.5 rounded-full bg-gray-200 dark:bg-white/10 overflow-hidden">
-                                                        <div
-                                                            className="h-full rounded-full bg-sage-300/70 dark:bg-sage-500/30 animate-pulse"
-                                                            style={{ width }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="text-[11px] uppercase tracking-[0.24em] font-semibold text-gray-400 text-center">
-                                            {analysisTargetLabel}
-                                        </div>
-                                    </div>
-                                ) : modelChartStats.length === 0 ? (
-                                    <div className="h-full flex items-center justify-center text-xs uppercase tracking-wider text-gray-400">
-                                        No model stats found
-                                    </div>
-                                ) : modelChartStats.map((stat, index) => {
-                                    const widthPercent = Math.max(6, Math.round((stat.count / maxModelCount) * 100));
-                                    const colorClass = [
-                                        'bg-indigo-500',
-                                        'bg-violet-500',
-                                        'bg-rose-500',
-                                        'bg-teal-500'
-                                    ][index % 4];
-
-                                    return (
-                                        <button
-                                            key={`${stat.fullName ?? stat.name}-${index}`}
-                                            type="button"
-                                            className="group w-full text-left rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors focus:outline-none focus:ring-2 focus:ring-sage-500/60"
-                                            title={stat.fullName ?? stat.name}
-                                            onClick={() => {
-                                                if (typeof stat.fullName === 'string') {
-                                                    onFilter('model', stat.fullName);
-                                                }
-                                            }}
-                                        >
-                                            <div className="flex items-center justify-between gap-3 mb-1">
-                                                <span className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">
-                                                    {stat.fullName ?? stat.name}
-                                                </span>
-                                                <span className="text-xs font-mono text-gray-500 dark:text-gray-400 shrink-0">
-                                                    {stat.count.toLocaleString()}
-                                                </span>
-                                            </div>
-                                            <div className="h-2.5 rounded-full bg-gray-200 dark:bg-white/10 overflow-hidden">
-                                                <div
-                                                    className={`h-full rounded-full ${colorClass} group-hover:opacity-90 transition-all`}
-                                                    style={{ width: `${widthPercent}%` }}
-                                                />
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                    {/* Setting chart */}
+                    <section className={CARD_CLASS} aria-labelledby="stats-chart-title">
+                        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                            <h3 id="stats-chart-title" className={CARD_TITLE_CLASS}>{dimensionConfig.title} <ClickToFilter /></h3>
+                            <StatsSelect
+                                aria-label="Chart setting"
+                                value={dimension}
+                                onChange={event => setDimension(event.target.value as SettingBreakdownDimension)}
+                            >
+                                {DIMENSIONS.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+                            </StatsSelect>
                         </div>
+                        <SettingBarChart
+                            items={breakdownQuery.data ?? []}
+                            isLoading={breakdownQuery.isPending && (Boolean(statsScope) || isBrowserMockMode())}
+                            emptyLabel={`No ${dimensionConfig.label.toLowerCase()} recorded`}
+                            onSelect={item => onFilter(dimension, item.value)}
+                        />
+                    </section>
 
-                        {/* Word Cloud */}
-                        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 rounded-xl p-6 h-80 shadow-sm flex flex-col relative overflow-hidden group">
-                            <h3 className="text-sm font-bold text-gray-400 mb-4 uppercase tracking-wider flex items-center justify-between">
-                                <span>Top Prompt Keywords</span>
-                                {isFiltering && <div className="h-4 w-4 animate-spin rounded-full border-2 border-sage-500/20 border-t-sage-500" />}
+                    {/* Prompt word cloud */}
+                    <section className={CARD_CLASS} aria-labelledby="stats-cloud-title">
+                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                            <h3 id="stats-cloud-title" className={`${CARD_TITLE_CLASS} flex items-center gap-2`}>
+                                <span>Top {promptKind === 'positive' ? 'Prompt' : 'Negative Prompt'} Tags <ClickToFilter /></span>
+                                {isFiltering && <span className="h-4 w-4 animate-spin rounded-full border-2 border-sage-500/20 border-t-sage-500" />}
                             </h3>
-                            <div className="flex-1 min-h-0">
-                                <WordCloud
-                                    keywords={keywordStats || []}
-                                    totalImages={totalGenerations}
-                                    isLoading={shouldShowWordCloudLoading}
-                                    onWordClick={(word) => {
-                                        setFilters((prev) => ({
-                                            ...prev,
-                                            searchQuery: prev.searchQuery ? `${prev.searchQuery.trim()} ${word}` : word
-                                        }));
-                                    }}
-                                />
-                            </div>
+                            <StatsSelect
+                                aria-label="Prompt type"
+                                value={promptKind}
+                                onChange={event => setPromptKind(event.target.value as PromptKind)}
+                            >
+                                <option value="positive">Positive prompts</option>
+                                <option value="negative">Negative prompts</option>
+                            </StatsSelect>
                         </div>
-                    </div>
+                        <WordCloud
+                            keywords={promptKeywords}
+                            isLoading={shouldShowWordCloudLoading}
+                            onWordClick={(word) => onFilter('keyword', buildTagSearchTerm(word, promptKind))}
+                        />
+                    </section>
                 </div>
             </div>
         </div>
     );
 };
-
-const StatCard = ({
-    label,
-    value,
-    isLoading,
-    loadingText
-}: {
-    label: string;
-    value: number | string;
-    isLoading: boolean;
-    loadingText?: string;
-}) => (
-    <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 p-4 rounded-lg shadow-sm">
-        <div className="text-gray-500 dark:text-gray-400 text-xs uppercase mb-1">{label}</div>
-        {isLoading ? (
-            <div className="space-y-3">
-                <div className="h-9 w-28 rounded-lg bg-gray-200/80 dark:bg-white/10 animate-pulse" />
-                <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400">{loadingText}</div>
-            </div>
-        ) : (
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{value}</div>
-        )}
-    </div>
-);

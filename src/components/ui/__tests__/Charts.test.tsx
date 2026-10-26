@@ -1,7 +1,10 @@
 import * as React from 'react';
-import { fireEvent, render, screen } from '../../../test/testUtils';
+import { fireEvent, render, screen, waitFor } from '../../../test/testUtils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { StatsDashboard } from '../Charts';
+import { buildTagSearchTerm, StatsDashboard } from '../Charts';
+import type { SettingBreakdownDimension, SettingBreakdownItem } from '../../../services/db/searchRepo';
+
+const SCOPE = { where: 'WHERE is_deleted = 0', params: [0], collectionId: undefined, loraName: undefined, cacheKey: 'scope-1' };
 
 const createLibraryContextState = () => ({
     stats: {
@@ -9,207 +12,119 @@ const createLibraryContextState = () => ({
         totalGenerations: 2,
         avgSteps: 28,
         estSizeMB: '4.8',
-        modelStats: [
-            { name: 'Flux Super Long Model Name', fullName: 'Flux Super Long Model Name', count: 2 },
-            { name: 'Flux Super Long Model Name XL', fullName: 'Flux Super Long Model Name XL', count: 1 }
-        ],
-        keywordStats: [{ text: 'aurora', value: 2 }]
+        modelStats: [],
+        keywordStats: [{ text: 'long hair', value: 2 }],
+        negativeKeywordStats: [{ text: 'bad anatomy', value: 3 }],
     },
     setFilters: vi.fn(),
     isFiltering: false,
     globalTotal: 118000,
     isStatsSummaryLoading: false,
-    isKeywordStatsLoading: false
+    isKeywordStatsLoading: false,
+    statsScope: SCOPE as typeof SCOPE | null,
 });
 
-const libraryContextMocks = vi.hoisted(() => ({
-    stats: {
-        totalImages: 2,
-        totalGenerations: 2,
-        avgSteps: 28,
-        estSizeMB: '4.8',
-        modelStats: [
-            { name: 'Flux Super Long Model Name', fullName: 'Flux Super Long Model Name', count: 2 },
-            { name: 'Flux Super Long Model Name XL', fullName: 'Flux Super Long Model Name XL', count: 1 }
-        ],
-        keywordStats: [{ text: 'aurora', value: 2 }]
-    },
-    setFilters: vi.fn(),
-    isFiltering: false,
-    globalTotal: 118000,
-    isStatsSummaryLoading: false,
-    isKeywordStatsLoading: false
+const mocks = vi.hoisted(() => ({
+    context: {} as Record<string, unknown>,
+    setKeywordStatsEnabled: vi.fn(),
+    getSettingBreakdown: vi.fn(),
 }));
 
-const libraryStoreMocks = vi.hoisted(() => ({
-    setKeywordStatsEnabled: vi.fn()
-}));
-
-vi.mock('../../../hooks/useLibraryContext', () => ({
-    useLibraryContext: () => libraryContextMocks
-}));
-
+vi.mock('../../../hooks/useLibraryContext', () => ({ useLibraryContext: () => mocks.context }));
 vi.mock('../../../stores/libraryStore', () => ({
-    useLibraryStore: (selector: (state: typeof libraryStoreMocks) => unknown) => selector(libraryStoreMocks)
+    useLibraryStore: (selector: (state: { setKeywordStatsEnabled: typeof mocks.setKeywordStatsEnabled }) => unknown) =>
+        selector({ setKeywordStatsEnabled: mocks.setKeywordStatsEnabled }),
 }));
+vi.mock('../../../services/runtime', () => ({ isBrowserMockMode: () => false }));
+vi.mock('../../../services/db/searchRepo', () => ({ getSettingBreakdown: mocks.getSettingBreakdown }));
+
+const BREAKDOWNS: Record<SettingBreakdownDimension, SettingBreakdownItem[]> = {
+    model: [
+        { label: 'wai_nsfw_illustrious_sdxl_v10.0', value: 'wai_nsfw_illustrious_sdxl_v10.0', count: 273 },
+        { label: 'nova_furry_xl', value: 'nova_furry_xl', count: 68 },
+    ],
+    lora: [{ label: 'frostbite', value: 'frostbite', count: 166 }],
+    sampler: [{ label: 'dpmpp 2m (karras)', value: 'dpmpp 2m (karras)', count: 367 }],
+    steps: [{ label: '28 steps', value: 28, count: 300 }],
+    cfg: [],
+};
 
 describe('StatsDashboard', () => {
     beforeEach(() => {
-        Object.assign(libraryContextMocks, createLibraryContextState());
-        libraryContextMocks.setFilters = vi.fn();
         vi.clearAllMocks();
+        mocks.context = createLibraryContextState();
+        mocks.getSettingBreakdown.mockImplementation(async (dimension: SettingBreakdownDimension) => BREAKDOWNS[dimension]);
     });
 
-    it('renders full model labels and filters by the full model name on click', () => {
-        const onFilter = vi.fn();
-
-        render(<StatsDashboard images={[]} onFilter={onFilter} />);
-
-        expect(screen.getByText('Flux Super Long Model Name')).toBeTruthy();
-        expect(screen.getByText('Flux Super Long Model Name XL')).toBeTruthy();
-
-        fireEvent.click(screen.getByRole('button', { name: /Flux Super Long Model Name XL/i }));
-
-        expect(onFilter).toHaveBeenCalledWith('model', 'Flux Super Long Model Name XL');
-    });
-
-    it('enables keyword analysis only while the Statistics dashboard is mounted', () => {
+    it('enables keyword analysis only while mounted and shows no summary cards', () => {
         const { unmount } = render(<StatsDashboard images={[]} onFilter={vi.fn()} />);
 
-        expect(libraryStoreMocks.setKeywordStatsEnabled).toHaveBeenCalledWith(true);
-
+        expect(mocks.setKeywordStatsEnabled).toHaveBeenCalledWith(true);
+        expect(screen.queryByText('Total Items')).toBeNull();
+        expect(screen.queryByText('Storage Used')).toBeNull();
         unmount();
-
-        expect(libraryStoreMocks.setKeywordStatsEnabled).toHaveBeenLastCalledWith(false);
+        expect(mocks.setKeywordStatsEnabled).toHaveBeenLastCalledWith(false);
     });
 
-    it('shows progressive loading placeholders before the summary query resolves', () => {
-        libraryContextMocks.stats = {
-            totalImages: 0,
-            totalGenerations: 0,
-            avgSteps: 0,
-            estSizeMB: '0',
-            modelStats: [],
-            keywordStats: []
-        };
-        libraryContextMocks.isStatsSummaryLoading = true;
-
-        render(<StatsDashboard images={[]} onFilter={vi.fn()} />);
-
-        expect(screen.getAllByText('Analyzing 118,000 library images')).toHaveLength(2);
-        expect(screen.getByText('Computing generation summary')).toBeTruthy();
-        expect(screen.getByText('Measuring library files')).toBeTruthy();
-        expect(screen.queryByText('No model stats found')).toBeNull();
-        expect(screen.queryByText('No keywords found')).toBeNull();
-        expect(screen.queryByText('0 MB')).toBeNull();
-    });
-
-    it('renders summary cards and model bars while keyword analysis is still running', () => {
-        libraryContextMocks.stats.keywordStats = [];
-        libraryContextMocks.isKeywordStatsLoading = true;
-
-        render(<StatsDashboard images={[]} onFilter={vi.fn()} />);
-
-        expect(screen.getByText('Total Items')).toBeTruthy();
-        expect(screen.getByText('Images')).toBeTruthy();
-        expect(screen.getByText('Videos')).toBeTruthy();
-        expect(screen.getByText('28')).toBeTruthy();
-        expect(screen.getByText('Avg. Steps').parentElement?.textContent).toContain('28');
-        expect(screen.getByText('4.8 MB')).toBeTruthy();
-        expect(screen.getByText('Flux Super Long Model Name')).toBeTruthy();
-        expect(screen.getByText('Analyzing Library')).toBeTruthy();
-        expect(screen.queryByText('Computing generation summary')).toBeNull();
-        expect(screen.queryByText('No keywords found')).toBeNull();
-        expect(screen.queryByText('No model stats found')).toBeNull();
-    });
-
-    it.each([0, -1])('shows an em dash when the step average is %i', (avgSteps) => {
-        libraryContextMocks.stats.avgSteps = avgSteps;
-
-        render(<StatsDashboard images={[]} onFilter={vi.fn()} />);
-
-        expect(screen.getByText('Avg. Steps').parentElement?.textContent).toContain('—');
-    });
-
-    it('shows the analyzing state instead of keyword content during keyword refreshes', () => {
-        libraryContextMocks.stats.keywordStats = [];
-        libraryContextMocks.isKeywordStatsLoading = true;
-
-        render(<StatsDashboard images={[]} onFilter={vi.fn()} />);
-
-        expect(screen.getByText('Analyzing Library')).toBeTruthy();
-        expect(screen.queryByText('aurora')).toBeNull();
-        expect(screen.getByText('Flux Super Long Model Name')).toBeTruthy();
-        expect(screen.getByText('4.8 MB')).toBeTruthy();
-    });
-
-    it('shows true empty states only after summary and keyword queries both settle empty', () => {
-        libraryContextMocks.stats = {
-            totalImages: 0,
-            totalGenerations: 0,
-            avgSteps: 0,
-            estSizeMB: '0',
-            modelStats: [],
-            keywordStats: []
-        };
-
-        render(<StatsDashboard images={[]} onFilter={vi.fn()} />);
-
-        expect(screen.getByText('Total Items')).toBeTruthy();
-        expect(screen.getByText('0 MB')).toBeTruthy();
-        expect(screen.getByText('No model stats found')).toBeTruthy();
-        expect(screen.getByText('No keywords found')).toBeTruthy();
-    });
-
-    it('dismisses the tip of the day', () => {
-        const { container } = render(<StatsDashboard images={[]} onFilter={vi.fn()} />);
-        const tip = screen.getByText('Tip of the Day').closest('.relative');
-
-        expect(tip?.className).toContain('bg-harbor-50');
-        expect(tip?.className).not.toContain('bg-sage');
-
-        fireEvent.click(tip?.querySelector('button') as HTMLButtonElement);
-
-        expect(container.textContent).not.toContain('Tip of the Day');
-    });
-
-    it('does not filter model rows that lack an exact full name', () => {
-        libraryContextMocks.stats.modelStats = [{
-            name: 'Display Only',
-            fullName: undefined as unknown as string,
-            count: 1,
-        }];
+    it('charts the top models over the shared stats scope and filters by a clicked bar', async () => {
         const onFilter = vi.fn();
         render(<StatsDashboard images={[]} onFilter={onFilter} />);
 
-        fireEvent.click(screen.getByRole('button', { name: /Display Only/i }));
+        const bar = await screen.findByRole('button', { name: 'Filter by wai_nsfw_illustrious_sdxl_v10.0 (273 images)' });
+        expect(mocks.getSettingBreakdown).toHaveBeenCalledWith('model', SCOPE.where, SCOPE.params, undefined, undefined);
+        expect(screen.getByText(/Top 10 Models/)).toBeTruthy();
+        expect(screen.getByText('Number of images')).toBeTruthy();
 
-        expect(onFilter).not.toHaveBeenCalled();
+        fireEvent.click(bar);
+        expect(onFilter).toHaveBeenCalledWith('model', 'wai_nsfw_illustrious_sdxl_v10.0');
     });
 
-    it('appends clicked keyword terms through the filter updater', () => {
-        render(<StatsDashboard images={[]} onFilter={vi.fn()} />);
+    it('switches the chart setting with the dropdown', async () => {
+        const onFilter = vi.fn();
+        render(<StatsDashboard images={[]} onFilter={onFilter} />);
 
-        fireEvent.click(screen.getByText('aurora'));
+        fireEvent.change(screen.getByLabelText('Chart setting'), { target: { value: 'steps' } });
+        fireEvent.click(await screen.findByRole('button', { name: 'Filter by 28 steps (300 images)' }));
+        expect(screen.getByText(/Top 10 Step Counts/)).toBeTruthy();
+        expect(onFilter).toHaveBeenCalledWith('steps', 28);
 
-        expect(libraryContextMocks.setFilters).toHaveBeenCalledWith(expect.any(Function));
-        const update = libraryContextMocks.setFilters.mock.calls[0][0] as (
-            filters: { searchQuery: string }
-        ) => { searchQuery: string };
-        expect(update({ searchQuery: '  existing  ' }).searchQuery).toBe('existing aurora');
-        expect(update({ searchQuery: '' }).searchQuery).toBe('aurora');
+        fireEvent.change(screen.getByLabelText('Chart setting'), { target: { value: 'cfg' } });
+        expect(await screen.findByText('No cfg recorded')).toBeTruthy();
     });
 
-    it('handles zero global totals, nullable stats arrays, and active filtering', () => {
-        libraryContextMocks.globalTotal = 0;
-        libraryContextMocks.isFiltering = true;
-        libraryContextMocks.stats.modelStats = null as unknown as typeof libraryContextMocks.stats.modelStats;
-        libraryContextMocks.stats.keywordStats = null as unknown as typeof libraryContextMocks.stats.keywordStats;
+    it('switches between positive and negative prompt tags and filters the gallery by a clicked tag', () => {
+        const onFilter = vi.fn();
+        render(<StatsDashboard images={[]} onFilter={onFilter} />);
 
+        fireEvent.click(screen.getByText('long hair'));
+        expect(onFilter).toHaveBeenLastCalledWith('keyword', '"long hair"');
+
+        expect(screen.getByText('long hair')).toBeTruthy();
+        fireEvent.change(screen.getByLabelText('Prompt type'), { target: { value: 'negative' } });
+        expect(screen.queryByText('long hair')).toBeNull();
+        expect(screen.getByText(/Top Negative Prompt Tags/)).toBeTruthy();
+
+        fireEvent.click(screen.getByText('bad anatomy'));
+        expect(onFilter).toHaveBeenLastCalledWith('keyword', '"neg:bad anatomy"');
+    });
+
+    it('waits for the stats scope before querying, and the tip can be dismissed', async () => {
+        mocks.context = { ...createLibraryContextState(), statsScope: null };
         render(<StatsDashboard images={[]} onFilter={vi.fn()} />);
 
-        expect(screen.getByText('No model stats found')).toBeTruthy();
-        expect(screen.getByText('No keywords found')).toBeTruthy();
-        expect(screen.getByText('Total Items')).toBeTruthy();
+        await waitFor(() => expect(screen.getByText('No models recorded')).toBeTruthy());
+        expect(mocks.getSettingBreakdown).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Dismiss Tip' }));
+        expect(screen.queryByText('Tip of the Day')).toBeNull();
+    });
+});
+
+describe('buildTagSearchTerm', () => {
+    it('quotes whole terms so multi-word tags stay one search token', () => {
+        expect(buildTagSearchTerm('aurora', 'positive')).toBe('aurora');
+        expect(buildTagSearchTerm('long hair', 'positive')).toBe('"long hair"');
+        expect(buildTagSearchTerm('blurry', 'negative')).toBe('neg:blurry');
+        expect(buildTagSearchTerm('say "hi"', 'positive')).toBe('"say \\"hi\\""');
     });
 });
