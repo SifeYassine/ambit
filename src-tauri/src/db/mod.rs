@@ -9,6 +9,15 @@ pub mod facets;
 pub mod migrations;
 pub mod reparse;
 
+/// Supporting-model junctions added in migration 86: (table, name column, metadata JSON key,
+/// facet type). Names are stored already cleaned by the parsers, so they are inserted as-is.
+pub(crate) const SUPPORTING_MODEL_JUNCTIONS: [(&str, &str, &str, &str); 4] = [
+    ("image_vaes", "vae_name", "vaes", "vaes"),
+    ("image_upscalers", "upscaler_name", "upscalers", "upscalers"),
+    ("image_clip_visions", "clip_vision_name", "clipVisions", "clip_visions"),
+    ("image_detectors", "detector_name", "detectors", "detectors"),
+];
+
 #[cfg(any(test, all(windows, not(debug_assertions))))]
 const PRODUCTION_IDENTIFIER: &str = "io.github.asuraace.ambit";
 pub const MAIN_DB_FILE_NAME: &str = "images.db";
@@ -330,6 +339,7 @@ fn production_database_migration_urls_for_roots(
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use std::fs;
     use std::path::PathBuf;

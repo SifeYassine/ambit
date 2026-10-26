@@ -961,6 +961,23 @@ fn refresh_video_resource_junctions(
         )
         .map_err(|error| error.to_string())?;
     }
+    // Supporting models are stored already cleaned.
+    for (table, column, json_key, _) in crate::db::SUPPORTING_MODEL_JUNCTIONS {
+        conn.execute(
+            &format!("DELETE FROM {table} WHERE image_id = ?1"),
+            [asset_id],
+        )
+        .map_err(|error| error.to_string())?;
+        conn.execute(
+            &format!(
+                "INSERT OR IGNORE INTO {table} (image_id, {column})
+                 SELECT ?1, value FROM json_each(?2, '$.{json_key}')
+                 WHERE typeof(value) = 'text' AND value != ''"
+            ),
+            params![asset_id, metadata_json],
+        )
+        .map_err(|error| error.to_string())?;
+    }
     Ok(())
 }
 
@@ -1736,6 +1753,10 @@ mod tests {
                 ipadapter_name TEXT NOT NULL,
                 UNIQUE(image_id, ipadapter_name)
             );
+            CREATE TABLE image_vaes (image_id TEXT NOT NULL, vae_name TEXT NOT NULL, UNIQUE(image_id, vae_name));
+            CREATE TABLE image_upscalers (image_id TEXT NOT NULL, upscaler_name TEXT NOT NULL, UNIQUE(image_id, upscaler_name));
+            CREATE TABLE image_clip_visions (image_id TEXT NOT NULL, clip_vision_name TEXT NOT NULL, UNIQUE(image_id, clip_vision_name));
+            CREATE TABLE image_detectors (image_id TEXT NOT NULL, detector_name TEXT NOT NULL, UNIQUE(image_id, detector_name));
             ",
         )
         .expect("setup schema");

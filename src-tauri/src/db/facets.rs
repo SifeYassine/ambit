@@ -254,6 +254,11 @@ pub async fn rebuild_facet_cache(app: tauri::AppHandle) -> Result<usize, String>
             );
             build_resource_facets(&tx, "ip_adapters", "ip_adapters")?;
 
+            // 8. Supporting models (VAEs, upscalers, CLIP Vision, detectors)
+            for (_, _, _, facet_type) in crate::db::SUPPORTING_MODEL_JUNCTIONS {
+                build_resource_facets(&tx, facet_type, facet_type)?;
+            }
+
             sanitize_owner_hidden_facet_thumbnails(&tx)?;
 
             tx.commit().map_err(|e| e.to_string())?;
@@ -306,6 +311,10 @@ fn normalize_facet_type(facet_type: &str) -> Result<&'static str, String> {
         "hypernetworks" => Ok("hypernetworks"),
         "controlNets" | "control_nets" => Ok("control_nets"),
         "ipAdapters" | "ip_adapters" => Ok("ip_adapters"),
+        "vaes" => Ok("vaes"),
+        "upscalers" => Ok("upscalers"),
+        "clipVisions" | "clip_visions" => Ok("clip_visions"),
+        "detectors" => Ok("detectors"),
         _ => Err(format!(
             "Unknown facet type for incremental build: {}",
             facet_type
@@ -324,6 +333,14 @@ pub struct FacetResourceTouches {
     pub hypernetworks: Vec<String>,
     pub control_nets: Vec<String>,
     pub ip_adapters: Vec<String>,
+    #[serde(default)]
+    pub vaes: Vec<String>,
+    #[serde(default)]
+    pub upscalers: Vec<String>,
+    #[serde(default)]
+    pub clip_visions: Vec<String>,
+    #[serde(default)]
+    pub detectors: Vec<String>,
     pub tools: Vec<String>,
 }
 
@@ -349,6 +366,10 @@ enum ResourceIndexKind {
     Hypernetworks,
     ControlNets,
     IpAdapters,
+    Vaes,
+    Upscalers,
+    ClipVisions,
+    Detectors,
     Tools,
 }
 
@@ -361,6 +382,10 @@ impl ResourceIndexKind {
             ResourceIndexKind::Hypernetworks => "hypernetworks",
             ResourceIndexKind::ControlNets => "control_nets",
             ResourceIndexKind::IpAdapters => "ip_adapters",
+            ResourceIndexKind::Vaes => "vaes",
+            ResourceIndexKind::Upscalers => "upscalers",
+            ResourceIndexKind::ClipVisions => "clip_visions",
+            ResourceIndexKind::Detectors => "detectors",
             ResourceIndexKind::Tools => "tools",
         }
     }
@@ -373,6 +398,10 @@ impl ResourceIndexKind {
             ResourceIndexKind::Hypernetworks => "Updating hypernetwork index...",
             ResourceIndexKind::ControlNets => "Updating ControlNet index...",
             ResourceIndexKind::IpAdapters => "Updating IP-Adapter index...",
+            ResourceIndexKind::Vaes => "Updating VAE index...",
+            ResourceIndexKind::Upscalers => "Updating upscale model index...",
+            ResourceIndexKind::ClipVisions => "Updating CLIP Vision index...",
+            ResourceIndexKind::Detectors => "Updating detection model index...",
             ResourceIndexKind::Tools => "Updating tool index...",
         }
     }
@@ -429,6 +458,14 @@ fn collect_resource_refresh_items(touches: &FacetResourceTouches) -> Vec<Resourc
         &touches.ip_adapters,
         None,
     );
+    for (kind, names) in [
+        (ResourceIndexKind::Vaes, &touches.vaes),
+        (ResourceIndexKind::Upscalers, &touches.upscalers),
+        (ResourceIndexKind::ClipVisions, &touches.clip_visions),
+        (ResourceIndexKind::Detectors, &touches.detectors),
+    ] {
+        push_resource_refresh_items(&mut items, kind, names, None);
+    }
     push_resource_refresh_items(
         &mut items,
         ResourceIndexKind::Tools,
@@ -606,6 +643,38 @@ fn resource_config(facet_type: &str) -> Result<ResourceFacetConfig, String> {
             name_col: "ipadapter_name",
             hash_prefix: "ipad_",
             harvest_source: "harvest_ip_adapter",
+        }),
+        "vaes" => Ok(ResourceFacetConfig {
+            facet_type: "vaes",
+            resource_type: "vaes",
+            junction_table: "image_vaes",
+            name_col: "vae_name",
+            hash_prefix: "vae_",
+            harvest_source: "harvest_vae",
+        }),
+        "upscalers" => Ok(ResourceFacetConfig {
+            facet_type: "upscalers",
+            resource_type: "upscalers",
+            junction_table: "image_upscalers",
+            name_col: "upscaler_name",
+            hash_prefix: "upsc_",
+            harvest_source: "harvest_upscaler",
+        }),
+        "clip_visions" => Ok(ResourceFacetConfig {
+            facet_type: "clip_visions",
+            resource_type: "clip_visions",
+            junction_table: "image_clip_visions",
+            name_col: "clip_vision_name",
+            hash_prefix: "clipv_",
+            harvest_source: "harvest_clip_vision",
+        }),
+        "detectors" => Ok(ResourceFacetConfig {
+            facet_type: "detectors",
+            resource_type: "detectors",
+            junction_table: "image_detectors",
+            name_col: "detector_name",
+            hash_prefix: "det_",
+            harvest_source: "harvest_detector",
         }),
         _ => Err(format!("Unsupported resource facet type: {}", facet_type)),
     }
@@ -1478,6 +1547,9 @@ fn rebuild_incremental_facet_types(
             "hypernetworks" => build_resource_facets(&tx, "hypernetworks", "hypernetworks")?,
             "control_nets" => build_resource_facets(&tx, "control_nets", "control_nets")?,
             "ip_adapters" => build_resource_facets(&tx, "ip_adapters", "ip_adapters")?,
+            "vaes" | "upscalers" | "clip_visions" | "detectors" => {
+                build_resource_facets(&tx, db_facet_type, db_facet_type)?
+            }
             _ => unreachable!("facet types are normalized before rebuild"),
         }
 
@@ -1546,6 +1618,10 @@ pub struct ValidFacetNames {
     pub tools: Vec<String>,
     pub control_nets: Vec<String>,
     pub ip_adapters: Vec<String>,
+    pub vaes: Vec<String>,
+    pub upscalers: Vec<String>,
+    pub clip_visions: Vec<String>,
+    pub detectors: Vec<String>,
 }
 
 /// Get distinct facet names that exist in the current filtered result set.
@@ -1698,6 +1774,9 @@ fn resource_facet_cache_join_sql(facet_type: &str, column: &str) -> String {
     )
 }
 
+/// Branches the drill-down query adds for supporting models, one per junction.
+const TYPES_WITH_SUPPORTING_MODELS: usize = crate::db::SUPPORTING_MODEL_JUNCTIONS.len();
+
 fn get_valid_facet_names_for_query(
     conn: &rusqlite::Connection,
     where_clause: &str,
@@ -1756,7 +1835,15 @@ fn get_valid_facet_names_for_query(
          UNION ALL
          SELECT 'control_nets', fc.resource_name FROM image_controlnets cn JOIN scoped_images i ON i.id = cn.image_id {coll} {lora} {controlnet_cache} {where}
          UNION ALL
-         SELECT 'ip_adapters', fc.resource_name FROM image_ipadapters ip JOIN scoped_images i ON i.id = ip.image_id {coll} {lora} {ipadapter_cache} {where}",
+         SELECT 'ip_adapters', fc.resource_name FROM image_ipadapters ip JOIN scoped_images i ON i.id = ip.image_id {coll} {lora} {ipadapter_cache} {where}
+         UNION ALL
+         SELECT 'vaes', fc.resource_name FROM image_vaes sm0 JOIN scoped_images i ON i.id = sm0.image_id {coll} {lora} {vaes_cache} {where}
+         UNION ALL
+         SELECT 'upscalers', fc.resource_name FROM image_upscalers sm1 JOIN scoped_images i ON i.id = sm1.image_id {coll} {lora} {upscalers_cache} {where}
+         UNION ALL
+         SELECT 'clip_visions', fc.resource_name FROM image_clip_visions sm2 JOIN scoped_images i ON i.id = sm2.image_id {coll} {lora} {clip_visions_cache} {where}
+         UNION ALL
+         SELECT 'detectors', fc.resource_name FROM image_detectors sm3 JOIN scoped_images i ON i.id = sm3.image_id {coll} {lora} {detectors_cache} {where}",
         coll = collection_join,
         lora = lora_join.as_str(),
         checkpoint_cache = checkpoint_cache_join,
@@ -1765,11 +1852,15 @@ fn get_valid_facet_names_for_query(
         hypernetwork_cache = hypernetwork_cache_join,
         controlnet_cache = controlnet_cache_join,
         ipadapter_cache = ipadapter_cache_join,
+        vaes_cache = resource_facet_cache_join_sql("vaes", "sm0.vae_name"),
+        upscalers_cache = resource_facet_cache_join_sql("upscalers", "sm1.upscaler_name"),
+        clip_visions_cache = resource_facet_cache_join_sql("clip_visions", "sm2.clip_vision_name"),
+        detectors_cache = resource_facet_cache_join_sql("detectors", "sm3.detector_name"),
         where = prefixed
     );
 
     let mut all_params: Vec<Value> = Vec::new();
-    for _ in 0..7 {
+    for _ in 0..(7 + TYPES_WITH_SUPPORTING_MODELS) {
         push_valid_facet_branch_params(&mut all_params, collection_id, lora_name, &sql_params);
     }
 
@@ -1780,6 +1871,7 @@ fn get_valid_facet_names_for_query(
     let mut tools: Vec<String> = Vec::new();
     let mut control_nets: Vec<String> = Vec::new();
     let mut ip_adapters: Vec<String> = Vec::new();
+    let mut supporting: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
 
     use std::collections::HashSet;
     let mut cp_set: HashSet<String> = HashSet::new();
@@ -1844,6 +1936,12 @@ fn get_valid_facet_names_for_query(
                     ip_adapters.push(name);
                 }
             }
+            "vaes" | "upscalers" | "clip_visions" | "detectors" => {
+                let names = supporting.entry(facet_type).or_default();
+                if !names.contains(&name) {
+                    names.push(name);
+                }
+            }
             _ => {}
         }
     }
@@ -1856,6 +1954,10 @@ fn get_valid_facet_names_for_query(
         tools,
         control_nets,
         ip_adapters,
+        vaes: supporting.remove("vaes").unwrap_or_default(),
+        upscalers: supporting.remove("upscalers").unwrap_or_default(),
+        clip_visions: supporting.remove("clip_visions").unwrap_or_default(),
+        detectors: supporting.remove("detectors").unwrap_or_default(),
     })
 }
 
@@ -1916,6 +2018,30 @@ fn harvest_models_inner(conn: &rusqlite::Connection) -> Result<(), String> {
             "image_ipadapters",
             "ipadapter_name",
         ),
+        (
+            "vaes",
+            "harvest_vae",
+            "image_vaes",
+            "vae_name",
+        ),
+        (
+            "upscalers",
+            "harvest_upscaler",
+            "image_upscalers",
+            "upscaler_name",
+        ),
+        (
+            "clip_visions",
+            "harvest_clip_vision",
+            "image_clip_visions",
+            "clip_vision_name",
+        ),
+        (
+            "detectors",
+            "harvest_detector",
+            "image_detectors",
+            "detector_name",
+        ),
     ];
 
     for (json_key, source, table, col) in types {
@@ -1925,6 +2051,10 @@ fn harvest_models_inner(conn: &rusqlite::Connection) -> Result<(), String> {
             "hypernetworks" => "hyper_",
             "control_nets" => "cnet_",
             "ip_adapters" => "ipad_",
+            "vaes" => "vae_",
+            "upscalers" => "upsc_",
+            "clip_visions" => "clipv_",
+            "detectors" => "det_",
             _ => "",
         };
 
@@ -2191,6 +2321,10 @@ fn build_resource_facets(
         "hypernetworks" => ("image_hypernetworks", "hypernetwork_name", "image_id"),
         "control_nets" => ("image_controlnets", "controlnet_name", "image_id"),
         "ip_adapters" => ("image_ipadapters", "ipadapter_name", "image_id"),
+        "vaes" => ("image_vaes", "vae_name", "image_id"),
+        "upscalers" => ("image_upscalers", "upscaler_name", "image_id"),
+        "clip_visions" => ("image_clip_visions", "clip_vision_name", "image_id"),
+        "detectors" => ("image_detectors", "detector_name", "image_id"),
         _ => {
             return Err(format!(
                 "Unsupported resource type for optimization: {}",
@@ -3384,6 +3518,7 @@ mod tests {
             control_nets: vec![],
             ip_adapters: vec![],
             tools: vec!["InvokeAI".to_string()],
+            ..FacetResourceTouches::default()
         };
 
         let mut progress_events = Vec::new();

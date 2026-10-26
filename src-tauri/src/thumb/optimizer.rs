@@ -1804,6 +1804,26 @@ fn persist_thumbnail_results(
                  FROM thumbnail_optimizer_results result
                  JOIN image_ipadapters resource ON resource.image_id = result.id
                  WHERE result.outcome IN ('success', 'missing')
+                 UNION
+                 SELECT result.id, 'vaes', resource.vae_name
+                 FROM thumbnail_optimizer_results result
+                 JOIN image_vaes resource ON resource.image_id = result.id
+                 WHERE result.outcome IN ('success', 'missing')
+                 UNION
+                 SELECT result.id, 'upscalers', resource.upscaler_name
+                 FROM thumbnail_optimizer_results result
+                 JOIN image_upscalers resource ON resource.image_id = result.id
+                 WHERE result.outcome IN ('success', 'missing')
+                 UNION
+                 SELECT result.id, 'clip_visions', resource.clip_vision_name
+                 FROM thumbnail_optimizer_results result
+                 JOIN image_clip_visions resource ON resource.image_id = result.id
+                 WHERE result.outcome IN ('success', 'missing')
+                 UNION
+                 SELECT result.id, 'detectors', resource.detector_name
+                 FROM thumbnail_optimizer_results result
+                 JOIN image_detectors resource ON resource.image_id = result.id
+                 WHERE result.outcome IN ('success', 'missing')
              ) resources
              JOIN invoke_scope_cache_visible_image_scopes visible
                ON visible.image_id = resources.image_id
@@ -2144,6 +2164,10 @@ mod tests {
             CREATE TABLE image_hypernetworks (image_id TEXT NOT NULL, hypernetwork_name TEXT NOT NULL);
             CREATE TABLE image_controlnets (image_id TEXT NOT NULL, controlnet_name TEXT NOT NULL);
             CREATE TABLE image_ipadapters (image_id TEXT NOT NULL, ipadapter_name TEXT NOT NULL);
+            CREATE TABLE image_vaes (image_id TEXT NOT NULL, vae_name TEXT NOT NULL);
+            CREATE TABLE image_upscalers (image_id TEXT NOT NULL, upscaler_name TEXT NOT NULL);
+            CREATE TABLE image_clip_visions (image_id TEXT NOT NULL, clip_vision_name TEXT NOT NULL);
+            CREATE TABLE image_detectors (image_id TEXT NOT NULL, detector_name TEXT NOT NULL);
             ",
         )
         .expect("schema");

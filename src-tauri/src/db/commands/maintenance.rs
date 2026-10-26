@@ -491,7 +491,10 @@ fn delete_duplicate_record(tx: &Transaction<'_>, image_id: &str) -> Result<(), S
         "image_hypernetworks",
         "image_controlnets",
         "image_ipadapters",
-    ] {
+    ]
+    .into_iter()
+    .chain(crate::db::SUPPORTING_MODEL_JUNCTIONS.iter().map(|(table, _, _, _)| *table))
+    {
         tx.execute(
             &format!("DELETE FROM {table} WHERE image_id = ?1"),
             [image_id],
@@ -572,6 +575,10 @@ fn collect_touched_resources(metadata_json: Option<&str>, touches: &mut FacetRes
         ("hypernetworks", &mut touches.hypernetworks),
         ("controlNets", &mut touches.control_nets),
         ("ipAdapters", &mut touches.ip_adapters),
+        ("vaes", &mut touches.vaes),
+        ("upscalers", &mut touches.upscalers),
+        ("clipVisions", &mut touches.clip_visions),
+        ("detectors", &mut touches.detectors),
     ] {
         if let Some(resources) = metadata.get(json_key).and_then(|value| value.as_array()) {
             for resource in resources {
@@ -675,6 +682,19 @@ fn restore_resource_junctions(tx: &Transaction<'_>, image_id: &str) -> Result<()
         );
         tx.execute(&sql, [image_id])
             .map_err(|error| error.to_string())?;
+    }
+    // Supporting-model names are stored already cleaned.
+    for (table, column, json_key, _) in crate::db::SUPPORTING_MODEL_JUNCTIONS {
+        tx.execute(
+            &format!(
+                "INSERT OR IGNORE INTO {table} (image_id, {column})
+                 SELECT ?1, value
+                 FROM json_each((SELECT metadata_json FROM images WHERE id = ?1), '$.{json_key}')
+                 WHERE typeof(value) = 'text' AND value != ''"
+            ),
+            [image_id],
+        )
+        .map_err(|error| error.to_string())?;
     }
     Ok(())
 }

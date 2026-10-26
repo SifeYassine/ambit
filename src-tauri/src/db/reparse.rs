@@ -99,7 +99,14 @@ fn replace_generated_resource_links(
             "ipadapter_name",
             metadata.ip_adapters.as_slice(),
         ),
-    ] {
+    ]
+    .into_iter()
+    .chain(
+        crate::db::SUPPORTING_MODEL_JUNCTIONS
+            .iter()
+            .zip(metadata.supporting_model_lists())
+            .map(|((table, column, _, _), values)| (*table, *column, values)),
+    ) {
         conn.execute(
             &format!("DELETE FROM {table} WHERE image_id = ?1"),
             params![image_id],
@@ -379,6 +386,16 @@ pub async fn start_reparse_job(
                 let mut ip_del = tx.prepare_cached("DELETE FROM image_ipadapters WHERE image_id = ?1").map_err(|e| e.to_string())?;
                 let mut ip_ins = tx.prepare_cached("INSERT OR IGNORE INTO image_ipadapters (image_id, ipadapter_name) VALUES (?1, ?2)").map_err(|e| e.to_string())?;
 
+                let mut supporting_stmts = crate::db::SUPPORTING_MODEL_JUNCTIONS
+                    .iter()
+                    .map(|(table, column, _, _)| -> Result<_, String> {
+                        Ok((
+                            tx.prepare_cached(&format!("DELETE FROM {table} WHERE image_id = ?1")).map_err(|e| e.to_string())?,
+                            tx.prepare_cached(&format!("INSERT OR IGNORE INTO {table} (image_id, {column}) VALUES (?1, ?2)")).map_err(|e| e.to_string())?,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, String>>()?;
+
                 for (id, _tool, _original_json, old_meta_json, parse_result) in batch_results {
                     processed += 1;
 
@@ -460,6 +477,20 @@ pub async fn start_reparse_job(
                                 if update_ips {
                                     ip_del.execute(params![id]).ok();
                                     for item in &meta.ip_adapters { ip_ins.execute(params![id, item]).ok(); }
+                                }
+                                let old_supporting = old_meta.as_ref().map(ImageMetadata::supporting_model_lists);
+                                for (index, ((delete, insert), items)) in supporting_stmts
+                                    .iter_mut()
+                                    .zip(meta.supporting_model_lists())
+                                    .enumerate()
+                                {
+                                    let unchanged = !force_reparse
+                                        && old_supporting.is_some_and(|old| !lists_changed(old[index], items));
+                                    if unchanged {
+                                        continue;
+                                    }
+                                    delete.execute(params![id]).ok();
+                                    for item in items { insert.execute(params![id, item]).ok(); }
                                 }
                             }
                         }
@@ -931,6 +962,10 @@ mod tests {
              CREATE TABLE image_hypernetworks (image_id TEXT, hypernetwork_name TEXT, UNIQUE(image_id, hypernetwork_name));
              CREATE TABLE image_controlnets (image_id TEXT, controlnet_name TEXT, UNIQUE(image_id, controlnet_name));
              CREATE TABLE image_ipadapters (image_id TEXT, ipadapter_name TEXT, UNIQUE(image_id, ipadapter_name));
+             CREATE TABLE image_vaes (image_id TEXT, vae_name TEXT, UNIQUE(image_id, vae_name));
+             CREATE TABLE image_upscalers (image_id TEXT, upscaler_name TEXT, UNIQUE(image_id, upscaler_name));
+             CREATE TABLE image_clip_visions (image_id TEXT, clip_vision_name TEXT, UNIQUE(image_id, clip_vision_name));
+             CREATE TABLE image_detectors (image_id TEXT, detector_name TEXT, UNIQUE(image_id, detector_name));
              INSERT INTO image_loras VALUES ('discovered', 'stale');
              INSERT INTO image_loras VALUES ('unrelated', 'keep');",
         )

@@ -203,6 +203,10 @@ fn best_resource_thumbnail(
         "ip_adapters" => {
             format_resource_thumbnail_query("image_ipadapters", "ipadapter_name", safe_clause)
         }
+        "vaes" => format_resource_thumbnail_query("image_vaes", "vae_name", safe_clause),
+        "upscalers" => format_resource_thumbnail_query("image_upscalers", "upscaler_name", safe_clause),
+        "clip_visions" => format_resource_thumbnail_query("image_clip_visions", "clip_vision_name", safe_clause),
+        "detectors" => format_resource_thumbnail_query("image_detectors", "detector_name", safe_clause),
         _ => return None,
     };
 

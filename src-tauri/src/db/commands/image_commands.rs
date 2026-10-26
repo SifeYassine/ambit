@@ -799,6 +799,23 @@ fn save_images_batch_inner(
             )
             .map_err(|e| e.to_string())?;
 
+        let mut supporting_model_stmts = crate::db::SUPPORTING_MODEL_JUNCTIONS
+            .iter()
+            .map(|(table, column, json_key, _)| -> Result<_, String> {
+                let delete = tx
+                    .prepare_cached(&format!("DELETE FROM {table} WHERE image_id = ?1"))
+                    .map_err(|e| e.to_string())?;
+                let insert = tx
+                    .prepare_cached(&format!(
+                        "INSERT OR IGNORE INTO {table} (image_id, {column})
+                         SELECT ?1, value FROM json_each(?2, '$.{json_key}')
+                         WHERE typeof(value) = 'text' AND value != ''"
+                    ))
+                    .map_err(|e| e.to_string())?;
+                Ok((delete, insert))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+
         for img in images {
             let photo_metadata_json = img
                 .photo_metadata
@@ -881,6 +898,12 @@ fn save_images_batch_inner(
                 ip_stmt
                     .execute(params![img.id, img.metadata_json])
                     .map_err(|e| e.to_string())?;
+                for (delete, insert) in supporting_model_stmts.iter_mut() {
+                    delete.execute(params![img.id]).map_err(|e| e.to_string())?;
+                    insert
+                        .execute(params![img.id, img.metadata_json])
+                        .map_err(|e| e.to_string())?;
+                }
             }
         }
 
@@ -895,6 +918,7 @@ fn save_images_batch_inner(
         drop(ip_stmt);
         drop(emb_stmt);
         drop(hn_stmt);
+        drop(supporting_model_stmts);
     }
 
     tx.commit().map_err(|e| e.to_string())?;
@@ -1388,6 +1412,10 @@ fn read_scope_cache_repair_plan(
                 "hypernetworks" => resources.hypernetworks.push(resource_name),
                 "control_nets" => resources.control_nets.push(resource_name),
                 "ip_adapters" => resources.ip_adapters.push(resource_name),
+                "vaes" => resources.vaes.push(resource_name),
+                "upscalers" => resources.upscalers.push(resource_name),
+                "clip_visions" => resources.clip_visions.push(resource_name),
+                "detectors" => resources.detectors.push(resource_name),
                 "tools" => resources.tools.push(resource_name),
                 _ => return Ok(InvokeScopeCacheRepairPlan::default()),
             },
@@ -2066,6 +2094,13 @@ fn move_image_path_identities_inner(
         let mut update_controlnets = tx
             .prepare_cached("UPDATE image_controlnets SET image_id = ?1 WHERE image_id = ?2")
             .map_err(|e| e.to_string())?;
+        let mut update_supporting_models = crate::db::SUPPORTING_MODEL_JUNCTIONS
+            .iter()
+            .map(|(table, _, _, _)| {
+                tx.prepare_cached(&format!("UPDATE {table} SET image_id = ?1 WHERE image_id = ?2"))
+                    .map_err(|e| e.to_string())
+            })
+            .collect::<Result<Vec<_>, String>>()?;
         let mut update_ipadapters = tx
             .prepare_cached("UPDATE image_ipadapters SET image_id = ?1 WHERE image_id = ?2")
             .map_err(|e| e.to_string())?;
@@ -2188,6 +2223,11 @@ fn move_image_path_identities_inner(
             update_ipadapters
                 .execute(params![&new_id, &old_id])
                 .map_err(|e| e.to_string())?;
+            for update in update_supporting_models.iter_mut() {
+                update
+                    .execute(params![&new_id, &old_id])
+                    .map_err(|e| e.to_string())?;
+            }
             update_facet_thumbnail_image
                 .execute(params![&new_id, &old_id])
                 .map_err(|e| e.to_string())?;
