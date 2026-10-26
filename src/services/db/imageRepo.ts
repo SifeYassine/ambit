@@ -683,26 +683,6 @@ export const revertImageMetadata = async (id: string) => {
     });
 };
 
-/**
- * Atomic update for the notes column.
- */
-export const updateImageNotesCol = async (id: string, notes: string | null) => {
-    if (isBrowserMockMode()) {
-        updateBrowserMockImage(id, { notes: notes ?? undefined });
-        return;
-    }
-
-    await dbMutex.dispatch(async () => {
-        const db = await getDb();
-        const normalizedId = normalizePath(id);
-        const result = await db.execute(
-            'UPDATE images SET notes = ? WHERE id = ? AND id IN (SELECT id FROM scoped_images)',
-            [notes, normalizedId]
-        );
-        assertMutationMatched(result, normalizedId, 'Updating notes');
-    });
-};
-
 export const isImageNew = async (id: string): Promise<boolean> => {
     if (isBrowserMockMode()) {
         return !getBrowserMockImages().some(image => image.id === id);

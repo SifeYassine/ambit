@@ -278,7 +278,7 @@ vi.mock('./ScanPlaceholder', () => ({
 }));
 
 vi.mock('../../../features/viewer/components/ImageViewer', () => ({
-    ImageViewer: ({ image, onDelete, onNext, onPrev, onClose, onToggleFavorite, onTogglePin, onSetCollectionMembership, onSearch, onOpenSettings, onRecoverMetadata, onOpenReferencedImage, onUpdatePrompt, onSetImageKind, isShortcutBlocked }: {
+    ImageViewer: ({ image, onDelete, onNext, onPrev, onClose, onToggleFavorite, onTogglePin, onSearch, onOpenSettings, onRecoverMetadata, onOpenReferencedImage, onUpdatePrompt, isShortcutBlocked }: {
         image: AIImage;
         onDelete?: () => void;
         onNext: () => void;
@@ -286,51 +286,42 @@ vi.mock('../../../features/viewer/components/ImageViewer', () => ({
         onClose: () => void;
         onToggleFavorite?: (id: string) => void;
         onTogglePin?: (id: string, pinned: boolean) => void;
-        onSetCollectionMembership?: (imageId: string, collectionId: string, shouldBelong: boolean) => Promise<boolean>;
         onSearch: () => void;
         onOpenSettings: () => void;
         onOpenReferencedImage?: (imageId: string) => Promise<boolean>;
         onRecoverMetadata?: () => void;
         onUpdatePrompt?: (id: string, prompt: string) => void;
-        onSetImageKind?: (id: string, sourceKindOverride: 'generated' | 'photograph' | 'other' | null) => void | Promise<void>;
         isShortcutBlocked?: boolean;
     }) => (
-        <div data-testid="maintenance-viewer" data-image-id={image.id} data-prompt={image.metadata.positivePrompt} data-metadata={JSON.stringify(image.metadata)} data-original-chunks={JSON.stringify(image.originalChunks)} data-editable={String(Boolean(onUpdatePrompt))} data-kind-editable={String(Boolean(onSetImageKind))} data-source-kind={image.sourceKind ?? ''} data-source-kind-override={image.sourceKindOverride ?? ''} data-display-timestamp={image.displayTimestamp ?? ''} data-shortcuts-blocked={String(isShortcutBlocked)}>
+        <div data-testid="maintenance-viewer" data-image-id={image.id} data-prompt={image.metadata.positivePrompt} data-metadata={JSON.stringify(image.metadata)} data-original-chunks={JSON.stringify(image.originalChunks)} data-editable={String(Boolean(onUpdatePrompt))} data-shortcuts-blocked={String(isShortcutBlocked)}>
             {onDelete && <button onClick={onDelete}>Viewer Cleanup</button>}
             <button onClick={onNext}>Viewer Next</button>
             <button onClick={onPrev}>Viewer Previous</button>
             <button onClick={onClose}>Close Viewer</button>
             {onToggleFavorite && <button onClick={() => onToggleFavorite(image.id)}>Favorite Viewer</button>}
             {onTogglePin && <button onClick={() => onTogglePin(image.id, true)}>Pin Viewer</button>}
-            {onSetCollectionMembership && <button onClick={() => void onSetCollectionMembership(image.id, 'collection', true)}>Add Viewer Collection</button>}
-            {onSetCollectionMembership && <button onClick={() => void onSetCollectionMembership(image.id, 'collection', false)}>Remove Viewer Collection</button>}
             <button onClick={onSearch}>Viewer Search</button>
             <button onClick={onOpenSettings}>Viewer Settings</button>
             {onRecoverMetadata && <button onClick={onRecoverMetadata}>Recover Viewer Prompt</button>}
             {onOpenReferencedImage && <button onClick={() => void onOpenReferencedImage('hidden-reference')}>Open Viewer Reference</button>}
-            {onSetImageKind && <button onClick={() => void onSetImageKind(image.id, 'other')}>Set Viewer Other</button>}
-            {onSetImageKind && <button onClick={() => void onSetImageKind(image.id, null)}>Set Viewer Automatic</button>}
         </div>
     )
 }));
 
 vi.mock('../../../features/viewer/components/VideoViewer', () => ({
-    VideoViewer: ({ video, onDelete, onClose, onToggleFavorite, onTogglePin, onUpdateNotes, onSetCollectionMembership }: {
+    VideoViewer: ({ video, onDelete, onClose, onToggleFavorite, onTogglePin, onUpdatePrompt }: {
         video: VideoAsset;
         onDelete?: (id: string) => void;
         onClose: () => void;
         onToggleFavorite?: (id: string) => void;
         onTogglePin?: (id: string, pinned: boolean) => void;
-        onUpdateNotes?: (id: string, notes: string) => void;
-        onSetCollectionMembership?: (imageId: string, collectionId: string, shouldBelong: boolean) => Promise<boolean>;
+        onUpdatePrompt?: (id: string, prompt: string) => void;
     }) => (
-        <div data-testid="maintenance-video-viewer" data-video-id={video.id} data-metadata={JSON.stringify(video.metadata)} data-original-chunks={JSON.stringify(video.originalChunks)} data-editable={String(Boolean(onUpdateNotes))}>
+        <div data-testid="maintenance-video-viewer" data-video-id={video.id} data-metadata={JSON.stringify(video.metadata)} data-original-chunks={JSON.stringify(video.originalChunks)} data-editable={String(Boolean(onUpdatePrompt))}>
             {onDelete && <button onClick={() => onDelete(video.id)}>Video Cleanup</button>}
             <button onClick={onClose}>Close Video Viewer</button>
             {onToggleFavorite && <button onClick={() => onToggleFavorite(video.id)}>Favorite Video Viewer</button>}
             {onTogglePin && <button onClick={() => onTogglePin(video.id, true)}>Pin Video Viewer</button>}
-            {onUpdateNotes && <button onClick={() => onUpdateNotes(video.id, 'video notes')}>Update Video Notes</button>}
-            {onSetCollectionMembership && <button onClick={() => void onSetCollectionMembership(video.id, 'collection', true)}>Add Video Collection</button>}
         </div>
     )
 }));
@@ -390,8 +381,7 @@ const createProps = (): React.ComponentProps<typeof MaintenanceView> => ({
     onOpenReferencedImage: vi.fn().mockResolvedValue(true),
     onSearch: vi.fn(),
     onOpenSettings: vi.fn(),
-    isShortcutBlocked: false,
-    onSetCollectionMembership: vi.fn().mockResolvedValue(true)
+    isShortcutBlocked: false
 });
 
 const renderView = (overrides: Partial<React.ComponentProps<typeof MaintenanceView>> = {}) => {
@@ -524,15 +514,11 @@ describe('MaintenanceView', () => {
         const onRemoveFromLibrary = vi.fn().mockResolvedValue(undefined);
         const onToggleFavorite = vi.fn();
         const onTogglePin = vi.fn();
-        const onUpdateNotes = vi.fn();
-        const onSetCollectionMembership = vi.fn().mockResolvedValue(true);
 
         renderView({
             onRemoveFromLibrary,
             onToggleFavorite,
             onTogglePin,
-            onUpdateNotes,
-            onSetCollectionMembership,
         });
         fireEvent.click(screen.getByText('Open Missing Viewer'));
 
@@ -540,14 +526,10 @@ describe('MaintenanceView', () => {
         expect(screen.queryByTestId('maintenance-viewer')).toBeNull();
         fireEvent.click(screen.getByText('Favorite Video Viewer'));
         fireEvent.click(screen.getByText('Pin Video Viewer'));
-        fireEvent.click(screen.getByText('Update Video Notes'));
-        fireEvent.click(screen.getByText('Add Video Collection'));
         fireEvent.click(screen.getByText('Video Cleanup'));
 
         expect(onToggleFavorite).toHaveBeenCalledWith('missing-video');
         expect(onTogglePin).toHaveBeenCalledWith('missing-video', true);
-        expect(onUpdateNotes).toHaveBeenCalledWith('missing-video', 'video notes');
-        expect(onSetCollectionMembership).toHaveBeenCalledWith('missing-video', 'collection', true);
         await waitFor(() => expect(onRemoveFromLibrary).toHaveBeenCalledWith(['missing-video']));
     });
 
@@ -999,14 +981,13 @@ describe('MaintenanceView', () => {
         const onToggleFavorite = vi.fn();
         const onTogglePin = vi.fn();
         const onViewerOpenChange = vi.fn();
-        const onSetCollectionMembership = vi.fn().mockResolvedValue(true);
         const onRecoverMetadata = vi.fn((id: string, onRecovered: (image: AIImage) => void) => {
             onRecovered(createImage({
                 id,
                 metadata: { ...createImage().metadata, positivePrompt: 'Recovered maintenance prompt' }
             }));
         });
-        renderView({ onToggleFavorite, onTogglePin, onViewerOpenChange, onSetCollectionMembership, onRecoverMetadata, isShortcutBlocked: true });
+        renderView({ onToggleFavorite, onTogglePin, onViewerOpenChange, onRecoverMetadata, isShortcutBlocked: true });
 
         fireEvent.click(screen.getByText('Select Missing Item'));
         expect(onViewerOpenChange).toHaveBeenLastCalledWith(true);
@@ -1021,10 +1002,6 @@ describe('MaintenanceView', () => {
         fireEvent.click(screen.getByText('Pin Viewer'));
         expect(onToggleFavorite).toHaveBeenCalledWith('missing-a');
         expect(onTogglePin).toHaveBeenCalledWith('missing-a', true);
-        fireEvent.click(screen.getByText('Add Viewer Collection'));
-        fireEvent.click(screen.getByText('Remove Viewer Collection'));
-        expect(onSetCollectionMembership).toHaveBeenNthCalledWith(1, 'missing-a', 'collection', true);
-        expect(onSetCollectionMembership).toHaveBeenNthCalledWith(2, 'missing-a', 'collection', false);
         fireEvent.click(screen.getByText('Viewer Search'));
         fireEvent.click(screen.getByText('Viewer Settings'));
         fireEvent.click(screen.getByText('Recover Viewer Prompt'));
@@ -1036,50 +1013,6 @@ describe('MaintenanceView', () => {
 
         fireEvent.click(screen.getByText('Range Missing'));
         fireEvent.click(screen.getByText('Clear Missing Selection'));
-    });
-
-    it('updates the active maintenance viewer cache after correcting and restoring an automatic image kind', async () => {
-        maintenanceDataMock.localMissingImages = [createImage({
-            id: 'photo-missing',
-            detectedSourceKind: 'photograph',
-            sourceKind: 'photograph',
-            captureWallTimeMs: 456_789,
-            displayTimestamp: 1,
-        })];
-        const onSetImageKind = vi.fn().mockResolvedValue(undefined);
-        const view = renderView({ onSetImageKind });
-
-        fireEvent.click(screen.getByText('Open Missing Viewer'));
-        expect(screen.getByTestId('maintenance-viewer').getAttribute('data-kind-editable')).toBe('true');
-
-        fireEvent.click(screen.getByText('Set Viewer Other'));
-        await waitFor(() => expect(onSetImageKind).toHaveBeenCalledWith('photo-missing', 'other'));
-        view.rerender(<MaintenanceView {...view.props} />);
-        expect(screen.getByTestId('maintenance-viewer').getAttribute('data-source-kind')).toBe('other');
-        expect(screen.getByTestId('maintenance-viewer').getAttribute('data-source-kind-override')).toBe('other');
-        expect(screen.getByTestId('maintenance-viewer').getAttribute('data-display-timestamp')).toBe('1');
-
-        fireEvent.click(screen.getByText('Set Viewer Automatic'));
-        await waitFor(() => expect(onSetImageKind).toHaveBeenLastCalledWith('photo-missing', null));
-        view.rerender(<MaintenanceView {...view.props} />);
-        expect(screen.getByTestId('maintenance-viewer').getAttribute('data-source-kind')).toBe('photograph');
-        expect(screen.getByTestId('maintenance-viewer').getAttribute('data-source-kind-override')).toBe('');
-        expect(screen.getByTestId('maintenance-viewer').getAttribute('data-display-timestamp')).toBe('456789');
-    });
-
-    it('does not expose source-kind editing for Removed viewer records', async () => {
-        maintenanceDataMock.initializedTabs = new Set(['missing', 'trash']);
-        maintenanceDataMock.localDeletedImages = [createImage({ id: 'removed-image', isDeleted: true })];
-        const onSetImageKind = vi.fn().mockResolvedValue(undefined);
-        renderView({ onSetImageKind });
-
-        fireEvent.click(screen.getByText('Tab trash'));
-        fireEvent.click(await screen.findByText('Open Trash Viewer'));
-
-        expect(screen.getByTestId('maintenance-viewer').getAttribute('data-kind-editable')).toBe('false');
-        expect(screen.queryByText('Set Viewer Other')).toBeNull();
-        expect(screen.queryByText('Set Viewer Automatic')).toBeNull();
-        expect(onSetImageKind).not.toHaveBeenCalled();
     });
 
     it('hands reference navigation to the global viewer and closes the maintenance viewer on success', async () => {

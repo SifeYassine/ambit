@@ -149,12 +149,10 @@ export default function App() {
         refreshMetadata,
         refreshHiddenAvailability
     } = useSearch();
-    const activeCollectionIdRef = useRef(filters.collectionId);
     const imagesRef = useRef(images);
     const selectedImageIndexRef = useRef(selectedImageIndex);
     const viewingImageIdRef = useRef(viewingImageId);
     const viewerSessionImagesRef = useRef(viewerSessionImages);
-    activeCollectionIdRef.current = filters.collectionId;
     imagesRef.current = images;
     selectedImageIndexRef.current = selectedImageIndex;
     viewingImageIdRef.current = viewingImageId;
@@ -538,58 +536,6 @@ export default function App() {
         modals.openModal('addToCollection');
     }, [modals]);
 
-    const handleSetCollectionMembership = useCallback((
-        imageId: string,
-        collectionId: string,
-        shouldBelong: boolean
-    ): Promise<boolean> => shouldBelong
-            ? colOps.addImagesToCollection([imageId], collectionId)
-            : colOps.removeImagesFromCollection([imageId], collectionId), [colOps]);
-
-    const reconcileGlobalViewerAfterRemoval = useCallback((imageId: string, collectionId: string) => {
-        if (activeCollectionIdRef.current !== collectionId) return;
-
-        const selectedIndex = selectedImageIndexRef.current;
-        const viewingId = viewingImageIdRef.current;
-        if (selectedIndex === null && viewingId === null) return;
-
-        const previousImages = viewerSessionImagesRef.current ?? imagesRef.current;
-        const removedIndex = previousImages.findIndex(candidate => candidate.id === imageId);
-        if (removedIndex === -1) return;
-
-        const displayedImageId = viewingId
-            ?? (selectedIndex !== null ? previousImages[selectedIndex]?.id : undefined);
-        const nextImages = previousImages.filter(candidate => candidate.id !== imageId);
-        imagesRef.current = nextImages;
-        viewerSessionImagesRef.current = nextImages;
-        setViewerSessionImages(nextImages);
-
-        if (!displayedImageId) return;
-
-        if (viewingId && viewingId !== imageId) return;
-
-        const nextIndex = displayedImageId === imageId
-            ? (nextImages.length === 0 ? null : Math.min(removedIndex, nextImages.length - 1))
-            : nextImages.findIndex(candidate => candidate.id === displayedImageId);
-        if (nextIndex === -1) return;
-
-        selectedImageIndexRef.current = nextIndex;
-        viewingImageIdRef.current = null;
-        setSelectedImageIndex(nextIndex);
-        setViewingImageId(null);
-    }, []);
-
-    const handleSetViewerCollectionMembership = useCallback((
-        imageId: string,
-        collectionId: string,
-        shouldBelong: boolean
-    ): Promise<boolean> => shouldBelong
-            ? colOps.addImagesToCollection([imageId], collectionId)
-            : colOps.removeImagesFromCollection(
-                [imageId],
-                collectionId,
-                () => reconcileGlobalViewerAfterRemoval(imageId, collectionId)
-            ), [colOps, reconcileGlobalViewerAfterRemoval]);
     const handleViewerSearch = useCallback((term: string) => {
         void import('./utils/filterUtils').then(({ parseAndApplyFilter }) => {
             parseAndApplyFilter(term, setFilters);
@@ -992,7 +938,6 @@ export default function App() {
                 onOpenReferencedImage={handleOpenReferencedImage}
                 onViewerSearch={handleViewerSearch}
                 isViewerShortcutBlocked={isViewerShortcutBlocked}
-                onSetImageKind={(id, sourceKindOverride) => actions.handleSetImageSourceKind([id], sourceKindOverride)}
 
                 toggleFavorite={toggleFavorite}
                 actions={actions}
@@ -1013,7 +958,6 @@ export default function App() {
                 lastSelectedId={lastSelectedId}
                 handleRemoveFromCollection={handleRemoveFromCollection}
                 handleOpenCollectionModal={handleOpenCollectionModal}
-                onSetCollectionMembership={handleSetCollectionMembership}
                 onEditCollection={(id) => { modals.setCollectionToEditId(id); modals.openModal('collectionEditor'); }}
                     />
                 </div>
@@ -1166,7 +1110,6 @@ export default function App() {
                             onToggleFavorite={(id) => actions.handleFavoriteImage(id, { showToast: false })}
                             onTogglePin={(id, pinned) => actions.handlePinImage(id, pinned, { showToast: false })}
                             onDelete={(id) => actions.handleDeleteViewerImage(id)}
-                            onUpdateNotes={(id, notes) => handlers.handleUpdateNotes(id, notes)}
                             onUpdatePrompt={(id, prompt) => handlers.handleUpdatePrompt(id, prompt)}
                             onUpdateNegativePrompt={(id, prompt) => handlers.handleUpdateNegativePrompt(id, prompt)}
                             onUpdateModel={(id, model) => handlers.handleUpdateModel(id, model)}
@@ -1174,7 +1117,6 @@ export default function App() {
                             onUpdateGenerationMode={(id, mode) => handlers.handleUpdateVideoGenerationMode(id, mode)}
                             onRevertMetadata={(id) => handlers.handleRevertMetadata(id)}
                             onSearch={handleViewerSearch}
-                            onSetCollectionMembership={handleSetViewerCollectionMembership}
                             modelOptions={modelOptions}
                             isShortcutBlocked={isViewerShortcutBlocked}
                             canNavigatePrevious={selectedImageIndex !== null && selectedImageIndex > 0}
@@ -1213,16 +1155,13 @@ export default function App() {
                             onUpdateNegativePrompt={(id, neg) => handlers.handleUpdateNegativePrompt(id, neg)}
                             onUpdateModel={(id, model) => handlers.handleUpdateModel(id, model)}
                             onUpdateTool={(id, tool) => handlers.handleUpdateTool(id, tool)}
-                            onSetImageKind={(id, sourceKindOverride) => actions.handleSetImageSourceKind([id], sourceKindOverride)}
                             onToggleFavorite={(id) => actions.handleFavoriteImage(id, { showToast: false })}
                             onTogglePin={(id, p) => actions.handlePinImage(id, p, { showToast: false })}
                             onDelete={(id) => actions.handleDeleteViewerImage(id)}
                             onOpenSettings={() => { modals.setInitialSettingsTab('intelligence'); modals.openModal('settings'); }}
-                            onUpdateNotes={(id, n) => handlers.handleUpdateNotes(id, n)}
                             onSearch={handleViewerSearch}
                             onRevertMetadata={(id) => handlers.handleRevertMetadata(id)}
                             onRecoverMetadata={() => actions.openMetadataRecovery()}
-                            onSetCollectionMembership={handleSetViewerCollectionMembership}
                             availableTags={libraryPresentation.availableTags}
                             modelOptions={modelOptions}
                             isSidebarOpen={!settings.defaultTheaterMode}

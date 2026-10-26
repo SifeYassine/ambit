@@ -20,7 +20,6 @@ const mockDeleteRemovedImagesFromDisk = vi.fn();
 const mockGetImagesByIds = vi.fn();
 const mockRebuildFacetCache = vi.fn().mockResolvedValue(0);
 const mockRevertImageMetadata = vi.fn();
-const mockUpdateImageNotesCol = vi.fn();
 const mockRebuildFacetCacheIncremental = vi.fn();
 const mockRefreshFacetCacheForResourcesStrict = vi.fn();
 const mockIncrementFacetCacheVersion = vi.fn();
@@ -33,7 +32,6 @@ vi.mock('../../services/db/imageRepo', () => ({
     deleteRemovedImagesFromDisk: (...args: any[]) => mockDeleteRemovedImagesFromDisk(...args),
     getImagesByIds: (...args: any[]) => mockGetImagesByIds(...args),
     revertImageMetadata: (...args: any[]) => mockRevertImageMetadata(...args),
-    updateImageNotesCol: (...args: any[]) => mockUpdateImageNotesCol(...args),
     rebuildFacetCache: (...args: any[]) => mockRebuildFacetCache(...args),
     rebuildFacetCacheIncremental: (...args: any[]) => mockRebuildFacetCacheIncremental(...args),
     refreshFacetCacheForResourcesStrict: (...args: any[]) => mockRefreshFacetCacheForResourcesStrict(...args),
@@ -91,7 +89,6 @@ describe('useAppHandlers', () => {
         mockGetImagesByIds.mockResolvedValue([mockImages[0]]);
         mockRevertImageMetadata.mockResolvedValue(undefined);
         mockUpdateImageMetadataFields.mockResolvedValue(undefined);
-        mockUpdateImageNotesCol.mockResolvedValue(undefined);
         mockRebuildFacetCache.mockResolvedValue(0);
         mockRebuildFacetCacheIncremental.mockResolvedValue(0);
         mockRefreshFacetCacheForResourcesStrict.mockResolvedValue(0);
@@ -143,7 +140,7 @@ describe('useAppHandlers', () => {
         expect(mockAddToast).toHaveBeenCalledWith('Updated', 'success');
     });
 
-    it('ignores unchanged prompt, model, and note values', async () => {
+    it('ignores unchanged prompt and model values', async () => {
         const { result } = renderHandlers();
 
         await act(async () => {
@@ -152,12 +149,10 @@ describe('useAppHandlers', () => {
             await result.current.handleUpdateModel('img1', 'Model A');
             await result.current.handleUpdateModel('img1', '   ');
             await result.current.handleUpdateTool('img1', GeneratorTool.AUTOMATIC1111);
-            await result.current.handleUpdateNotes('img1', '');
         });
 
         expect(mockSetImages).not.toHaveBeenCalled();
         expect(mockUpdateImageMetadataFields).not.toHaveBeenCalled();
-        expect(mockUpdateImageNotesCol).not.toHaveBeenCalled();
         expect(mockRebuildFacetCacheIncremental).not.toHaveBeenCalled();
         expect(mockAddToast).not.toHaveBeenCalled();
     });
@@ -436,40 +431,15 @@ describe('useAppHandlers', () => {
         expect(mockIncrementFacetCacheVersion).toHaveBeenCalled();
     });
 
-    it('ignores metadata and note updates for missing images', async () => {
+    it('ignores metadata updates for missing images', async () => {
         const { result } = renderHandlers();
         await act(async () => {
             await result.current.handleUpdatePrompt('missing', 'x');
             await result.current.handleUpdateNegativePrompt('missing', 'x');
             await result.current.handleUpdateModel('missing', 'x');
             await result.current.handleUpdateTool('missing', GeneratorTool.COMFYUI);
-            await result.current.handleUpdateNotes('missing', 'x');
         });
         expect(mockUpdateImageMetadataFields).not.toHaveBeenCalled();
-        expect(mockUpdateImageNotesCol).not.toHaveBeenCalled();
-    });
-
-    it('updates notes and leaves unrelated images unchanged', async () => {
-        dispatchedImages = [mockImages[0], { ...mockImages[0], id: 'img2' }];
-        const { result } = renderHandlers();
-        await act(async () => result.current.handleUpdateNotes('img1', 'note'));
-        expect(dispatchedImages.map(image => image.notes)).toEqual(['note', undefined]);
-        expect(mockUpdateImageNotesCol).toHaveBeenCalledWith('img1', 'note');
-        expect(mockAddToast).toHaveBeenCalledWith('Saved', 'success');
-    });
-
-    it('rolls back notes and reports an error when persistence fails', async () => {
-        dispatchedImages = [mockImages[0], { ...mockImages[0], id: 'img2' }];
-        mockUpdateImageNotesCol.mockRejectedValueOnce(new Error('missing row'));
-        const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-        const { result } = renderHandlers();
-
-        await act(async () => result.current.handleUpdateNotes('img1', 'note'));
-
-        expect(dispatchedImages.map(image => image.notes)).toEqual([undefined, undefined]);
-        expect(mockAddToast).toHaveBeenCalledWith('Failed to save notes', 'error');
-        expect(error).toHaveBeenCalledWith('[Notes] Failed to persist notes', expect.any(Error));
-        error.mockRestore();
     });
 
     it('applies metadata edits to a directly opened asset outside the gallery', async () => {
@@ -492,14 +462,12 @@ describe('useAppHandlers', () => {
         await act(async () => result.current.handleUpdatePrompt(directImage.id, 'Direct prompt'));
         await act(async () => result.current.handleUpdateModel(directImage.id, 'Direct model'));
         await act(async () => result.current.handleUpdateTool(directImage.id, GeneratorTool.INVOKEAI));
-        await act(async () => result.current.handleUpdateNotes(directImage.id, 'Direct note'));
 
         expect(directImage.metadata).toEqual(expect.objectContaining({
             positivePrompt: 'Direct prompt',
             overrideModel: 'Direct model',
             tool: GeneratorTool.INVOKEAI,
         }));
-        expect(directImage.notes).toBe('Direct note');
         expect(mockSetImages).not.toHaveBeenCalled();
     });
 

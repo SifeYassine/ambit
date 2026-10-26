@@ -219,7 +219,6 @@ describe('AppLayout', () => {
         lastSelectedId: null,
         handleRemoveFromCollection: vi.fn(),
         handleOpenCollectionModal: vi.fn(),
-        onSetCollectionMembership: vi.fn().mockResolvedValue(true),
     };
 
     it('renders the main structures: Sidebar, Header, Content Area', () => {
@@ -376,19 +375,6 @@ describe('AppLayout', () => {
         expect(capturedProps.maintenance?.onViewerOpenChange).toBe(defaultProps.onMaintenanceViewerOpenChange);
         expect(capturedProps.maintenance?.onOpenReferencedImage).toBe(defaultProps.onOpenReferencedImage);
         expect(capturedProps.maintenance?.isShortcutBlocked).toBe(true);
-    });
-
-    it('forwards collection persistence to MaintenanceView', async () => {
-        const onSetCollectionMembership = vi.fn().mockResolvedValue(true);
-        render(
-            <AppLayout
-                {...defaultProps}
-                viewMode="maintenance"
-                onSetCollectionMembership={onSetCollectionMembership}
-            />
-        );
-        expect(await screen.findByTestId('maintenance-view')).toBeTruthy();
-        expect(capturedProps.maintenance?.onSetCollectionMembership).toBe(onSetCollectionMembership);
     });
 
     it('filters by a dashboard model and returns to the grid', async () => {
@@ -712,29 +698,24 @@ describe('AppLayout', () => {
 
     it('routes maintenance actions and explicit recovery targets', async () => {
         const setViewingImageId = vi.fn();
-        const handleUpdateNotes = vi.fn();
         const openMetadataRecovery = vi.fn();
         render(<AppLayout
             {...defaultProps}
             viewMode="maintenance"
             setViewingImageId={setViewingImageId}
-            handlers={{ handleUpdateNotes }}
             actions={{ openMetadataRecovery }}
         />);
         await screen.findByTestId('maintenance-view');
         const maintenance = capturedProps.maintenance as {
             onViewImage: (id: string) => void;
-            onUpdateNotes: (id: string, notes: string) => void;
             onRecoverMetadata: (id: string, onRecovered: (image: AIImage) => void) => void;
             onToggleFavorite: (id: string) => void;
         };
         const onRecovered = vi.fn();
         maintenance.onViewImage('image-1');
-        maintenance.onUpdateNotes('image-1', 'note');
         maintenance.onRecoverMetadata('image-1', onRecovered);
         maintenance.onToggleFavorite('image-1');
         expect(setViewingImageId).toHaveBeenCalledWith('image-1');
-        expect(handleUpdateNotes).toHaveBeenCalledWith('image-1', 'note');
         expect(openMetadataRecovery).toHaveBeenCalledWith('image-1', onRecovered);
         expect(searchState.value.toggleFavorite).toHaveBeenCalledWith('image-1');
     });

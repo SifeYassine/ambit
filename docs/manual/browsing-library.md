@@ -50,7 +50,7 @@ Cards for images with a positive or negative prompt show a small `P` badge in th
 
 ## Videos In The Library
 
-Use the scope dropdown beside search to choose All Media, All Images, an image category, or Videos. Video cards show a static poster or placeholder with duration; browsing does not start background players. Open a video for playback, metadata, notes, collections, or original-file export. Media type can also be saved in a smart collection's filters.
+Use the scope dropdown beside search to choose All Media, All Images, an image category, or Videos. Video cards show a static poster or placeholder with duration; browsing does not start background players. Open a video for playback, metadata, or original-file export. Media type can also be saved in a smart collection's filters.
 
 ## Timeline Browsing
 

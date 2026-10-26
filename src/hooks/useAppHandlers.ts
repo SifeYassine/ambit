@@ -11,7 +11,6 @@ import {
     restoreRemovedImages,
     revertImageMetadata,
     updateImageMetadataFields,
-    updateImageNotesCol,
 } from '../services/db/imageRepo';
 import { useLibraryStore } from '../stores/libraryStore';
 import { removeImagesFromQueryCaches, updateImagesQueryCaches } from '../utils/imageQueryCache';
@@ -335,23 +334,6 @@ export const useAppHandlers = ({ images, setImages, refreshMaintenanceCounts, re
         refreshMaintenanceCounts();
     };
 
-    const handleUpdateNotes = async (id: string, notes: string) => {
-        const img = getImage(id);
-        if (!img) return;
-        if ((img.notes ?? '') === notes) return;
-
-        const updatedImg = { ...img, notes };
-        updateImage(id, () => updatedImg);
-        try {
-            await updateImageNotesCol(id, notes);
-            addToast('Saved', 'success');
-        } catch (error) {
-            console.error('[Notes] Failed to persist notes', error);
-            updateImage(id, () => img);
-            addToast('Failed to save notes', 'error');
-        }
-    };
-
     const handleRevertMetadata = async (id: string) => {
         await revertImageMetadata(id);
         const [revertedImage] = await getImagesByIds([id]);
@@ -387,7 +369,6 @@ export const useAppHandlers = ({ images, setImages, refreshMaintenanceCounts, re
         handleUpdateModel,
         handleUpdateTool,
         handleUpdateVideoGenerationMode,
-        handleUpdateNotes,
         handleRevertMetadata,
         handleGroupImages,
         handleResolveDuplicate,

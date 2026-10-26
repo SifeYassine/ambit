@@ -261,7 +261,6 @@ describe('imageRepo batch removal', () => {
             syncCollectionImages,
             updateImageMetadataFields,
             revertImageMetadata,
-            updateImageNotesCol,
             isImageNew,
             getAllImages,
             getImagesByIds,
@@ -295,7 +294,6 @@ describe('imageRepo batch removal', () => {
         await expect(updateImageMetadataFields('regular', { model: 'edited' })).resolves.toBeUndefined();
         await expect(updateImageMetadataFields('missing-source', { model: 'ignored' })).resolves.toBeUndefined();
         await expect(revertImageMetadata('regular')).resolves.toBeUndefined();
-        await expect(updateImageNotesCol('regular', null)).resolves.toBeUndefined();
         await expect(isImageNew('regular')).resolves.toBe(false);
         await expect(isImageNew('new-image')).resolves.toBe(true);
         await expect(getAllImages(2, 0, true)).resolves.toEqual([browserImages[1], browserImages[0]]);
@@ -1217,7 +1215,6 @@ describe('imageRepo batch removal', () => {
         getDbMock.mockResolvedValue(db);
 
         const {
-            updateImageNotesCol,
             isImageNew,
             getAllImages,
             toggleImagePin,
@@ -1230,7 +1227,6 @@ describe('imageRepo batch removal', () => {
             updateThumbnailPath,
         } = await import('../imageRepo');
 
-        await updateImageNotesCol('C:/images/note.png', 'note');
         await expect(isImageNew('C:/images/new.png')).resolves.toBe(true);
         await expect(getAllImages(10, 5, true, true, false)).resolves.toHaveLength(1);
         await toggleImagePin('C:/images/pin.png', true);
@@ -1247,7 +1243,6 @@ describe('imageRepo batch removal', () => {
         await updateThumbnailPath('C:/images/thumb.png', 'C:/thumbs/thumb.webp');
 
         const sqlCalls = db.execute.mock.calls.map(([sql]) => String(sql));
-        expect(sqlCalls).toContain('UPDATE images SET notes = ? WHERE id = ? AND id IN (SELECT id FROM scoped_images)');
         expect(sqlCalls).toContain('UPDATE images SET is_pinned = $1 WHERE id = $2 AND id IN (SELECT id FROM scoped_images)');
         expect(sqlCalls).toContain('UPDATE images SET is_favorite = $1 WHERE id = $2 AND id IN (SELECT id FROM scoped_images)');
         expect(sqlCalls).toContain('UPDATE images SET user_masked = $1 WHERE id = $2 AND id IN (SELECT id FROM scoped_images)');
@@ -1280,20 +1275,17 @@ describe('imageRepo batch removal', () => {
         const verbatimId = '\\\\?\\C:\\videos\\clip.mp4';
         const canonicalId = '//?/C:/videos/clip.mp4';
         const {
-            updateImageNotesCol,
             toggleImagePin,
             toggleImageFavorite,
             toggleImageMask,
             updateVideoPlaybackStatus,
         } = await import('../imageRepo');
 
-        await updateImageNotesCol(verbatimId, 'motion reference');
         await toggleImagePin(verbatimId, true);
         await toggleImageFavorite(verbatimId, true);
         await toggleImageMask(verbatimId, false);
         await updateVideoPlaybackStatus(verbatimId, 'playable');
 
-        expect(db.execute).toHaveBeenCalledWith('UPDATE images SET notes = ? WHERE id = ? AND id IN (SELECT id FROM scoped_images)', ['motion reference', canonicalId]);
         expect(db.execute).toHaveBeenCalledWith('UPDATE images SET is_pinned = $1 WHERE id = $2 AND id IN (SELECT id FROM scoped_images)', [1, canonicalId]);
         expect(db.execute).toHaveBeenCalledWith('UPDATE images SET is_favorite = $1 WHERE id = $2 AND id IN (SELECT id FROM scoped_images)', [1, canonicalId]);
         expect(db.execute).toHaveBeenCalledWith('UPDATE images SET user_masked = $1 WHERE id = $2 AND id IN (SELECT id FROM scoped_images)', [0, canonicalId]);
@@ -1311,7 +1303,6 @@ describe('imageRepo batch removal', () => {
         getDbMock.mockResolvedValue(db);
         const {
             updateImageMetadataFields,
-            updateImageNotesCol,
             toggleImagePin,
             toggleImageFavorite,
             toggleImageMask,
@@ -1322,7 +1313,6 @@ describe('imageRepo batch removal', () => {
         } = await import('../imageRepo');
 
         await expect(updateImageMetadataFields('C:/hidden.mp4', { model: 'hidden' })).rejects.toThrow('asset was not found');
-        await expect(updateImageNotesCol('C:/hidden.mp4', 'note')).rejects.toThrow('asset was not found');
         await expect(toggleImagePin('C:/hidden.mp4', true)).rejects.toThrow('asset was not found');
         await expect(toggleImageFavorite('C:/hidden.mp4', true)).rejects.toThrow('asset was not found');
         await expect(toggleImageMask('C:/hidden.mp4', true)).rejects.toThrow('asset was not found');
@@ -1331,7 +1321,7 @@ describe('imageRepo batch removal', () => {
         await expect(updateFavorite('C:/hidden.mp4', true)).rejects.toThrow('asset was not found');
         await expect(updatePinned('C:/hidden.mp4', true)).rejects.toThrow('asset was not found');
         const mutationSql = db.execute.mock.calls.map(([sql]) => String(sql));
-        expect(mutationSql).toHaveLength(9);
+        expect(mutationSql).toHaveLength(8);
         mutationSql.forEach(sql => expect(sql).toContain('scoped_images'));
     });
 

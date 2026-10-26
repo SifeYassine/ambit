@@ -111,7 +111,6 @@ interface AppLayoutProps {
     onOpenReferencedImage: (imageId: string) => Promise<boolean>;
     onViewerSearch: (term: string) => void;
     isViewerShortcutBlocked: boolean;
-    onSetImageKind: (id: string, sourceKindOverride: SourceKind | null) => Promise<void>;
     toggleFavorite: (id: string) => void | Promise<void>;
     actions: ReturnType<typeof useAppActions>;
     availableTags: string[];
@@ -132,7 +131,6 @@ interface AppLayoutProps {
     handleRemoveFromCollection: () => void;
 
     handleOpenCollectionModal: (mode: 'add' | 'move') => void;
-    onSetCollectionMembership: (imageId: string, collectionId: string, shouldBelong: boolean) => Promise<boolean>;
     onEditCollection: (colId: string) => void;
 }
 
@@ -144,7 +142,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     viewMode, changeViewMode, searchProps, layoutMode, setLayoutMode,
     sortOption, setSortOption, displayedCount, scopeTotal, scopeName,
     fileOps, onOpenImportModal, workspaceRef, scrollContainerRef,
-    handlers, setViewingImageId, onMaintenanceViewerOpenChange, onOpenReferencedImage, onViewerSearch, isViewerShortcutBlocked, onSetImageKind,
+    handlers, setViewingImageId, onMaintenanceViewerOpenChange, onOpenReferencedImage, onViewerSearch, isViewerShortcutBlocked,
     modelOptions = [],
     actions, availableTags, selectedIds,
     handleImageClick, setSelectedImageIndex, handleSelectionToggle,
@@ -152,7 +150,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     clearSelection, gridRef, handleLayoutChange,
     isSearchFocused, setIsSearchFocused, lastSelectedId,
 
-    handleRemoveFromCollection, handleOpenCollectionModal, onSetCollectionMembership, onEditCollection
+    handleRemoveFromCollection, handleOpenCollectionModal, onEditCollection
 }) => {
     // Hooks
     useProgressListeners();
@@ -450,8 +448,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                                         onUpdateModel={handlers.handleUpdateModel}
                                         onUpdateTool={handlers.handleUpdateTool}
                                         onUpdateGenerationMode={(id, mode) => handlers.handleUpdateVideoGenerationMode(id, mode)}
-                                        onSetImageKind={onSetImageKind}
-                                        onUpdateNotes={(id, n) => { handlers.handleUpdateNotes(id, n); }}
                                         onRevertMetadata={handlers.handleRevertMetadata}
                                         onSearch={(term) => {
                                             onViewerSearch(term);
@@ -466,7 +462,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                                         }}
                                         onToggleFavorite={(id) => toggleFavorite(id)}
                                         onTogglePin={actions.handlePinImage}
-                                        onSetCollectionMembership={onSetCollectionMembership}
                                         availableTags={availableTags}
                                         onViewerOpenChange={onMaintenanceViewerOpenChange}
                                         onOpenReferencedImage={onOpenReferencedImage}
