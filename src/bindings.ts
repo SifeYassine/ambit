@@ -190,7 +190,8 @@ async computeImageFileHash(imageId: string) : Promise<Result<string, string>> {
 }
 },
 /**
- * Recomputes every image's preset signature. Returns how many images have one.
+ * Brings the preset cache up to date, recomputing signatures only when library data changed
+ * since the last rebuild. Returns how many images have a preset.
  */
 async rebuildGenerationPresets() : Promise<Result<number, string>> {
     try {

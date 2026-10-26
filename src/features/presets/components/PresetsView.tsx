@@ -1,5 +1,4 @@
 import * as React from 'react';
-import { create } from 'zustand';
 import { AlertCircle, Boxes, CheckCircle, ImageOff, Layers, Loader2, RotateCcw } from 'lucide-react';
 import type { FilterState, PresetFilter } from '../../../types';
 import type { GenerationPreset } from '../../../services/db/presetRepo';
@@ -8,17 +7,9 @@ import { useSettingsStore } from '../../../stores/settingsStore';
 import { getEffectiveMaskedKeywords, isImageMasked } from '../../../utils/maskingUtils';
 import { formatModelName } from '../../../utils/formatUtils';
 import { usePresets } from '../hooks/usePresets';
+import { usePresetsViewStore } from '../presetsViewStore';
 
-interface PresetsViewState {
-    matchWeights: boolean;
-    setMatchWeights: (matchWeights: boolean) => void;
-}
-
-// Kept across visits so returning from a preset's gallery keeps the chosen grouping.
-export const usePresetsViewStore = create<PresetsViewState>(set => ({
-    matchWeights: true,
-    setMatchWeights: matchWeights => set({ matchWeights }),
-}));
+export { usePresetsViewStore };
 
 interface PresetsViewProps {
     filters: FilterState;
@@ -165,7 +156,7 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
     const matchWeights = usePresetsViewStore(state => state.matchWeights);
     const setMatchWeights = usePresetsViewStore(state => state.setMatchWeights);
     const toggleId = React.useId();
-    const { presets, isLoading, error, retry } = usePresets(filters, matchWeights);
+    const { presets, isLoading, isRefreshing, error, retry } = usePresets(filters, matchWeights);
 
     return (
         <div className="flex h-full flex-col overflow-hidden">
@@ -205,6 +196,11 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
                     {matchWeights && <CheckCircle className="h-3.5 w-3.5 text-white" />}
                 </span>
                 Group by LoRA weights
+                {isRefreshing && (
+                    <span role="status" className="ml-2 inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-zinc-400">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Updating…
+                    </span>
+                )}
             </label>
 
 

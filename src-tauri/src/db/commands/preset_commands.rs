@@ -1,5 +1,5 @@
 use super::run_blocking;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 use tauri::AppHandle;
 
@@ -238,22 +238,45 @@ fn rebuild_generation_presets_inner(conn: &Connection) -> Result<u32, String> {
         }
     }
 
+    // Cleared inside the rebuild transaction: image writes wait for it, so none slip in between.
+    tx.execute(
+        "INSERT INTO preset_cache_state (id, dirty) VALUES (1, 0)
+         ON CONFLICT(id) DO UPDATE SET dirty = 0",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
     Ok(indexed)
 }
 
-/// Recomputes every image's preset signature. Returns how many images have one.
+/// Rebuilds the cache only when migration 87's triggers marked it dirty; otherwise reuses it.
+fn refresh_generation_presets_inner(conn: &Connection) -> Result<u32, String> {
+    let dirty = conn
+        .query_row("SELECT dirty FROM preset_cache_state WHERE id = 1", [], |row| row.get::<_, i64>(0))
+        .optional()
+        .map_err(|e| e.to_string())?
+        .unwrap_or(1);
+    if dirty == 0 {
+        return conn
+            .query_row("SELECT COUNT(*) FROM image_presets", [], |row| row.get::<_, u32>(0))
+            .map_err(|e| e.to_string());
+    }
+    rebuild_generation_presets_inner(conn)
+}
+
+/// Brings the preset cache up to date, recomputing signatures only when library data changed
+/// since the last rebuild. Returns how many images have a preset.
 #[tauri::command(rename_all = "camelCase")]
 #[specta::specta]
 pub async fn rebuild_generation_presets(app: AppHandle) -> Result<u32, String> {
-    run_blocking(app, rebuild_generation_presets_inner).await
+    run_blocking(app, refresh_generation_presets_inner).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         apply_lora_weights, build_signature, parse_lora_entry, parse_lora_list,
-        rebuild_generation_presets_inner, PresetLora,
+        rebuild_generation_presets_inner, refresh_generation_presets_inner, PresetLora,
     };
     use rusqlite::Connection;
 
@@ -354,6 +377,8 @@ mod tests {
         .unwrap();
         conn.execute_batch(crate::db::migrations::m85_generation_presets::migration85().sql)
             .unwrap();
+        conn.execute_batch(crate::db::migrations::m87_preset_cache_state::migration87().sql)
+            .unwrap();
         conn.execute_batch(
             r#"
             INSERT INTO images VALUES ('one', 'WAI', 'euler', '{"loras":["a (0.80)"]}', 0);
@@ -384,5 +409,55 @@ mod tests {
             .query_row("SELECT preset_loras_strict FROM image_presets WHERE image_id = 'broken'", [], |row| row.get(0))
             .unwrap();
         assert_eq!(broken_loras, "[]");
+    }
+
+    #[test]
+    fn refresh_reuses_the_cache_until_a_preset_relevant_image_change() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE images (
+                id TEXT PRIMARY KEY, resolved_model_name TEXT, sampler TEXT,
+                metadata_json TEXT, is_deleted INTEGER NOT NULL DEFAULT 0, thumbnail_path TEXT
+            );",
+        )
+        .unwrap();
+        conn.execute_batch(crate::db::migrations::m85_generation_presets::migration85().sql)
+            .unwrap();
+        conn.execute_batch(crate::db::migrations::m87_preset_cache_state::migration87().sql)
+            .unwrap();
+        let dirty = || conn.query_row("SELECT dirty FROM preset_cache_state", [], |row| row.get::<_, i64>(0)).unwrap();
+        let presets = || conn.query_row("SELECT COUNT(*) FROM image_presets", [], |row| row.get::<_, i64>(0)).unwrap();
+
+        conn.execute("INSERT INTO images VALUES ('one', 'WAI', 'euler', '{}', 0, NULL)", []).unwrap();
+        assert_eq!(dirty(), 1, "a fresh database starts dirty");
+        assert_eq!(refresh_generation_presets_inner(&conn).unwrap(), 1);
+        assert_eq!(dirty(), 0);
+
+        // A hand-edited row proves a clean refresh does not rebuild.
+        let stale = || conn.query_row("SELECT COUNT(*) FROM image_presets WHERE strict_key = 'stale'", [], |row| row.get::<_, i64>(0)).unwrap();
+        conn.execute("UPDATE image_presets SET strict_key = 'stale'", []).unwrap();
+        assert_eq!(refresh_generation_presets_inner(&conn).unwrap(), 1);
+        assert_eq!(stale(), 1);
+
+        // Columns the signature ignores, and rewrites to the same value, keep the cache clean.
+        conn.execute("UPDATE images SET thumbnail_path = 'x.webp'", []).unwrap();
+        conn.execute("UPDATE images SET sampler = 'euler', metadata_json = '{}'", []).unwrap();
+        assert_eq!(dirty(), 0);
+
+        for change in [
+            "UPDATE images SET sampler = 'dpmpp'",
+            "UPDATE images SET resolved_model_name = 'Nova'",
+            "UPDATE images SET metadata_json = '{\"loras\":[\"a\"]}'",
+            "UPDATE images SET is_deleted = 1",
+            "INSERT INTO images VALUES ('two', 'WAI', 'euler', '{}', 0, NULL)",
+            "DELETE FROM images WHERE id = 'two'",
+        ] {
+            conn.execute(change, []).unwrap();
+            assert_eq!(dirty(), 1, "{change}");
+            refresh_generation_presets_inner(&conn).unwrap();
+            assert_eq!(dirty(), 0, "{change}");
+        }
+        assert_eq!(stale(), 0, "a dirty refresh rebuilt the cache");
+        assert_eq!(presets(), 0, "the deleted image has no preset");
     }
 }

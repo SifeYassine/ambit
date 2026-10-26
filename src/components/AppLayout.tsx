@@ -27,6 +27,7 @@ import type { useFileOperations } from '../hooks/useFileOperations';
 import type { useModalManager } from '../hooks/useModalManager';
 import { PrivacyProtectionGate } from './ui/PrivacyProtectionGate';
 import { getEffectiveMaskedKeywords } from '../utils/maskingUtils';
+import { usePresetsWarmup } from '../features/presets/hooks/usePresets';
 
 setupGlobalLogging();
 
@@ -35,6 +36,12 @@ const PresetsView = React.lazy(() => import('../features/presets/components/Pres
 const MaintenanceView = React.lazy(() => import('../features/maintenance/components/MaintenanceView').then(module => ({ default: module.MaintenanceView })));
 const LibraryEmptyState = React.lazy(() => import('../features/library/components/LibraryEmptyState'));
 const FILTER_PANEL_LAYOUT_TRANSITION_MS = 540;
+
+/** Its own component, so the warm-up's store subscriptions never re-render the layout. */
+const PresetsWarmup = ({ filters }: { filters: FilterState }) => {
+    usePresetsWarmup(filters);
+    return null;
+};
 
 const ViewLoadingFallback = () => (
     <div className="h-full w-full flex items-center justify-center">
@@ -616,6 +623,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 />}
 
                 <ActivityDock />
+                <PresetsWarmup filters={filters} />
             </main>
         </div>
     );

@@ -6,7 +6,7 @@ import type { GenerationPreset } from '../../../../services/db/presetRepo';
 import { PresetsView, usePresetsViewStore } from '../PresetsView';
 
 const presetsState = vi.hoisted(() => ({
-    value: { presets: [] as GenerationPreset[], isLoading: false, error: null as Error | null, retry: vi.fn() },
+    value: { presets: [] as GenerationPreset[], isLoading: false, isRefreshing: false, error: null as Error | null, retry: vi.fn() },
     calls: [] as boolean[],
 }));
 
@@ -28,9 +28,19 @@ const preset = (overrides: Partial<GenerationPreset> = {}): GenerationPreset => 
 
 describe('PresetsView', () => {
     beforeEach(() => {
-        presetsState.value = { presets: [], isLoading: false, error: null, retry: vi.fn() };
+        presetsState.value = { presets: [], isLoading: false, isRefreshing: false, error: null, retry: vi.fn() };
         presetsState.calls = [];
         usePresetsViewStore.setState({ matchWeights: true });
+    });
+
+    it('keeps the cards on screen with an updating indicator while presets refresh', () => {
+        presetsState.value.presets = [preset()];
+        presetsState.value.isRefreshing = true;
+        render(<PresetsView filters={createDefaultFilters()} onSelectPreset={vi.fn()} />);
+
+        expect(screen.getAllByRole('button', { name: /^Show / })).toHaveLength(1);
+        expect(screen.getByText('Updating…')).toBeTruthy();
+        expect(screen.queryByText(/Analyzing generation settings/)).toBeNull();
     });
 
     it('lists presets with settings, an image count badge, and typical steps and CFG', () => {
