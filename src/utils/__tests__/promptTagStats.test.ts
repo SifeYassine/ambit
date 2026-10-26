@@ -18,8 +18,8 @@ describe('extractPromptTags', () => {
 });
 
 describe('createPromptTagCounter', () => {
-    it('counts images per tag and leaves out positive quality boilerplate', () => {
-        const positive = createPromptTagCounter('positive');
+    it('counts images per tag, including quality tags', () => {
+        const positive = createPromptTagCounter();
         positive.add('masterpiece, best quality, score_9, score_8_up, 1girl, long hair');
         positive.add('masterpiece, 1girl, long hair, long hair');
         positive.add('absurdres, 1girl');
@@ -28,11 +28,16 @@ describe('createPromptTagCounter', () => {
         expect(positive.finish()).toEqual([
             { text: '1girl', value: 3 },
             { text: 'long hair', value: 2 },
+            { text: 'masterpiece', value: 2 },
+            { text: 'absurdres', value: 1 },
+            { text: 'best quality', value: 1 },
+            { text: 'score 8 up', value: 1 },
+            { text: 'score 9', value: 1 },
         ]);
     });
 
-    it('keeps quality tags in negative prompts, ordered by count then name', () => {
-        const negative = createPromptTagCounter('negative');
+    it('orders by count then name and honors the limit', () => {
+        const negative = createPromptTagCounter();
         negative.add('worst quality, low quality, bad anatomy');
         negative.add('low quality, watermark');
 

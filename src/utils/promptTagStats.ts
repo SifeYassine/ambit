@@ -20,17 +20,6 @@ const OUTER_BRACKETS = /^[\s([{]+|[\s)\]}]+$/g;
 const ESCAPED_OPEN = '\u0001';
 const ESCAPED_CLOSE = '\u0002';
 
-/**
- * Quality boilerplate that tops nearly every positive prompt and says little about the image.
- * Negative prompts keep their quality tags: what you exclude is the interesting part there.
- */
-const POSITIVE_BOILERPLATE = new Set([
-    'masterpiece', 'best quality', 'high quality', 'amazing quality', 'good quality', 'great quality',
-    'very aesthetic', 'aesthetic', 'absurdres', 'highres', 'high res', 'ultra detailed', 'highly detailed',
-    'extremely detailed', 'detailed', 'high detail', '4k', '8k', 'uhd', 'hdr',
-]);
-const SCORE_TAG = /^score \d+( up)?$/;
-
 /** The distinct, normalized tags of one prompt. */
 export const extractPromptTags = (prompt: string): string[] => {
     const tags = new Set<string>();
@@ -54,16 +43,13 @@ export const extractPromptTags = (prompt: string): string[] => {
     return Array.from(tags);
 };
 
-const isPositiveBoilerplate = (tag: string): boolean => POSITIVE_BOILERPLATE.has(tag) || SCORE_TAG.test(tag);
-
-/** Counts tags across prompts (once per prompt); call `finish` for the top tags. */
-export const createPromptTagCounter = (kind: 'positive' | 'negative') => {
+/** Counts every tag across prompts (once per prompt); call `finish` for the top tags. */
+export const createPromptTagCounter = () => {
     const counts = new Map<string, number>();
     return {
         add(prompt: string | null | undefined) {
             if (!prompt) return;
             for (const tag of extractPromptTags(prompt)) {
-                if (kind === 'positive' && isPositiveBoilerplate(tag)) continue;
                 counts.set(tag, (counts.get(tag) ?? 0) + 1);
             }
         },
