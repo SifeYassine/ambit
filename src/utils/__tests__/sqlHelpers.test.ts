@@ -843,3 +843,17 @@ describe('sqlHelpers supporting model filters', () => {
         expect(buildSqlWhereClause(baseFilters, false, 'blur', []).where).not.toMatch(/image_(vaes|upscalers|clip_visions|detectors)/);
     });
 });
+
+describe('sqlHelpers supporting model search syntax', () => {
+    it('matches vae:, upscaler:, clipvision:, and detector: search terms against their tables', () => {
+        const filters: FilterState = {
+            searchQuery: 'vae:sdxl -detector:yolo', models: [], tools: [], loras: [], embeddings: [], hypernetworks: [],
+            controlNets: [], ipAdapters: [], samplers: [], generationTypes: [], dateRange: 'all', favoritesOnly: false, collectionId: null,
+        };
+        const { where, params } = buildSqlWhereClause(filters, false, 'blur', []);
+
+        expect(where).toContain('EXISTS (SELECT 1 FROM image_vaes sm WHERE sm.image_id = id AND sm.vae_name LIKE ?)');
+        expect(where).toContain('NOT (EXISTS (SELECT 1 FROM image_detectors sm WHERE sm.image_id = id AND sm.detector_name LIKE ?))');
+        expect(params).toEqual(expect.arrayContaining(['%sdxl%', '%yolo%']));
+    });
+});

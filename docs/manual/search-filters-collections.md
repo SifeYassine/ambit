@@ -6,7 +6,7 @@ Ambit combines search text, metadata filters, asset facets, date ranges, favorit
 
 ## Search Bar
 
-The search bar matches the positive prompt by default. In Grid and Timeline, Ambit updates about half a second after typing pauses, while pressing Enter finishes immediately and closes the expanded search. The focused standard search leaves the current results visible. In Statistics and Maintenance, typing stays in the search field until you press Enter or choose a recent search; Ambit then opens Grid to show the matching images.
+The search bar matches the positive prompt by default. In Grid and Timeline, Ambit updates about half a second after typing pauses, while pressing Enter finishes immediately and closes the expanded search. The focused standard search leaves the current results visible. In Statistics, Presets, and Maintenance, typing stays in the search field until you press Enter or choose a recent search; Ambit then opens Grid to show the matching images.
 
 Search bar tools include:
 
@@ -49,6 +49,7 @@ Supported operators include:
 - `all:anime` searches path and raw metadata.
 - `model:sdxl` filters by model.
 - `lora:detail` filters by LoRA.
+- `vae:`, `upscaler:`, `clipvision:`, and `detector:` filter by a supporting model, for example `vae:sdxl_vae`. Selecting one of these resources in the viewer applies the same filter.
 - `cn:pose` or `controlnet:pose` filters by ControlNet.
 - `ip:adapter` or `ipadapter:adapter` filters by IP-Adapter.
 - `tool:invoke` filters by generator.

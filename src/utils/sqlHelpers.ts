@@ -214,6 +214,11 @@ const parseSearchToken = (token: SearchToken): SearchCondition | null => {
         } else if (key === 'ip' || key === 'ipadapter') {
             sql = `EXISTS (SELECT 1 FROM image_ipadapters ip WHERE ip.image_id = id AND ip.ipadapter_name LIKE ?)`;
             param = `%${val}%`;
+        } else if (SUPPORTING_MODEL_TYPES.some(type => type.searchPrefix === `${key}:`)) {
+            // vae:, upscaler:, clipvision:, detector: match like lora: and cn:
+            const type = SUPPORTING_MODEL_TYPES.find(candidate => candidate.searchPrefix === `${key}:`)!;
+            sql = `EXISTS (SELECT 1 FROM ${type.table} sm WHERE sm.image_id = id AND sm.${type.column} LIKE ?)`;
+            param = `%${val}%`;
         } else if (key === 'upscaled') {
             sql = `json_extract(metadata_json, '$.upscaled') = ?`;
             param = val === 'true' ? 1 : 0;
