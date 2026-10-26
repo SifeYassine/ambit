@@ -1,3 +1,4 @@
+import { SUPPORTING_MODEL_KEYS, SUPPORTING_MODEL_TYPES } from '../../../constants/supportingModels';
 import * as React from 'react';
 import { FilterX, Heart, Lock, Pin, X } from 'lucide-react';
 import { FilterState } from '../../../types';
@@ -33,6 +34,7 @@ const hasChipVisibleCriteria = (filters: FilterState, dateLabel: string | null, 
     (filters.generationTypes?.length ?? 0) > 0 ||
     (filters.controlNets?.length ?? 0) > 0 ||
     (filters.ipAdapters?.length ?? 0) > 0 ||
+    SUPPORTING_MODEL_KEYS.some(key => (filters[key]?.length ?? 0) > 0) ||
     filters.minSteps !== undefined ||
     filters.maxSteps !== undefined ||
     filters.minCfg !== undefined ||
@@ -192,6 +194,12 @@ export const ActiveFilters: React.FC<ActiveFiltersProps> = () => {
                             <div className="w-3 h-3 flex items-center justify-center text-[10px]">🔒</div>
                         </div>
                     ))}
+                    {SUPPORTING_MODEL_KEYS.flatMap(key => (activeSmartCol.filters?.[key] ?? []).map(value => (
+                        <div key={`smart-${key}-${value}`} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-zinc-400 text-xs border border-gray-200 dark:border-zinc-700 opacity-80 cursor-not-allowed" title={`Smart Rule: ${value}`}>
+                            <span className={FILTER_CHIP_LABEL_CLASS}>{value}</span>
+                            <div className="w-3 h-3 flex items-center justify-center text-[10px]">🔒</div>
+                        </div>
+                    )))}
                     {activeSmartCol.filters.ipAdapters?.map(i => (
                         <div key={`smart-ip-${i}`} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-zinc-400 text-xs border border-gray-200 dark:border-zinc-700 opacity-80 cursor-not-allowed" title={`Smart Rule: ${i}`}>
                             <span className={FILTER_CHIP_LABEL_CLASS}>{i}</span>

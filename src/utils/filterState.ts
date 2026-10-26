@@ -1,3 +1,4 @@
+import { SUPPORTING_MODEL_KEYS } from '../constants/supportingModels';
 import { FilterState, type ImageKindFilter, type MediaTypeFilter, type PresetFilter } from '../types';
 
 type PreservedViewFilters = Pick<FilterState, 'showGrids' | 'showIntermediates' | 'showInvokeImageAssets' | 'sortOption'>;
@@ -86,6 +87,7 @@ export const hasNonCollectionResultFilters = (filters: FilterState): boolean => 
     filters.hypernetworks.length > 0 ||
     filters.controlNets.length > 0 ||
     filters.ipAdapters.length > 0 ||
+    SUPPORTING_MODEL_KEYS.some(key => (filters[key]?.length ?? 0) > 0) ||
     filters.samplers.length > 0 ||
     filters.generationTypes.length > 0 ||
     filters.dateRange !== 'all' ||

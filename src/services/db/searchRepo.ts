@@ -1,3 +1,5 @@
+import { SUPPORTING_MODEL_TYPES } from '../../constants/supportingModels';
+import { emptyFacets } from './emptyFacets';
 import { AIImage, AssetScope, FacetType, type LibraryScopeCounts } from '../../types';
 import { addLibraryScopeCount, createEmptyLibraryScopeCounts } from '../../utils/libraryScopeCounts';
 import { getDb } from './connection';
@@ -63,6 +65,10 @@ export interface Facets {
     controlNets: FacetItem[];
     ipAdapters: FacetItem[];
     tools: string[];
+    vaes: FacetItem[];
+    upscalers: FacetItem[];
+    clipVisions: FacetItem[];
+    detectors: FacetItem[];
 }
 
 export interface ValidFacetNames {
@@ -73,6 +79,10 @@ export interface ValidFacetNames {
     tools: string[];
     controlNets: string[];
     ipAdapters: string[];
+    vaes: string[];
+    upscalers: string[];
+    clipVisions: string[];
+    detectors: string[];
 }
 
 interface FacetCacheRow {
@@ -129,11 +139,6 @@ interface MediaStatsRow {
 interface ModelStatsRow {
     name: string | null;
     count: number;
-}
-
-interface PromptBatchRow {
-    rowid: number;
-    positive_prompt: string | null;
 }
 
 export interface GetFacetsOptions {
@@ -294,6 +299,8 @@ const diskResourceTypeToCacheType = (resourceType: string | null): string | null
     if (resourceType === 'hypernetworks') return 'hypernetworks';
     if (resourceType === 'control_nets') return 'control_nets';
     if (resourceType === 'ip_adapters') return 'ip_adapters';
+    const supportingModel = SUPPORTING_MODEL_TYPES.find(type => type.cacheType === resourceType);
+    if (supportingModel) return supportingModel.cacheType;
     return null;
 };
 
@@ -846,6 +853,21 @@ const buildScopedFacetCountSql = (cacheType: string, cteSql: string): string | n
                 GROUP BY ${nameExpr}
             `;
         }
+        case 'vaes':
+        case 'upscalers':
+        case 'clip_visions':
+        case 'detectors': {
+            const type = SUPPORTING_MODEL_TYPES.find(candidate => candidate.cacheType === cacheType);
+            if (!type) return null;
+            const nameExpr = resourceReferenceSql(`sm.${type.column}`);
+            return `
+                ${cteSql}
+                SELECT COALESCE(${nameExpr}, 'Unknown') AS name, count(DISTINCT si.id) AS count
+                FROM filtered_images si
+                JOIN ${type.table} sm ON sm.image_id = si.id
+                GROUP BY ${nameExpr}
+            `;
+        }
         case 'tools':
             return `
                 ${cteSql}
@@ -1129,7 +1151,7 @@ export const getFacets = async (
     const db = await getDb();
     const assetScope = options.assetScope ?? 'used';
 
-    const result: Facets = { checkpoints: [], loras: [], embeddings: [], hypernetworks: [], controlNets: [], ipAdapters: [], tools: [] };
+    const result: Facets = emptyFacets();
 
     try {
         const cacheTypeMap: Record<FacetType, string> = {
@@ -1139,7 +1161,11 @@ export const getFacets = async (
             hypernetworks: 'hypernetworks',
             controlNets: 'control_nets',
             ipAdapters: 'ip_adapters',
-            tools: 'tools'
+            tools: 'tools',
+            vaes: 'vaes',
+            upscalers: 'upscalers',
+            clipVisions: 'clip_visions',
+            detectors: 'detectors',
         };
         const cacheTypes = Array.from(new Set(types.map(type => cacheTypeMap[type])));
         if (cacheTypes.length === 0) return result;
@@ -1223,7 +1249,8 @@ export const getFacets = async (
             embeddings: new Map(),
             hypernetworks: new Map(),
             control_nets: new Map(),
-            ip_adapters: new Map()
+            ip_adapters: new Map(),
+            ...Object.fromEntries(SUPPORTING_MODEL_TYPES.map(type => [type.cacheType, new Map<string, FacetMergeGroup>()])),
         };
 
         for (const row of cacheRows) {
@@ -1308,12 +1335,15 @@ export const getFacets = async (
         result.hypernetworks = finalizeGroups('hypernetworks');
         result.controlNets = finalizeGroups('control_nets');
         result.ipAdapters = finalizeGroups('ip_adapters');
+        for (const type of SUPPORTING_MODEL_TYPES) {
+            result[type.key] = finalizeGroups(type.cacheType);
+        }
 
         return result;
 
     } catch (e) {
         console.error('[DB] Failed to get facets from cache', e);
-        return { checkpoints: [], loras: [], embeddings: [], hypernetworks: [], tools: [], controlNets: [], ipAdapters: [] };
+        return emptyFacets();
     }
 };
 

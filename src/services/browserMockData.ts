@@ -1,3 +1,4 @@
+import { isSupportingModelKey, SUPPORTING_MODEL_KEYS } from '../constants/supportingModels';
 import { AIImage, AppSettings, Collection, FacetType, FilterState, GeneratorTool, LibraryScopeCounts, SmartCollection, SortOption, getEffectiveSourceKind, hasPrompt } from '../types';
 import type { AppState, IRepository } from './repository';
 import type { Facets, LibraryStats, LibraryStatsSummary, ValidFacetNames } from './db/searchRepo';
@@ -582,6 +583,7 @@ const filterImages = (
         if (!matchesSelectedValues(image.metadata.hypernetworks, filters.hypernetworks, filters.matchModes?.hypernetworks)) return false;
         if (!matchesSelectedValues(image.metadata.controlNets, filters.controlNets, filters.matchModes?.controlNets)) return false;
         if (!matchesSelectedValues(image.metadata.ipAdapters, filters.ipAdapters, filters.matchModes?.ipAdapters)) return false;
+        if (SUPPORTING_MODEL_KEYS.some(key => !matchesSelectedValues(image.metadata[key], filters[key] ?? [], filters.matchModes?.[key]))) return false;
         if (!matchesSelectedValues([image.metadata.sampler], filters.samplers)) return false;
         if (!matchesSelectedValues([image.metadata.generationType ?? 'unknown'], filters.generationTypes)) return false;
         if (filters.minSteps !== undefined && image.metadata.steps < filters.minSteps) return false;
@@ -689,6 +691,7 @@ const buildFacetItems = (images: AIImage[], type: FacetType) => {
         if (type === 'hypernetworks') image.metadata.hypernetworks?.forEach(add);
         if (type === 'controlNets') image.metadata.controlNets?.forEach(add);
         if (type === 'ipAdapters') image.metadata.ipAdapters?.forEach(add);
+        if (isSupportingModelKey(type)) image.metadata[type]?.forEach(add);
     });
 
     return Array.from(counts.entries())
@@ -738,6 +741,10 @@ export const getBrowserMockFacets = (filters?: FilterState): Facets => {
         controlNets: buildFacetItems(sourceFor('controlNets'), 'controlNets'),
         ipAdapters: buildFacetItems(sourceFor('ipAdapters'), 'ipAdapters'),
         tools,
+        vaes: buildFacetItems(sourceFor('vaes'), 'vaes'),
+        upscalers: buildFacetItems(sourceFor('upscalers'), 'upscalers'),
+        clipVisions: buildFacetItems(sourceFor('clipVisions'), 'clipVisions'),
+        detectors: buildFacetItems(sourceFor('detectors'), 'detectors'),
     };
 };
 
@@ -804,6 +811,10 @@ export const getBrowserMockValidFacetNames = (filters: FilterState): ValidFacetN
         tools: facets.tools,
         controlNets: facets.controlNets.map((item) => item.name),
         ipAdapters: facets.ipAdapters.map((item) => item.name),
+        vaes: facets.vaes.map((item) => item.name),
+        upscalers: facets.upscalers.map((item) => item.name),
+        clipVisions: facets.clipVisions.map((item) => item.name),
+        detectors: facets.detectors.map((item) => item.name),
     };
 };
 

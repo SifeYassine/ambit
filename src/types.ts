@@ -1,3 +1,4 @@
+import type { SupportingModelKey } from './constants/supportingModels';
 import type { PhotoMetadata, SourceKind } from './bindings';
 
 export type { PhotoMetadata, SourceKind } from './bindings';
@@ -66,6 +67,11 @@ export interface ImageMetadata {
   loras?: string[];
   embeddings?: string[];
   hypernetworks?: string[];
+  /** Supporting models; optional because older records and saved filters predate them. */
+  vaes?: string[];
+  upscalers?: string[];
+  clipVisions?: string[];
+  detectors?: string[];
   controlNets?: string[];
   ipAdapters?: string[];
 
@@ -273,6 +279,10 @@ export interface FilterState {
   loras: string[]; // New: Filter by LoRA usage
   embeddings: string[];
   hypernetworks: string[];
+  vaes?: string[];
+  upscalers?: string[];
+  clipVisions?: string[];
+  detectors?: string[];
   samplers: string[]; // Filter by sampler name
   generationTypes: string[]; // Filter by generation type (txt2img, img2img, etc.)
   controlNets: string[];
@@ -292,7 +302,7 @@ export interface FilterState {
   showInvokeImageAssets?: boolean;
   sortOption?: SortOption;
   matchModes?: Record<string, 'any' | 'all'>; // Key: filter key (e.g. 'loras'), Value: 'any' (OR) | 'all' (AND)
-  assetFilterAliases?: Partial<Record<'models' | 'loras' | 'embeddings' | 'hypernetworks' | 'controlNets' | 'ipAdapters', Record<string, string[]>>>;
+  assetFilterAliases?: Partial<Record<'models' | 'loras' | 'embeddings' | 'hypernetworks' | 'controlNets' | 'ipAdapters' | SupportingModelKey, Record<string, string[]>>>;
   preset?: PresetFilter;
 }
 
@@ -349,7 +359,7 @@ export type CollectionSortOption =
 
 export type SidebarSortOption = FacetSortOption | CollectionSortOption;
 
-export type FacetType = 'checkpoints' | 'loras' | 'embeddings' | 'hypernetworks' | 'controlNets' | 'ipAdapters' | 'tools';
+export type FacetType = 'checkpoints' | 'loras' | 'embeddings' | 'hypernetworks' | 'controlNets' | 'ipAdapters' | 'tools' | SupportingModelKey;
 
 
 export interface PaginationCursor {

@@ -267,7 +267,7 @@ describe('searchRepo fallbacks and caching', () => {
 
         await expect(getKeywordStats()).resolves.toEqual([]);
         await expect(getFacets()).resolves.toEqual({
-            checkpoints: [], loras: [], embeddings: [], hypernetworks: [], tools: [], controlNets: [], ipAdapters: []
+            checkpoints: [], loras: [], embeddings: [], hypernetworks: [], tools: [], controlNets: [], ipAdapters: [], vaes: [], upscalers: [], clipVisions: [], detectors: []
         });
         expect(errorSpy).toHaveBeenCalledTimes(2);
         errorSpy.mockRestore();
@@ -382,7 +382,7 @@ describe('searchRepo getFacets', () => {
         );
 
         expect(facets).toEqual({
-            checkpoints: [], loras: [], embeddings: [], hypernetworks: [], tools: [], controlNets: [], ipAdapters: []
+            checkpoints: [], loras: [], embeddings: [], hypernetworks: [], tools: [], controlNets: [], ipAdapters: [], vaes: [], upscalers: [], clipVisions: [], detectors: []
         });
     });
 
@@ -472,7 +472,7 @@ describe('searchRepo getFacets', () => {
         const { getFacets } = await import('../searchRepo');
 
         await expect(getFacets('', [], [])).resolves.toEqual({
-            checkpoints: [], loras: [], embeddings: [], hypernetworks: [], tools: [], controlNets: [], ipAdapters: []
+            checkpoints: [], loras: [], embeddings: [], hypernetworks: [], tools: [], controlNets: [], ipAdapters: [], vaes: [], upscalers: [], clipVisions: [], detectors: []
         });
         expect(db.select).not.toHaveBeenCalled();
     });

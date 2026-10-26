@@ -9,6 +9,7 @@ import { appRepository } from '../services/repository';
 import { getDb } from '../services/db/connection';
 
 import { Facets, LibraryStats, ValidFacetNames } from '../services/db/searchRepo';
+import { emptyFacets } from '../services/db/emptyFacets';
 import {
     checkHiddenContentAvailability,
     rebuildThumbnailFacetCache,
@@ -386,7 +387,7 @@ export const SearchProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         keywordStatsEnabled
     });
 
-    const activeFacets = !privacyExposureBlocked && statsData?.facets || { checkpoints: [], loras: [], embeddings: [], hypernetworks: [], tools: [], controlNets: [], ipAdapters: [] };
+    const activeFacets = !privacyExposureBlocked && statsData?.facets || emptyFacets();
     const activeStats = !privacyExposureBlocked && statsData?.stats || { totalImages: 0, totalGenerations: 0, avgSteps: 0, estSizeMB: '0', modelStats: [], keywordStats: [] };
     const activeValidNames = !privacyExposureBlocked && facetDrilldownActive ? statsData?.validNames || null : null;
 
