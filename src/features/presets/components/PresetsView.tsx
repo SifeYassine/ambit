@@ -228,7 +228,7 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
                     <p>Presets appear once images with a recorded model or LoRA are in the library.</p>
                 </div>
             ) : (
-                <ol aria-label="Presets" className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] items-start gap-4">
+                <ol aria-label="Presets" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-start gap-4">
                     {presets.map((preset, index) => (
                         <PresetCard
                             key={preset.key}
