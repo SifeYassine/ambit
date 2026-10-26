@@ -133,7 +133,7 @@ const PresetCard = ({ preset, rank, matchWeights, onSelect }: {
     // LoRA toggle can be its own button. The content stays hoverable for tooltips and opens the
     // preset on click itself.
     return (
-        <li className="relative flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-sage-300 hover:shadow-lg dark:border-white/10 dark:bg-zinc-900 dark:hover:border-sage-500/40">
+        <li className="relative flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-sage-300 hover:shadow-lg dark:border-white/10 dark:bg-zinc-900 dark:hover:border-sage-500/40">
             <button
                 type="button"
                 onClick={onSelect}
