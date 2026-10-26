@@ -18,7 +18,7 @@ import {
 } from '../services/db/imageRepo';
 import { clearAllCollectionThumbnailCaches } from '../services/db/collectionRepo';
 import { useImagesQuery, type ImagesQueryKey } from '../hooks/useImagesQuery';
-import { useLibraryStatsQuery } from '../hooks/useLibraryStatsQuery';
+import { useLibraryStatsQuery, type StatsQueryScope } from '../hooks/useLibraryStatsQuery';
 import { useLibraryScopeAvailability } from '../hooks/useLibraryScopeAvailability';
 import { useLibraryScopeCounts } from '../hooks/useLibraryScopeCounts';
 import { buildSqlWhereClause } from '../utils/sqlHelpers';
@@ -84,6 +84,8 @@ interface SearchContextType {
     isLoadingMore: boolean;
     isStatsSummaryLoading: boolean;
     isKeywordStatsLoading: boolean;
+    /** Scope for the Statistics page's own breakdown queries; null while privacy blocks exposure. */
+    statsScope: StatsQueryScope | null;
 
     /** Valid facet names for drill-down filtering. null = show all (no active filters) */
     validFacetNames: ValidFacetNames | null;
@@ -375,7 +377,8 @@ export const SearchProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         data: statsData,
         isFacetsFetching,
         isStatsSummaryLoading,
-        isKeywordStatsLoading
+        isKeywordStatsLoading,
+        statsScope
     } = useLibraryStatsQuery({
         filters,
         settings,
@@ -758,6 +761,7 @@ export const SearchProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             isLoadingMore: isFetchingNextPage,
             isStatsSummaryLoading,
             isKeywordStatsLoading,
+            statsScope: privacyExposureBlocked ? null : statsScope,
             validFacetNames: activeValidNames,
             assetScope,
             setAssetScope,

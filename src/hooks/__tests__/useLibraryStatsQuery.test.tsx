@@ -36,7 +36,9 @@ vi.mock('../../services/browserMockData', () => ({
 vi.mock('../../services/db/searchRepo', () => ({
     getFacets: searchRepoMocks.getFacets,
     getLibraryStatsSummary: searchRepoMocks.getLibraryStatsSummary,
-    getKeywordStats: searchRepoMocks.getKeywordStats,
+    // The keyword mock returns positive tags; the hook reads them from the combined tag scan.
+    getPromptTagStats: (...args: unknown[]) => Promise.resolve(searchRepoMocks.getKeywordStats(...args))
+        .then((positive: LibraryStats['keywordStats']) => ({ positive, negative: [] })),
     getValidFacetNames: searchRepoMocks.getValidFacetNames,
 }));
 
@@ -48,6 +50,10 @@ const emptyFacets: Facets = {
     controlNets: [],
     ipAdapters: [],
     tools: [],
+    vaes: [],
+    upscalers: [],
+    clipVisions: [],
+    detectors: [],
 };
 
 const emptySummary: LibraryStatsSummary = {
@@ -68,6 +74,10 @@ const validNames: ValidFacetNames = {
     tools: ['Automatic1111'],
     controlNets: [],
     ipAdapters: [],
+    vaes: [],
+    upscalers: [],
+    clipVisions: [],
+    detectors: [],
 };
 
 const settings: AppSettings = {

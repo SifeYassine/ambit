@@ -1,10 +1,10 @@
 import { SUPPORTING_MODEL_TYPES } from '../../constants/supportingModels';
 import { emptyFacets } from './emptyFacets';
+import { createPromptTagCounter, type PromptTagStat } from '../../utils/promptTagStats';
 import { AIImage, AssetScope, FacetType, type LibraryScopeCounts } from '../../types';
 import { addLibraryScopeCount, createEmptyLibraryScopeCounts } from '../../utils/libraryScopeCounts';
 import { getDb } from './connection';
 import { mapRowToImage, getImageFieldsLight, type ImageRow } from './repoUtils';
-import { WORD_CLOUD_CONFIG } from '../../config/wordCloud';
 import { getAssetMatchKey, resolveAssetMatchKey, uniqueAssetAliases } from '../../utils/assetIdentity';
 import { describeDbQueryReason, timeDbCall } from '../../utils/dbTiming';
 import { commands } from '../../bindings';
@@ -20,6 +20,7 @@ export interface LibraryStats {
     estSizeMB: string;
     modelStats: { name: string; fullName: string; count: number }[];
     keywordStats: { text: string; value: number }[];
+    negativeKeywordStats?: { text: string; value: number }[];
 }
 
 export interface LibraryStatsSummary {
@@ -1033,14 +1034,15 @@ export const getLibraryStatsSummary = async (
 
 export const getLibraryStats = async (whereClause: string = '', params: unknown[] = [], collectionId?: string, loraName?: string): Promise<LibraryStats> => {
     try {
-        const [summary, keywordStats] = await Promise.all([
+        const [summary, tags] = await Promise.all([
             getLibraryStatsSummary(whereClause, params, collectionId, loraName),
-            getKeywordStats(whereClause, params, collectionId, loraName)
+            getPromptTagStats(whereClause, params, collectionId, loraName)
         ]);
 
         return {
             ...summary,
-            keywordStats
+            keywordStats: tags.positive,
+            negativeKeywordStats: tags.negative
         };
     } catch (e) {
         console.error('[DB] Failed to get library stats', e);
@@ -1058,19 +1060,31 @@ export const getLibraryStats = async (whereClause: string = '', params: unknown[
     }
 };
 
-export const getKeywordStats = async (
+export interface PromptTagStats {
+    positive: PromptTagStat[];
+    negative: PromptTagStat[];
+}
+
+interface PromptTagBatchRow {
+    rowid: number;
+    positive_prompt: string | null;
+    negative_prompt: string | null;
+}
+
+/** Positive and negative prompt tags for the scoped images, counted once per image, in one scan. */
+export const getPromptTagStats = async (
     whereClause: string = '',
     params: unknown[] = [],
     collectionId?: string,
     loraName?: string,
     signal?: AbortSignal
-): Promise<{ text: string; value: number }[]> => {
+): Promise<PromptTagStats> => {
     signal?.throwIfAborted();
     const db = await getDb();
 
     try {
-        const stopWords = new Set(WORD_CLOUD_CONFIG.STOP_WORDS);
-        const counts: Record<string, number> = {};
+        const positive = createPromptTagCounter();
+        const negative = createPromptTagCounter();
         let lastRowId = 0;
 
         for (;;) {
@@ -1081,8 +1095,9 @@ export const getKeywordStats = async (
                 collectionId,
                 loraName,
                 [
-                    'images.id AS id',
-                    'images.rowid AS rowid'
+                    'images.rowid AS rowid',
+                    'images.positive_prompt AS positive_prompt',
+                    'images.negative_prompt AS negative_prompt'
                 ],
                 {
                     trailingPredicate: 'images.rowid > ?',
@@ -1091,48 +1106,117 @@ export const getKeywordStats = async (
             );
             const promptQuery = `
                 ${scopedParts.cteSql}
-                SELECT si.rowid, images_fts.positive_prompt
-                FROM filtered_images si
-                JOIN images_fts ON images_fts.rowid = si.rowid
-                ORDER BY si.rowid ASC
+                SELECT rowid, positive_prompt, negative_prompt
+                FROM filtered_images
+                ORDER BY rowid ASC
                 LIMIT ${KEYWORD_BATCH_SIZE}
             `;
 
             const rows = await timeDbCall(
                 'keywordStats.promptBatch',
                 scopedParts.reason,
-                () => db.select<PromptBatchRow[]>(promptQuery, scopedParts.queryParams)
+                () => db.select<PromptTagBatchRow[]>(promptQuery, scopedParts.queryParams)
             );
             signal?.throwIfAborted();
 
-            rows.forEach(r => {
-                const tokens = (r.positive_prompt || '')
-                    .toLowerCase()
-                    .replace(/[^a-z0-9\s]/g, ' ')
-                    .split(/\s+/);
-
-                tokens.forEach((token: string) => {
-                    if (token.length > 3 && !stopWords.has(token) && !/^\d+$/.test(token)) {
-                        counts[token] = (counts[token] || 0) + 1;
-                    }
-                });
-            });
+            for (const row of rows) {
+                positive.add(row.positive_prompt);
+                negative.add(row.negative_prompt);
+            }
 
             const finalRow = rows.at(-1);
-            if (!finalRow) break;
+            if (!finalRow || rows.length < KEYWORD_BATCH_SIZE) break;
             lastRowId = finalRow.rowid;
-
-            if (rows.length < KEYWORD_BATCH_SIZE) break;
         }
 
-        return Object.entries(counts)
-            .map(([text, value]) => ({ text, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 40);
-
+        return { positive: positive.finish(), negative: negative.finish() };
     } catch (e) {
         if (signal?.aborted) throw e;
         console.error('[DB] Failed to get keyword stats', e);
+        return { positive: [], negative: [] };
+    }
+};
+
+export type SettingBreakdownDimension = 'model' | 'lora' | 'sampler' | 'steps' | 'cfg';
+
+export interface SettingBreakdownItem {
+    label: string;
+    /** The filter value: a model/LoRA/sampler name, or the numeric steps/CFG value. */
+    value: string | number;
+    count: number;
+}
+
+export const SETTING_BREAKDOWN_LIMIT = 10;
+
+const settingBreakdownSql = (dimension: SettingBreakdownDimension, cteSql: string, limit: number): string => {
+    switch (dimension) {
+        case 'model':
+            return `${cteSql}
+                SELECT COALESCE(NULLIF(resolved_model_name, ''), NULLIF(model_name, '')) AS value, count(*) AS count
+                FROM filtered_images
+                WHERE value IS NOT NULL AND LOWER(value) != 'unknown'
+                GROUP BY value ORDER BY count DESC, value ASC LIMIT ${limit}`;
+        case 'lora': {
+            const nameExpr = resourceReferenceSql('il.lora_name');
+            return `${cteSql}
+                SELECT ${nameExpr} AS value, count(DISTINCT si.id) AS count
+                FROM filtered_images si JOIN image_loras il ON il.image_id = si.id
+                GROUP BY ${nameExpr} ORDER BY count DESC, value ASC LIMIT ${limit}`;
+        }
+        case 'sampler':
+            return `${cteSql}
+                SELECT sampler AS value, count(*) AS count
+                FROM filtered_images
+                WHERE sampler IS NOT NULL AND sampler != '' AND LOWER(sampler) NOT IN ('unknown', '_')
+                GROUP BY sampler ORDER BY count DESC, value ASC LIMIT ${limit}`;
+        case 'steps':
+            return `${cteSql}
+                SELECT steps AS value, count(*) AS count
+                FROM filtered_images WHERE steps > 0
+                GROUP BY steps ORDER BY count DESC, value ASC LIMIT ${limit}`;
+        case 'cfg':
+            return `${cteSql}
+                SELECT cfg AS value, count(*) AS count
+                FROM filtered_images WHERE cfg > 0
+                GROUP BY cfg ORDER BY count DESC, value ASC LIMIT ${limit}`;
+    }
+};
+
+const formatBreakdownLabel = (dimension: SettingBreakdownDimension, value: string | number): string => {
+    if (dimension === 'cfg' && typeof value === 'number') return String(Math.round(value * 100) / 100);
+    if (dimension === 'steps') return `${value} steps`;
+    return String(value);
+};
+
+/** The most used values of one generation setting across the scoped images. */
+export const getSettingBreakdown = async (
+    dimension: SettingBreakdownDimension,
+    whereClause: string = '',
+    params: unknown[] = [],
+    collectionId?: string,
+    loraName?: string
+): Promise<SettingBreakdownItem[]> => {
+    const db = await getDb();
+    const scopedParts = buildScopedImageQueryParts(whereClause, params, collectionId, loraName, [
+        'images.id AS id',
+        'images.resolved_model_name AS resolved_model_name',
+        'images.model_name AS model_name',
+        'images.sampler AS sampler',
+        'images.steps AS steps',
+        'images.cfg AS cfg'
+    ], {});
+    const query = settingBreakdownSql(dimension, scopedParts.cteSql, SETTING_BREAKDOWN_LIMIT);
+    try {
+        const rows = await timeDbCall(
+            `statsBreakdown.${dimension}`,
+            scopedParts.reason,
+            () => db.select<{ value: string | number | null; count: number }[]>(query, scopedParts.queryParams)
+        );
+        return rows
+            .filter((row): row is { value: string | number; count: number } => row.value !== null && row.value !== '')
+            .map(row => ({ label: formatBreakdownLabel(dimension, row.value), value: row.value, count: Number(row.count) }));
+    } catch (e) {
+        console.error(`[DB] Failed to get ${dimension} breakdown`, e);
         return [];
     }
 };

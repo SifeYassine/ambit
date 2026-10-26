@@ -263,9 +263,9 @@ describe('searchRepo fallbacks and caching', () => {
     it('returns empty keyword and facet collections when their queries fail', async () => {
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
         getDbMock.mockResolvedValue({ select: vi.fn().mockRejectedValue(new Error('query failed')) });
-        const { getFacets, getKeywordStats } = await import('../searchRepo');
+        const { getFacets, getPromptTagStats } = await import('../searchRepo');
 
-        await expect(getKeywordStats()).resolves.toEqual([]);
+        await expect(getPromptTagStats()).resolves.toEqual({ positive: [], negative: [] });
         await expect(getFacets()).resolves.toEqual({
             checkpoints: [], loras: [], embeddings: [], hypernetworks: [], tools: [], controlNets: [], ipAdapters: [], vaes: [], upscalers: [], clipVisions: [], detectors: []
         });
@@ -1442,7 +1442,7 @@ describe('searchRepo scoped stats queries', () => {
 
         const [statsSql, statsParams] = findSelectCall(db, (value) => value.includes('AS total_items')) as [string, unknown[]];
         const [averageSql, averageParams] = findSelectCall(db, (value) => value.includes('AVG(steps) AS avg_steps')) as [string, unknown[]];
-        const [keywordSql, keywordParams] = findSelectCall(db, (value) => value.includes('JOIN images_fts')) as [string, unknown[]];
+        const [keywordSql, keywordParams] = findSelectCall(db, (value) => value.includes('AS negative_prompt')) as [string, unknown[]];
 
         expect(statsSql).toContain('FROM collection_images ci');
         expect(statsSql).toContain('JOIN image_loras il ON il.image_id = ci.image_id');
@@ -1511,7 +1511,7 @@ describe('searchRepo scoped stats queries', () => {
                 const normalizedSql = sql.replace(/\s+/g, ' ').trim();
                 if (normalizedSql.includes('AS total_items')) return [{ total_items: 2, total_images: 2, total_videos: 0, total_bytes: 0 }];
                 if (normalizedSql.includes('GROUP BY name')) return [];
-                if (normalizedSql.includes('JOIN images_fts')) return [];
+                if (normalizedSql.includes('AS negative_prompt')) return [];
                 return [];
             })
         };
@@ -1523,7 +1523,7 @@ describe('searchRepo scoped stats queries', () => {
         await getLibraryStats('WHERE is_deleted = ?', [0], undefined, 'Detailer');
 
         const [statsSql, statsParams] = findSelectCall(db, (value) => value.includes('AS total_items')) as [string, unknown[]];
-        const [keywordSql, keywordParams] = findSelectCall(db, (value) => value.includes('JOIN images_fts')) as [string, unknown[]];
+        const [keywordSql, keywordParams] = findSelectCall(db, (value) => value.includes('AS negative_prompt')) as [string, unknown[]];
 
         expect(statsSql).toContain('FROM image_loras il');
         expect(statsSql).toContain('CROSS JOIN scoped_images AS images ON images.id = il.image_id');
@@ -1673,7 +1673,7 @@ describe('searchRepo scoped stats queries', () => {
                         count: 22 - index
                     }));
                 }
-                if (normalizedSql.includes('JOIN images_fts')) return [];
+                if (normalizedSql.includes('AS negative_prompt')) return [];
                 return [];
             })
         };
@@ -1828,18 +1828,18 @@ describe('searchRepo scoped stats queries', () => {
 
     it('includes prompts beyond the old 2000-row limit when building keyword stats', async () => {
         const promptBatches = [
-            Array.from({ length: 500 }, (_, index) => ({ rowid: index + 1, positive_prompt: 'alpha alpha' })),
-            Array.from({ length: 500 }, (_, index) => ({ rowid: index + 501, positive_prompt: 'alpha alpha' })),
-            Array.from({ length: 500 }, (_, index) => ({ rowid: index + 1001, positive_prompt: 'alpha alpha' })),
-            Array.from({ length: 500 }, (_, index) => ({ rowid: index + 1501, positive_prompt: 'alpha alpha' })),
-            [{ rowid: 2001, positive_prompt: 'sentinelword alpha' }]
+            Array.from({ length: 500 }, (_, index) => ({ rowid: index + 1, positive_prompt: 'alpha, alpha', negative_prompt: 'blurry' })),
+            Array.from({ length: 500 }, (_, index) => ({ rowid: index + 501, positive_prompt: 'alpha, alpha', negative_prompt: 'blurry' })),
+            Array.from({ length: 500 }, (_, index) => ({ rowid: index + 1001, positive_prompt: 'alpha, alpha', negative_prompt: 'blurry' })),
+            Array.from({ length: 500 }, (_, index) => ({ rowid: index + 1501, positive_prompt: 'alpha, alpha', negative_prompt: 'blurry' })),
+            [{ rowid: 2001, positive_prompt: 'sentinelword, alpha', negative_prompt: 'sentinel negative' }]
         ];
         let promptBatchIndex = 0;
 
         const db = {
             select: vi.fn(async (sql: string) => {
                 const normalizedSql = sql.replace(/\s+/g, ' ').trim();
-                if (normalizedSql.includes('JOIN images_fts')) {
+                if (normalizedSql.includes('AS negative_prompt')) {
                     const batch = promptBatches[promptBatchIndex] ?? [];
                     promptBatchIndex += 1;
                     return batch;
@@ -1849,12 +1849,13 @@ describe('searchRepo scoped stats queries', () => {
         };
         getDbMock.mockResolvedValue(db);
 
-        const { getKeywordStats } = await import('../searchRepo');
-        const keywords = await getKeywordStats('WHERE is_deleted = ?', [0]);
+        const { getPromptTagStats } = await import('../searchRepo');
+        const tags = await getPromptTagStats('WHERE is_deleted = ?', [0]);
 
-        expect(keywords.some((item) => item.text === 'sentinelword')).toBe(true);
+        expect(tags.positive).toEqual([{ text: 'alpha', value: 2001 }, { text: 'sentinelword', value: 1 }]);
+        expect(tags.negative).toEqual([{ text: 'blurry', value: 2000 }, { text: 'sentinel negative', value: 1 }]);
         const keywordCalls = db.select.mock.calls
-            .filter(([sql]) => (sql as string).includes('JOIN images_fts'))
+            .filter(([sql]) => (sql as string).includes('AS negative_prompt'))
             .map((call) => [call[0] as string, ((call as unknown[])[1] ?? []) as unknown[]] as [string, unknown[]]);
 
         expect(keywordCalls).toHaveLength(5);
@@ -1867,6 +1868,7 @@ describe('searchRepo scoped stats queries', () => {
         ]);
         keywordCalls.forEach(([sql]) => {
             expect(sql).toContain('images.rowid > ?');
+            expect(sql).not.toContain('images_fts');
             expect(sql).not.toContain('WHERE si.rowid > ?');
             expect(sql).not.toContain('OFFSET');
         });
@@ -1886,25 +1888,52 @@ describe('searchRepo scoped stats queries', () => {
         };
         getDbMock.mockResolvedValue(db);
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-        const { getKeywordStats } = await import('../searchRepo');
+        const { getPromptTagStats } = await import('../searchRepo');
 
-        await expect(getKeywordStats('', [], undefined, undefined, controller.signal))
+        await expect(getPromptTagStats('', [], undefined, undefined, controller.signal))
             .rejects.toMatchObject({ name: 'AbortError' });
         expect(db.select).toHaveBeenCalledOnce();
         expect(errorSpy).not.toHaveBeenCalled();
         errorSpy.mockRestore();
     });
 
-    it('excludes short, numeric, and configured stop-word tokens from keyword stats', async () => {
+    it('counts whole prompt tags once per image, keeping short and quality tags', async () => {
         const db = {
             select: vi.fn().mockResolvedValue([
-                { rowid: 1, positive_prompt: 'the cat 123 validword validword' },
-                { rowid: 2, positive_prompt: null },
+                { rowid: 1, positive_prompt: 'masterpiece, cat, (red dress:1.2), cat, 123', negative_prompt: 'worst quality, blurry' },
+                { rowid: 2, positive_prompt: 'cat, <lora:frostbite:0.8>', negative_prompt: null },
             ])
         };
         getDbMock.mockResolvedValue(db);
-        const { getKeywordStats } = await import('../searchRepo');
+        const { getPromptTagStats } = await import('../searchRepo');
 
-        await expect(getKeywordStats()).resolves.toEqual([{ text: 'validword', value: 2 }]);
+        await expect(getPromptTagStats()).resolves.toEqual({
+            positive: [{ text: 'cat', value: 2 }, { text: 'masterpiece', value: 1 }, { text: 'red dress', value: 1 }],
+            negative: [{ text: 'blurry', value: 1 }, { text: 'worst quality', value: 1 }],
+        });
+    });
+
+    it('breaks down a setting over the scoped images, top 10', async () => {
+        const db = {
+            select: vi.fn(async (sql: string) => {
+                if (sql.includes('GROUP BY cfg')) return [{ value: 6.5, count: 9 }, { value: 7.123, count: 4 }];
+                if (sql.includes('JOIN image_loras')) return [{ value: 'frostbite', count: 3 }, { value: null, count: 1 }];
+                return [];
+            })
+        };
+        getDbMock.mockResolvedValue(db);
+        const { getSettingBreakdown } = await import('../searchRepo');
+
+        await expect(getSettingBreakdown('cfg', 'WHERE is_deleted = ?', [0])).resolves.toEqual([
+            { label: '6.5', value: 6.5, count: 9 },
+            { label: '7.12', value: 7.123, count: 4 },
+        ]);
+        const [cfgSql, cfgParams] = db.select.mock.calls[0] as unknown as [string, unknown[]];
+        expect(cfgSql).toContain('WITH filtered_images AS');
+        expect(cfgSql).toContain('LIMIT 10');
+        expect(cfgParams).toEqual([0]);
+
+        await expect(getSettingBreakdown('lora')).resolves.toEqual([{ label: 'frostbite', value: 'frostbite', count: 3 }]);
+        expect(db.select.mock.calls[1][0]).toContain('LIMIT 10');
     });
 });

@@ -1,7 +1,9 @@
+import { SUPPORTING_MODEL_KEYS } from '../constants/supportingModels';
+import { emptyFacets } from '../services/db/emptyFacets';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AssetScope, FilterState, AppSettings, Collection, FacetType } from '../types';
-import { getFacets, getKeywordStats, getLibraryStatsSummary, Facets, LibraryStats, LibraryStatsSummary, getValidFacetNames, ValidFacetNames, type ScopedFacetCountInput } from '../services/db/searchRepo';
+import { getFacets, getPromptTagStats, getLibraryStatsSummary, Facets, LibraryStats, LibraryStatsSummary, getValidFacetNames, ValidFacetNames, type ScopedFacetCountInput } from '../services/db/searchRepo';
 import { buildSqlWhereClause } from '../utils/sqlHelpers';
 import { useLibraryStore } from '../stores/libraryStore';
 import { isBrowserMockMode } from '../services/runtime';
@@ -32,15 +34,16 @@ const INITIAL_STATS_SUMMARY: LibraryStatsSummary = {
 
 const INITIAL_KEYWORD_STATS: LibraryStats['keywordStats'] = [];
 
-const INITIAL_FACETS: Facets = {
-    checkpoints: [],
-    loras: [],
-    embeddings: [],
-    hypernetworks: [],
-    controlNets: [],
-    ipAdapters: [],
-    tools: []
-};
+const INITIAL_FACETS: Facets = emptyFacets();
+
+/** The SQL scope the stats queries run over, plus a key that changes whenever the scope or data does. */
+export interface StatsQueryScope {
+    where: string;
+    params: unknown[];
+    collectionId?: string;
+    loraName?: string;
+    cacheKey: string;
+}
 
 const getSelfExcludedFacetTypes = (filters: FilterState): FacetType[] => {
     const facetTypes: FacetType[] = [];
@@ -52,6 +55,9 @@ const getSelfExcludedFacetTypes = (filters: FilterState): FacetType[] => {
     if (filters.models.length > 0) facetTypes.push('checkpoints');
     if (filters.controlNets.length > 0 && filters.matchModes?.controlNets !== 'all') facetTypes.push('controlNets');
     if (filters.ipAdapters.length > 0 && filters.matchModes?.ipAdapters !== 'all') facetTypes.push('ipAdapters');
+    SUPPORTING_MODEL_KEYS.forEach(key => {
+        if ((filters[key]?.length ?? 0) > 0 && filters.matchModes?.[key] !== 'all') facetTypes.push(key);
+    });
 
     return facetTypes;
 };
@@ -79,6 +85,8 @@ export const shouldFetchValidFacets = (
         filters.generationTypes.length > 0 ||
         filters.controlNets.length > 0 ||
         filters.ipAdapters.length > 0 ||
+        SUPPORTING_MODEL_KEYS.some(key => (filters[key]?.length ?? 0) > 0) ||
+        !!filters.preset ||
         !!filters.collectionId ||
         filters.searchQuery.trim().length > 0 ||
         filters.dateRange !== 'all' ||
@@ -135,7 +143,7 @@ export const useLibraryStatsQuery = ({
         [activeCollection?.filters, activeCollection?.manualExclusions]
     );
 
-    const ALL_FACET_TYPES: FacetType[] = ['checkpoints', 'loras', 'embeddings', 'hypernetworks', 'controlNets', 'ipAdapters', 'tools'];
+    const ALL_FACET_TYPES: FacetType[] = ['checkpoints', 'loras', 'embeddings', 'hypernetworks', 'controlNets', 'ipAdapters', 'tools', ...SUPPORTING_MODEL_KEYS];
 
     const fetchValidFacets = useMemo(
         () => validFacetsEnabled && shouldFetchValidFacets(sideQueryFilters, privacyEnabled, settings.maskingMode),
@@ -357,15 +365,18 @@ export const useLibraryStatsQuery = ({
                 return {
                     summaryVersion: activeSummaryVersion,
                     semanticKey: keywordStatsSemanticKey,
-                    keywordStats: getBrowserMockKeywordStats(sideQueryFilters)
+                    keywordStats: getBrowserMockKeywordStats(sideQueryFilters),
+                    negativeKeywordStats: INITIAL_KEYWORD_STATS
                 };
             }
 
             const { where, params, collectionId, loraName } = queryInput!;
+            const tags = await getPromptTagStats(where, params, collectionId, loraName, signal);
             return {
                 summaryVersion: activeSummaryVersion,
                 semanticKey: keywordStatsSemanticKey,
-                keywordStats: await getKeywordStats(where, params, collectionId, loraName, signal)
+                keywordStats: tags.positive,
+                negativeKeywordStats: tags.negative
             };
         },
         placeholderData: retainWithinOwnerScope,
@@ -382,6 +393,9 @@ export const useLibraryStatsQuery = ({
     const currentKeywordStats = keywordStatsAreCurrent
         ? (keywordQuery.data?.keywordStats ?? INITIAL_KEYWORD_STATS)
         : INITIAL_KEYWORD_STATS;
+    const currentNegativeKeywordStats = keywordStatsAreCurrent
+        ? (keywordQuery.data?.negativeKeywordStats ?? INITIAL_KEYWORD_STATS)
+        : INITIAL_KEYWORD_STATS;
 
     const isKeywordStatsLoading = keywordStatsEnabled
         && statsSummaryQuery.status === 'success'
@@ -391,8 +405,14 @@ export const useLibraryStatsQuery = ({
 
     const combinedStats = useMemo<LibraryStats>(() => ({
         ...(statsSummaryQuery.data ?? INITIAL_STATS_SUMMARY),
-        keywordStats: currentKeywordStats
-    }), [currentKeywordStats, statsSummaryQuery.data]);
+        keywordStats: currentKeywordStats,
+        negativeKeywordStats: currentNegativeKeywordStats
+    }), [currentKeywordStats, currentNegativeKeywordStats, statsSummaryQuery.data]);
+
+    // Lets the Statistics page run its own breakdowns over exactly this scope.
+    const statsScope = useMemo<StatsQueryScope | null>(() => (
+        queryInput ? { ...queryInput, cacheKey: keywordStatsSemanticKey } : null
+    ), [keywordStatsSemanticKey, queryInput]);
 
     return {
         data: {
@@ -405,6 +425,7 @@ export const useLibraryStatsQuery = ({
         isFacetsLoading: facetsQuery.isLoading,
         isFacetsFetching: facetsQuery.isFetching,
         isStatsSummaryLoading: statsSummaryQuery.isLoading,
-        isKeywordStatsLoading
+        isKeywordStatsLoading,
+        statsScope
     };
 };
