@@ -33,7 +33,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
   return (
     <aside className="hidden md:flex w-20 flex-col items-center py-6 h-full rounded-3xl bg-white/90 dark:bg-zinc-900/95 backdrop-blur-xl border border-gray-200 dark:border-white/10 z-20 shadow-2xl transition-all duration-500 ease-spring">
-      <div className="mb-8 p-3 bg-sage-500/10 dark:bg-sage-500/20 rounded-2xl shadow-lg border border-sage-500/20">
+      <div className="mb-8 shrink-0 [@media(max-height:860px)]:mb-4 p-3 bg-sage-500/10 dark:bg-sage-500/20 rounded-2xl shadow-lg border border-sage-500/20">
         <img
           src={brandGlyphSrc}
           alt=""
@@ -41,7 +41,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         />
       </div>
 
-      <nav className="flex-1 flex flex-col gap-6 w-full items-center">
+      {/* One equal-height row per icon, so every icon is evenly spaced over the full height.
+          Rows stop shrinking at a minimum size; shorter windows scroll instead. */}
+      <div className="no-scrollbar grid min-h-0 w-full flex-1 auto-rows-[minmax(3.5rem,1fr)] place-items-center overflow-y-auto [@media(max-height:860px)]:auto-rows-[minmax(3rem,1fr)]">
+      <nav className="contents">
         <NavButton state="view" active={viewMode === 'grid' && !filters.favoritesOnly} current={viewMode === 'grid'} onClick={() => { setViewMode('grid'); setFilters(f => ({ ...f, favoritesOnly: false })); }} icon={<Grid />} tooltip="Grid View" />
         <NavButton state="view" active={viewMode === 'timeline'} onClick={() => setViewMode('timeline')} icon={<Clock />} tooltip="Timeline View" />
         <NavButton state="view" active={viewMode === 'presets'} onClick={() => setViewMode('presets')} icon={<Boxes />} tooltip="Presets" />
@@ -54,18 +57,19 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           tooltip="Maintenance"
         />
 
-        <div className="h-px w-8 bg-gray-300 dark:bg-white/10 my-2" />
-
+        {/* The divider sits on the row boundary, exactly halfway between Maintenance and Filter. */}
+        <div className="relative flex h-full w-full items-center justify-center">
+        <span aria-hidden="true" className="absolute left-1/2 top-0 h-px w-8 -translate-x-1/2 bg-gray-300 dark:bg-white/10" />
         <NavButton state="toggle" active={isFilterPanelOpen && (viewMode === 'grid' || viewMode === 'timeline' || viewMode === 'dashboard')} pressed={isFilterPanelOpen} onClick={() => setIsFilterPanelOpen(p => !p)} icon={<Filter />} tooltip={isFilterPanelOpen ? "Hide Filters" : "Show Filters"} />
+        </div>
         <NavButton state="toggle" active={filters.favoritesOnly} onClick={() => setFilters(prev => ({ ...prev, favoritesOnly: !prev.favoritesOnly }))} icon={<Heart className={filters.favoritesOnly ? "fill-red-500 text-red-500" : ""} />} tooltip={filters.favoritesOnly ? "Disable Favorites Only" : "Show Favorites Only"} />
         <NavButton state="toggle" active={!!filters.pinnedOnly} onClick={() => setFilters(prev => ({ ...prev, pinnedOnly: !prev.pinnedOnly }))} icon={<Pin className={filters.pinnedOnly ? "fill-white text-white" : ""} />} tooltip={filters.pinnedOnly ? "Disable Pinned Only" : "Show Pinned Only"} />
       </nav>
 
-      <div className="mt-auto flex flex-col items-center gap-4">
-        <TooltipButton label="Support Ambit" content="Support Ambit" onClick={onOpenDonation} className={`w-10 h-10 rounded-xl flex items-center justify-center hover:text-red-500 dark:hover:text-red-400 transition-all mb-2 ${showSupportPulse ? 'animate-pulse hover:animate-none text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10' : 'text-gray-400 dark:text-zinc-500'}`}>
+        <TooltipButton label="Support Ambit" content="Support Ambit" onClick={onOpenDonation} className={`w-10 h-10 rounded-xl flex items-center justify-center hover:text-red-500 dark:hover:text-red-400 transition-all ${showSupportPulse ? 'animate-pulse hover:animate-none text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10' : 'text-gray-400 dark:text-zinc-500'}`}>
           <Gift className="w-5 h-5" />
         </TooltipButton>
-        <TooltipButton label="Open Help & Guide" content="Open Help & Guide" onClick={onOpenShortcuts} className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-500 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-white mb-2">
+        <TooltipButton label="Open Help & Guide" content="Open Help & Guide" onClick={onOpenShortcuts} className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-500 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-white">
           <HelpCircle className="w-5 h-5" />
         </TooltipButton>
         <NavButton active={false} onClick={onOpenSettings} icon={<Settings />} tooltip="Settings" />
