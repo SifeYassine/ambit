@@ -10,6 +10,8 @@ pub mod reparse;
 pub mod resources;
 pub mod thumbs_scan;
 pub mod utils;
+
+use std::collections::BTreeMap;
 pub mod video;
 
 pub use a1111::extract_a1111_metadata;
@@ -20,7 +22,7 @@ pub use parsers::{extract_png_chunks, scan_jpeg_metadata, scan_webp_metadata};
 /// Current parser version. Increment when any parser logic changes.
 /// Images with parser_version < CURRENT_PARSER_VERSION will be queued
 /// for background re-parsing from their stored original_metadata_json.
-pub const CURRENT_PARSER_VERSION: u32 = 46;
+pub const CURRENT_PARSER_VERSION: u32 = 48;
 
 /// Video metadata evolves independently from the mature image parsers.
 pub const VIDEO_PARSER_VERSION: u32 = 1;
@@ -66,6 +68,9 @@ pub struct ImageMetadata {
     pub negative_prompt: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub loras: Vec<String>,
+    /// Model strength per entry of `loras`, for parsers whose LoRA names carry no weight.
+    #[serde(rename = "loraWeights", default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub lora_weights: BTreeMap<String, f64>,
     #[serde(rename = "controlNets", skip_serializing_if = "Vec::is_empty")]
     pub control_nets: Vec<String>,
     #[serde(rename = "ipAdapters", skip_serializing_if = "Vec::is_empty")]
@@ -151,6 +156,9 @@ impl ImageMetadata {
                 self.loras.push(x);
             }
         }
+        for (name, weight) in other.lora_weights {
+            self.lora_weights.entry(name).or_insert(weight);
+        }
         for x in other.control_nets {
             if !self.control_nets.contains(&x) {
                 self.control_nets.push(x);
@@ -194,6 +202,7 @@ impl Default for ImageMetadata {
             positive_prompt: String::new(),
             negative_prompt: String::new(),
             loras: Vec::new(),
+            lora_weights: BTreeMap::new(),
             control_nets: Vec::new(),
             ip_adapters: Vec::new(),
             embeddings: Vec::new(),
@@ -307,6 +316,9 @@ pub fn merge_metadata(base: &mut ImageMetadata, secondary: ImageMetadata) {
         if !base.loras.contains(&lora) {
             base.loras.push(lora);
         }
+    }
+    for (name, weight) in secondary.lora_weights {
+        base.lora_weights.entry(name).or_insert(weight);
     }
 
     for cn in secondary.control_nets {

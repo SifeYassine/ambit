@@ -158,6 +158,23 @@ fn build_signature(
     })
 }
 
+/// ComfyUI keeps LoRA names weightless and records strengths in `loraWeights`; fold them back
+/// into the `name (0.80)` form the other parsers already store.
+fn apply_lora_weights(loras: Vec<String>, weights_json: Option<&str>) -> Vec<String> {
+    let Some(weights) = weights_json
+        .and_then(|text| serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(text).ok())
+    else {
+        return loras;
+    };
+    loras
+        .into_iter()
+        .map(|lora| match weights.get(&lora).and_then(serde_json::Value::as_f64) {
+            Some(weight) if weight.is_finite() => format!("{} ({:.2})", lora.trim(), weight),
+            _ => lora,
+        })
+        .collect()
+}
+
 fn parse_lora_list(json: Option<&str>) -> Vec<String> {
     json.and_then(|text| serde_json::from_str::<Vec<serde_json::Value>>(text).ok())
         .map(|values| {
@@ -179,7 +196,8 @@ fn rebuild_generation_presets_inner(conn: &Connection) -> Result<u32, String> {
         let mut select = tx
             .prepare(
                 "SELECT id, resolved_model_name, sampler,
-                    CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json, '$.loras') END
+                    CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json, '$.loras') END,
+                    CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json, '$.loraWeights') END
                  FROM images
                  WHERE is_deleted = 0",
             )
@@ -199,7 +217,8 @@ fn rebuild_generation_presets_inner(conn: &Connection) -> Result<u32, String> {
             let model: Option<String> = row.get(1).map_err(|e| e.to_string())?;
             let sampler: Option<String> = row.get(2).map_err(|e| e.to_string())?;
             let loras_json: Option<String> = row.get(3).map_err(|e| e.to_string())?;
-            let loras = parse_lora_list(loras_json.as_deref());
+            let weights_json: Option<String> = row.get(4).map_err(|e| e.to_string())?;
+            let loras = apply_lora_weights(parse_lora_list(loras_json.as_deref()), weights_json.as_deref());
 
             let Some(signature) = build_signature(model.as_deref(), sampler.as_deref(), &loras) else {
                 continue;
@@ -232,7 +251,10 @@ pub async fn rebuild_generation_presets(app: AppHandle) -> Result<u32, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_signature, parse_lora_entry, parse_lora_list, rebuild_generation_presets_inner, PresetLora};
+    use super::{
+        apply_lora_weights, build_signature, parse_lora_entry, parse_lora_list,
+        rebuild_generation_presets_inner, PresetLora,
+    };
     use rusqlite::Connection;
 
     fn loras(values: &[&str]) -> Vec<String> {
@@ -306,6 +328,21 @@ mod tests {
     }
 
     #[test]
+    fn comfyui_lora_weights_fold_into_weightless_names() {
+        let weights = Some(r#"{"frostbite": 1.0000000000000002, "moriimee": 0.5}"#);
+        assert_eq!(
+            apply_lora_weights(loras(&["frostbite", "moriimee", "other", "a1111 (0.70)"]), weights),
+            loras(&["frostbite (1.00)", "moriimee (0.50)", "other", "a1111 (0.70)"])
+        );
+        assert_eq!(apply_lora_weights(loras(&["a"]), Some("not json")), loras(&["a"]));
+        assert_eq!(apply_lora_weights(loras(&["a"]), None), loras(&["a"]));
+
+        let one = build_signature(Some("WAI"), None, &apply_lora_weights(loras(&["moriimee"]), weights)).unwrap();
+        let two = build_signature(Some("WAI"), None, &loras(&["moriimee (0.5)"])).unwrap();
+        assert_eq!(one.strict_key, two.strict_key);
+    }
+
+    #[test]
     fn rebuild_replaces_the_cache_and_skips_deleted_or_unparsed_images() {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(
@@ -322,19 +359,26 @@ mod tests {
             INSERT INTO images VALUES ('one', 'WAI', 'euler', '{"loras":["a (0.80)"]}', 0);
             INSERT INTO images VALUES ('two', 'WAI', 'euler', '{"loras":["a (0.8)"]}', 0);
             INSERT INTO images VALUES ('three', 'WAI', 'euler', '{"loras":["a"]}', 0);
+            INSERT INTO images VALUES ('comfy', 'WAI', 'euler', '{"loras":["a"],"loraWeights":{"a":0.8}}', 0);
             INSERT INTO images VALUES ('deleted', 'WAI', 'euler', '{}', 1);
             INSERT INTO images VALUES ('photo', 'Unknown', NULL, '{}', 0);
             INSERT INTO images VALUES ('broken', 'Nova', 'euler', '{not json', 0);
-            INSERT INTO image_presets VALUES ('stale', 'x', 'x', 'x', 'x', '[]', '[]');
+            INSERT INTO image_presets VALUES ('deleted', 'stale', 'stale', 'x', 'x', '[]', '[]');
             "#,
         )
         .unwrap();
 
-        assert_eq!(rebuild_generation_presets_inner(&conn).unwrap(), 4);
+        assert_eq!(rebuild_generation_presets_inner(&conn).unwrap(), 5);
 
         let count = |sql: &str| conn.query_row(sql, [], |row| row.get::<_, i64>(0)).unwrap();
-        assert_eq!(count("SELECT COUNT(*) FROM image_presets WHERE image_id IN ('stale', 'deleted', 'photo')"), 0);
+        assert_eq!(count("SELECT COUNT(*) FROM image_presets WHERE image_id IN ('deleted', 'photo')"), 0);
+        assert_eq!(count("SELECT COUNT(*) FROM image_presets WHERE strict_key = 'stale'"), 0);
         assert_eq!(count("SELECT COUNT(DISTINCT strict_key) FROM image_presets WHERE preset_model = 'WAI'"), 2);
+        assert_eq!(
+            count("SELECT COUNT(DISTINCT strict_key) FROM image_presets WHERE image_id IN ('one', 'comfy')"),
+            1,
+            "a ComfyUI weight from loraWeights matches the same weight written in the name"
+        );
         assert_eq!(count("SELECT COUNT(DISTINCT loose_key) FROM image_presets WHERE preset_model = 'WAI'"), 1);
         let broken_loras: String = conn
             .query_row("SELECT preset_loras_strict FROM image_presets WHERE image_id = 'broken'", [], |row| row.get(0))

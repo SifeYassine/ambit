@@ -7,7 +7,7 @@ import { getDb } from './connection';
 import { getImagesByIds } from './imageRepo';
 
 export const PRESET_LIMIT = 200;
-export const PRESET_SAMPLE_COUNT = 4;
+export const PRESET_SAMPLE_COUNT = 1;
 
 export interface GenerationPreset {
     key: string;

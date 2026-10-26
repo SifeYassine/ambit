@@ -24,7 +24,6 @@ const respond = () => {
         if (sql.includes('ROW_NUMBER()')) {
             return [
                 { preset_key: 'k1', image_id: 'a' },
-                { preset_key: 'k1', image_id: 'b' },
                 { preset_key: 'k2', image_id: 'c' },
                 { preset_key: 'outside-top', image_id: 'z' },
             ];
@@ -62,8 +61,9 @@ describe('presetRepo', () => {
             expect.objectContaining({ key: 'k1', model: 'WAI', sampler: 'euler', loras: ['Frostbite (0.80)', 'Moriime'], count: 5, typicalSteps: 28, typicalCfg: 6.5 }),
             expect.objectContaining({ key: 'k2', model: 'Nova', loras: [], count: 2, typicalSteps: null, typicalCfg: null }),
         ]);
-        expect(presets[0].sampleImages.map(sample => sample.id)).toEqual(['a', 'b']);
-        expect(mocks.getImagesByIds).toHaveBeenCalledWith(['a', 'b', 'c']);
+        expect(presets[0].sampleImages.map(sample => sample.id)).toEqual(['a']);
+        expect(mocks.getImagesByIds).toHaveBeenCalledWith(['a', 'c']);
+        expect(String(mocks.select.mock.calls[3][0])).toContain('WHERE sample_rank <= 1');
 
         const groupingSql = String(mocks.select.mock.calls[0][0]);
         expect(groupingSql).toContain('GROUP BY p.strict_key');

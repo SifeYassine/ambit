@@ -9,6 +9,7 @@ pub mod false_positive_models;
 pub mod general;
 pub mod graph_sources;
 pub mod ideogram_scheduler;
+pub mod loader_display_names;
 pub mod merge_precedence;
 pub mod models;
 pub mod multi_stage;

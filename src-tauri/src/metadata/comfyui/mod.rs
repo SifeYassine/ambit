@@ -435,6 +435,17 @@ fn merge_graph_metadata(
         graph_diagnostics,
         diagnostics,
     );
+    for (name, weight) in std::mem::take(&mut graph.lora_weights) {
+        if base.loras.contains(&name) {
+            base.lora_weights.entry(name).or_insert(weight);
+        }
+    }
+    base.merge_auxiliary_resources(
+        std::mem::take(&mut graph.vaes),
+        std::mem::take(&mut graph.upscalers),
+        std::mem::take(&mut graph.clip_visions),
+        std::mem::take(&mut graph.detectors),
+    );
     merge_graph_resources(
         &mut base.control_nets,
         std::mem::take(&mut graph.control_nets),
@@ -964,7 +975,39 @@ fn extract_comfyui_graph_with_diagnostics(
         );
     }
 
+    meta.lora_weights = lora_weights_from_sources(&graph, &meta.loras, &diagnostics);
     (meta, diagnostics)
+}
+
+/// Reads each LoRA's model strength from the loader node that produced it. LoRA names stay
+/// weightless for ComfyUI; a name loaded at different strengths gets no weight rather than a guess.
+fn lora_weights_from_sources(
+    graph: &ComfyGraph,
+    loras: &[String],
+    diagnostics: &ComfyParseDiagnostics,
+) -> BTreeMap<String, f64> {
+    let Some(sources) = diagnostics.resource_sources.get(&ComfyMetadataField::Loras) else {
+        return BTreeMap::new();
+    };
+    let mut weights = BTreeMap::new();
+    for lora in loras {
+        let Some(provenance) = sources.get(lora) else {
+            continue;
+        };
+        let mut strengths = provenance.node_ids.iter().filter_map(|node_id| {
+            let node = graph.get_node(node_id)?;
+            matches!(graph::get_node_type(node), "LoraLoader" | "LoraLoaderModelOnly")
+                .then(|| graph::get_node_param(node, "strength_model").and_then(serde_json::Value::as_f64))
+                .flatten()
+        });
+        let Some(first) = strengths.next() else {
+            continue;
+        };
+        if strengths.all(|strength| (strength - first).abs() < 0.005) {
+            weights.insert(lora.clone(), first);
+        }
+    }
+    weights
 }
 
 fn chunks_contain_sampler_definition(chunks: &HashMap<String, String>) -> bool {

@@ -912,7 +912,11 @@ export type FolderChange = { kind: FolderChangeKind; paths: string[] }
 export type FolderChangeEvent = FolderChange[]
 export type FolderChangeKind = "create" | "modify" | "rename" | "remove"
 export type FolderStats = { totalFiles: number; imageFiles: number; videoFiles: number; thumbnailFiles: number; otherFiles: number; directoryChecked: string; subfolders: Partial<{ [key in string]: number }> }
-export type ImageMetadata = { tool: string; model: string; rawParameters?: string | null; steps: number; cfg: number; seed?: number | null; sampler: string; positivePrompt: string; negativePrompt: string; loras: string[]; controlNets: string[]; ipAdapters: string[]; embeddings: string[]; hypernetworks: string[]; variationId?: string | null; isIntermediate?: boolean; isGrid?: boolean; workflowJson?: string | null; vae?: string | null; clipSkip?: number | null; denoisingStrength?: number | null; hiresUpscale?: number | null; hiresSteps?: number | null; hiresUpscaler?: string | null; modelHash?: string | null; generationType: string; isFavorite?: boolean; hasWorkflowHint?: boolean }
+export type ImageMetadata = { tool: string; model: string; rawParameters?: string | null; steps: number; cfg: number; seed?: number | null; sampler: string; positivePrompt: string; negativePrompt: string; loras: string[]; 
+/**
+ * Model strength per entry of `loras`, for parsers whose LoRA names carry no weight.
+ */
+loraWeights: Partial<{ [key in string]: number }>; controlNets: string[]; ipAdapters: string[]; embeddings: string[]; hypernetworks: string[]; variationId?: string | null; isIntermediate?: boolean; isGrid?: boolean; workflowJson?: string | null; vae?: string | null; clipSkip?: number | null; denoisingStrength?: number | null; hiresUpscale?: number | null; hiresSteps?: number | null; hiresUpscaler?: string | null; modelHash?: string | null; generationType: string; isFavorite?: boolean; hasWorkflowHint?: boolean }
 export type ImagePathIdentityMove = { oldId: string; newId: string; thumbnailPath: string | null; thumbnailSource: string | null }
 export type ImagePathIdentityMoveResult = { moved: number; skippedTargetExists: number; skippedSourceMissing: number }
 export type ImageRecord = { id: string; path: string; width: number; height: number; fileSize: number; fileHash: string | null; timestamp: number; metadataJson: string; thumbnailPath: string; 
