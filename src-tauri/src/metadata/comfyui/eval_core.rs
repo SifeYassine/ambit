@@ -940,7 +940,12 @@ fn trace_model_chain_with_mode(
             }
             return None;
         } else if t == "LoraLoader" || t == "LoraLoaderModelOnly" {
-            if let Some(name) = get_node_param(node, "lora_name").and_then(|v| v.as_str()) {
+            // A bypassed (4) or muted (2) LoRA passes the model through without applying.
+            let applied = !matches!(node.get("mode").and_then(Value::as_i64), Some(2 | 4));
+            let lora_name = civitai_display_name(node, "tams_lora_name")
+                .or_else(|| get_node_param(node, "lora_name").and_then(|v| v.as_str()))
+                .filter(|_| applied);
+            if let Some(name) = lora_name {
                 let name = crate::metadata::guidance::GuidanceClassifier::clean_name(name);
                 if !loras.contains(&name) {
                     loras.push(name.clone());
@@ -1166,11 +1171,23 @@ enum LoaderModelName {
     Wrapper,
 }
 
+/// Civitai's on-site generator stores a readable name beside its internal `EMS-…` file name.
+fn civitai_display_name<'a>(node: &'a Value, key: &str) -> Option<&'a str> {
+    node.get("inputs")
+        .and_then(|inputs| inputs.get(key))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty() && *name != "None")
+}
+
 fn evaluate_loader_model_name(
     graph: &ComfyGraph,
     node: &Value,
     strict_connections: bool,
 ) -> LoaderModelName {
+    if let Some(name) = civitai_display_name(node, "tams_ckpt_name") {
+        return LoaderModelName::Resolved(name.to_string());
+    }
     if !strict_connections {
         return ["ckpt_name", "unet_name", "checkpoint"]
             .into_iter()

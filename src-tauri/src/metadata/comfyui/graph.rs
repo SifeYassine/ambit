@@ -696,6 +696,30 @@ fn value_as_bool(value: &Value) -> Option<bool> {
     })
 }
 
+/// Core loaders serialize widgets in a fixed order. Position is authoritative for them, so a
+/// frontend that stores display names without a file extension still resolves.
+fn core_loader_widget_index(node_type: &str, key: &str) -> Option<usize> {
+    match (node_type, key) {
+        ("CheckpointLoaderSimple", "ckpt_name")
+        | ("UNETLoader", "unet_name")
+        | ("LoraLoader" | "LoraLoaderModelOnly", "lora_name") => Some(0),
+        ("LoraLoader" | "LoraLoaderModelOnly", "strength_model") => Some(1),
+        ("IPAdapterModelLoader", "ipadapter_file") => Some(0),
+        ("LoraLoader", "strength_clip") => Some(2),
+        _ => None,
+    }
+}
+
+fn is_core_loader_widget_value(key: &str, value: &Value) -> bool {
+    if key.starts_with("strength") {
+        value.is_number()
+    } else {
+        value
+            .as_str()
+            .is_some_and(|name| !name.trim().is_empty() && name != "None")
+    }
+}
+
 fn has_supported_model_extension(value: &str) -> bool {
     let value = value.to_ascii_lowercase();
     value.ends_with(".safetensors") || value.ends_with(".ckpt") || value.ends_with(".gguf")
@@ -961,6 +985,13 @@ pub fn get_node_param<'a>(node: &'a Value, key: &str) -> Option<&'a Value> {
 
         if t == "KSamplerSelect" && key == "sampler_name" {
             return arr.first();
+        }
+
+        if let Some(value) = core_loader_widget_index(t, key)
+            .and_then(|index| arr.get(index))
+            .filter(|value| is_core_loader_widget_value(key, value))
+        {
+            return Some(value);
         }
 
         if t == "SamplerCustom" {
