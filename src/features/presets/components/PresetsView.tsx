@@ -25,8 +25,14 @@ interface PresetsViewProps {
     onSelectPreset: (preset: PresetFilter) => void;
 }
 
-export const getPresetLabel = (preset: GenerationPreset): string =>
-    [formatModelName(preset.model), ...preset.loras, preset.sampler].join(' · ');
+const HAS_LORA_WEIGHT = /\s\(-?\d+(?:\.\d+)?\)$/;
+
+/** With weight grouping on, an implicit weight is shown as (1.00) so every LoRA carries one. */
+export const formatPresetLora = (lora: string, matchWeights: boolean): string =>
+    matchWeights && !HAS_LORA_WEIGHT.test(lora) ? `${lora} (1.00)` : lora;
+
+export const getPresetLabel = (preset: GenerationPreset, matchWeights: boolean): string =>
+    [formatModelName(preset.model), ...preset.loras.map(lora => formatPresetLora(lora, matchWeights)), preset.sampler].join(' · ');
 
 const formatCfg = (cfg: number): string => String(Math.round(cfg * 100) / 100);
 
@@ -47,22 +53,38 @@ const PresetSettingTag = ({ label, keyColor, value }: { label: string; keyColor:
     </div>
 );
 
-export const MAX_VISIBLE_LORAS = 5;
+export const COLLAPSED_LORA_COUNT = 2;
 
-/** One LoRA per line, capped so presets with long LoRA stacks stay compact. */
+/**
+ * Collapsed, every card reserves exactly two LoRA lines so collapsed cards match, and the toggle
+ * sits on the label row. Expanding grows only this card: the grid aligns cards to the row top.
+ */
 const PresetLoraList = ({ loras }: { loras: string[] }) => {
-    const visible = loras.slice(0, MAX_VISIBLE_LORAS);
-    const hidden = loras.length - visible.length;
+    const [isExpanded, setIsExpanded] = React.useState(false);
+    const hidden = Math.max(0, loras.length - COLLAPSED_LORA_COUNT);
+    const visible = isExpanded ? loras : loras.slice(0, COLLAPSED_LORA_COUNT);
+
     return (
-        <div className="min-w-0" title={hidden > 0 ? loras.join(', ') : undefined}>
-            <span className={`${KEY_TAG_CLASS} ${KEY_TAG_COLORS.loras}`}>LoRAs</span>
-            <ul aria-label="LoRAs" className="mt-1.5 flex flex-col gap-1">
+        <div className="min-w-0">
+            <div className="flex items-center justify-between gap-2">
+                <span className={`${KEY_TAG_CLASS} ${KEY_TAG_COLORS.loras}`}>LoRAs</span>
+                {hidden > 0 && (
+                    <button
+                        type="button"
+                        aria-expanded={isExpanded}
+                        onClick={() => setIsExpanded(expanded => !expanded)}
+                        className="pointer-events-auto relative z-10 rounded-md px-1.5 py-0.5 text-xs font-medium text-sky-700 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:text-sky-300 dark:hover:bg-sky-500/10"
+                    >
+                        {isExpanded ? 'Show less' : `+${hidden} more`}
+                    </button>
+                )}
+            </div>
+            <ul aria-label="LoRAs" className="mt-1.5 flex min-h-[3.5rem] flex-col gap-1">
                 {visible.length > 0
                     ? visible.map((lora, index) => (
                         <li key={`${lora}-${index}`} title={lora} className={`${VALUE_TAG_CLASS} block w-fit max-w-full`}>{lora}</li>
                     ))
                     : <li className={`${VALUE_TAG_CLASS} block w-fit italic text-gray-400 dark:text-zinc-500`}>None</li>}
-                {hidden > 0 && <li className="px-1 text-xs font-medium text-gray-500 dark:text-zinc-400">+{hidden} more</li>}
             </ul>
         </div>
     );
@@ -92,19 +114,28 @@ const PresetSample = ({ preset }: { preset: GenerationPreset }) => {
     );
 };
 
-const PresetCard = ({ preset, rank, onSelect }: { preset: GenerationPreset; rank: number; onSelect: () => void }) => {
+const PresetCard = ({ preset, rank, matchWeights, onSelect }: {
+    preset: GenerationPreset;
+    rank: number;
+    matchWeights: boolean;
+    onSelect: () => void;
+}) => {
     const typical = [
         preset.typicalSteps !== null ? `${preset.typicalSteps} steps` : null,
         preset.typicalCfg !== null ? `CFG ${formatCfg(preset.typicalCfg)}` : null,
     ].filter((part): part is string => part !== null);
+
+    // The full-card button sits underneath the content (as in ImageCard), so the LoRA toggle can
+    // be its own button instead of being nested inside one.
     return (
-        <li>
+        <li className="relative flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-sage-300 hover:shadow-lg dark:border-white/10 dark:bg-zinc-900 dark:hover:border-sage-500/40">
             <button
                 type="button"
                 onClick={onSelect}
-                aria-label={`Show ${preset.count} images using preset ${rank}: ${getPresetLabel(preset)}`}
-                className="flex w-full cursor-pointer flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-sage-300 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500 dark:border-white/10 dark:bg-zinc-900 dark:hover:border-sage-500/40"
-            >
+                aria-label={`Show ${preset.count} images using preset ${rank}: ${getPresetLabel(preset, matchWeights)}`}
+                className="absolute inset-0 cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500"
+            />
+            <div className="pointer-events-none flex flex-col gap-3">
                 <PresetSample preset={preset} />
                 <div className="flex items-center justify-between gap-2 px-1">
                     <h2 className="truncate text-base font-bold text-gray-900 dark:text-white">Preset {rank}</h2>
@@ -114,13 +145,13 @@ const PresetCard = ({ preset, rank, onSelect }: { preset: GenerationPreset; rank
                 </div>
                 <div className="space-y-2 px-1">
                     <PresetSettingTag label="Model" keyColor="model" value={formatModelName(preset.model)} />
-                    <PresetLoraList loras={preset.loras} />
+                    <PresetLoraList loras={preset.loras.map(lora => formatPresetLora(lora, matchWeights))} />
                     <PresetSettingTag label="Sampler" keyColor="sampler" value={preset.sampler} />
                 </div>
                 <p className="px-1 text-[11px] text-gray-500 dark:text-zinc-400">
                     {typical.length > 0 ? `Usually ${typical.join(' · ')}` : 'No recorded steps or CFG'}
                 </p>
-            </button>
+            </div>
         </li>
     );
 };
@@ -182,7 +213,8 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
                             key={preset.key}
                             preset={preset}
                             rank={index + 1}
-                            onSelect={() => onSelectPreset({ key: preset.key, matchWeights, label: getPresetLabel(preset) })}
+                            matchWeights={matchWeights}
+                            onSelect={() => onSelectPreset({ key: preset.key, matchWeights, label: getPresetLabel(preset, matchWeights) })}
                         />
                     ))}
                 </ol>

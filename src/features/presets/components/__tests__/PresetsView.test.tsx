@@ -47,14 +47,31 @@ describe('PresetsView', () => {
         expect(screen.getAllByText(/^Usually/)).toHaveLength(1);
     });
 
-    it('lists up to five LoRAs, one per line, and counts the rest', () => {
-        const loras = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
-        presetsState.value.presets = [preset({ loras })];
+    it('shows two LoRAs collapsed and expands only that card to show all of them', () => {
+        const loras = ['one (0.50)', 'two', 'three', 'four'];
+        presetsState.value.presets = [preset({ loras }), preset({ key: 'k2', loras: ['solo'] })];
         render(<PresetsView filters={createDefaultFilters()} onSelectPreset={vi.fn()} />);
 
-        const list = screen.getByRole('list', { name: 'LoRAs' });
-        expect(Array.from(list.querySelectorAll('li')).map(item => item.textContent)).toEqual([...loras.slice(0, 5), '+3 more']);
-        expect(screen.getByTitle(loras.join(', '))).toBeTruthy();
+        const [first, second] = screen.getAllByRole('list', { name: 'LoRAs' });
+        const items = (list: HTMLElement) => Array.from(list.querySelectorAll('li')).map(item => item.textContent);
+        expect(items(first)).toEqual(['one (0.50)', 'two (1.00)']);
+        expect(items(second)).toEqual(['solo (1.00)']);
+
+        fireEvent.click(screen.getByRole('button', { name: '+2 more' }));
+        expect(items(first)).toEqual(['one (0.50)', 'two (1.00)', 'three (1.00)', 'four (1.00)']);
+        expect(items(second)).toEqual(['solo (1.00)']);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show less' }));
+        expect(items(first)).toHaveLength(2);
+    });
+
+    it('shows no implicit weight once presets merge LoRA weights', () => {
+        usePresetsViewStore.setState({ matchWeights: false });
+        presetsState.value.presets = [preset({ loras: ['Frostbite', 'Moriime'] })];
+        render(<PresetsView filters={createDefaultFilters()} onSelectPreset={vi.fn()} />);
+
+        expect(Array.from(screen.getByRole('list', { name: 'LoRAs' }).querySelectorAll('li')).map(item => item.textContent))
+            .toEqual(['Frostbite', 'Moriime']);
     });
 
     it('opens the selected preset with its key, grouping, and label', () => {
@@ -64,7 +81,7 @@ describe('PresetsView', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /^Show 128 images using preset 1/ }));
 
-        expect(onSelectPreset).toHaveBeenCalledWith({ key: 'k1', matchWeights: true, label: 'WAI · Frostbite (0.80) · Moriime · euler' });
+        expect(onSelectPreset).toHaveBeenCalledWith({ key: 'k1', matchWeights: true, label: 'WAI · Frostbite (0.80) · Moriime (1.00) · euler' });
     });
 
     it('regroups without LoRA weights and remembers the choice', () => {
