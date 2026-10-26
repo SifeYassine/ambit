@@ -29,15 +29,19 @@ export const MetadataParameterList: React.FC<MetadataParameterListProps> = ({
     const visibleRows = rows.filter(row => !row.optional || (row.value && row.value !== 'Unknown'));
     if (visibleRows.length === 0) return null;
 
-    const parameterList = <dl aria-label={ariaLabel} className="space-y-2 bg-gray-50 p-3 text-xs dark:bg-black">
+    // One box per parameter, on the same surface as the prompt fields.
+    const parameterList = <dl aria-label={ariaLabel} className="grid grid-cols-2 gap-2 text-xs">
             {visibleRows.map(row => (
+                // Label, value, and badge share one box element so each row stays a single dt/dd group.
                 <div
                     key={row.label}
-                    className={`grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-x-3 rounded px-1 py-0.5 ${row.modified ? 'bg-ember-500/5' : ''}`}
+                    className={`relative min-w-0 rounded-lg border px-2.5 py-2 ${row.modified
+                        ? 'border-ember-300 bg-ember-50/70 dark:border-ember-500/30 dark:bg-ember-500/10'
+                        : 'border-gray-200 bg-white dark:border-white/10 dark:bg-zinc-800/50'}`}
                 >
-                    <dt className={row.modified ? 'text-ember-600 dark:text-ember-300' : 'text-gray-500 dark:text-zinc-500'}>{row.label}</dt>
-                    <dd className="break-words text-gray-700 dark:text-zinc-200">{row.value || 'Unknown'}</dd>
-                    <dd className="justify-self-end">
+                    <dt className={`mb-1 pr-8 text-[10px] font-bold uppercase tracking-wider ${row.modified ? 'text-ember-600 dark:text-ember-300' : 'text-gray-400 dark:text-zinc-500'}`}>{row.label}</dt>
+                    <dd className="break-words text-sm text-gray-700 dark:text-zinc-200">{row.value || 'Unknown'}</dd>
+                    <dd className="absolute right-2 top-1.5">
                         <MetadataSourceBadge source={row.modified ? 'user_override' : row.source} />
                     </dd>
                 </div>
@@ -52,9 +56,7 @@ export const MetadataParameterList: React.FC<MetadataParameterListProps> = ({
             expanded={expanded}
             onExpandedChange={onExpandedChange}
         >
-            <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-black">
-                {parameterList}
-            </div>
+            {parameterList}
         </MetadataDisclosureSection>
     );
 };

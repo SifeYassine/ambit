@@ -67,7 +67,7 @@ export const MetadataGeneratorField: React.FC<MetadataGeneratorFieldProps> = ({
                         </div>
                     </div>
                 ) : (
-                    <div className="w-full rounded-lg border border-gray-200 bg-gray-50 p-2.5 pr-9 text-sm font-medium text-gray-700 dark:border-white/10 dark:bg-black dark:text-zinc-200">{value}</div>
+                    <div className="w-full rounded-lg border border-gray-200 bg-white dark:border-white/10 dark:bg-zinc-800/50 p-2.5 pr-9 text-sm font-medium text-gray-700 dark:text-zinc-200">{value}</div>
                 )}
             </div>
         </MetadataField>
