@@ -99,12 +99,13 @@ describe('PresetsView', () => {
     it('regroups without LoRA weights and remembers the choice', () => {
         const { unmount } = render(<PresetsView filters={createDefaultFilters()} onSelectPreset={vi.fn()} />);
 
-        fireEvent.click(screen.getByLabelText('Group by LoRA weights'));
+        expect((screen.getByLabelText('Ignore LoRA weights') as HTMLInputElement).checked).toBe(false);
+        fireEvent.click(screen.getByLabelText('Ignore LoRA weights'));
 
         expect(presetsState.calls.at(-1)).toBe(false);
         unmount();
         render(<PresetsView filters={createDefaultFilters()} onSelectPreset={vi.fn()} />);
-        expect((screen.getByLabelText('Group by LoRA weights') as HTMLInputElement).checked).toBe(false);
+        expect((screen.getByLabelText('Ignore LoRA weights') as HTMLInputElement).checked).toBe(true);
     });
 
     it('shows loading, empty, and retryable error states', () => {

@@ -154,6 +154,8 @@ const PresetCard = ({ preset, rank, matchWeights, onSelect }: {
 
 export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPreset }) => {
     const matchWeights = usePresetsViewStore(state => state.matchWeights);
+    // The checkbox reads as "ignore", so checked merges presets that differ only in LoRA weights.
+    const ignoreWeights = !matchWeights;
     const setMatchWeights = usePresetsViewStore(state => state.setMatchWeights);
     const toggleId = React.useId();
     const { presets, isLoading, isRefreshing, error, retry } = usePresets(filters, matchWeights);
@@ -184,19 +186,19 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
                 <input
                     id={toggleId}
                     type="checkbox"
-                    checked={matchWeights}
-                    onChange={event => setMatchWeights(event.target.checked)}
+                    checked={ignoreWeights}
+                    onChange={event => setMatchWeights(!event.target.checked)}
                     className="peer sr-only"
                 />
                 <span
                     aria-hidden="true"
-                    className={`flex h-5 w-5 items-center justify-center rounded-full border shadow-sm transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-sage-500 ${matchWeights
+                    className={`flex h-5 w-5 items-center justify-center rounded-full border shadow-sm transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-sage-500 ${ignoreWeights
                         ? 'border-sage-500 bg-sage-500'
                         : 'border-gray-300 bg-white hover:bg-gray-100 dark:border-white/30 dark:bg-black/40 dark:hover:bg-black/60'}`}
                 >
-                    {matchWeights && <CheckCircle className="h-3.5 w-3.5 text-white" />}
+                    {ignoreWeights && <CheckCircle className="h-3.5 w-3.5 text-white" />}
                 </span>
-                Group by LoRA weights
+                Ignore LoRA weights
             </label>
             {!isLoading && !error && (
                 <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-zinc-300">

@@ -10,7 +10,8 @@ Use the left sidebar to switch between:
 
 - Grid View for thumbnail browsing.
 - Timeline View for time-based browsing.
-- Statistics for library summaries.
+- Presets for your most used generation settings.
+- Statistics for your most used generation settings and prompt tags.
 - Maintenance for cleanup workflows.
 
 The filter button opens or closes the library panel. Favorites Only and Pinned Only buttons narrow the current view without changing your source files.
@@ -58,7 +59,19 @@ Timeline View is useful when you remember when an image was created or captured.
 
 ## Statistics
 
-Statistics follow the active library filters. Avg. Steps is the rounded mean for currently filtered images with a recorded positive step count; images with missing, zero, or negative steps are excluded. An em dash means no recorded step average is available for the current view.
+Statistics follow the active library filters. The chart at the top is a horizontal bar chart of how many images use each value of one generation setting. Choose the setting from the dropdown above the chart: the top 10 models, LoRAs, samplers, step counts, CFG values, or image sizes (width × height). Click a bar to filter the gallery by that value; steps and CFG filter to that exact value, and a size adds `w:` and `h:` to the search.
+
+Below the chart, the word cloud shows the most used prompt tags. Use its dropdown to switch between positive and negative prompts. A tag is one comma-separated entry of a prompt, such as `long hair` or `looking at viewer`, with weights, brackets, and `<lora:…>` tags removed; each tag counts once per image, however often it repeats in that prompt. Every tag is counted, including quality tags such as `masterpiece` and `best quality`. Click a tag to add it to the search and open the gallery: negative tags search with `neg:`.
+
+## Presets
+
+Presets groups your images by the generation settings they share: the model, the set of LoRAs, and the sampler. Presets are ranked by how many images use them, and each card shows an image count, the model, up to two LoRAs (`+N more` expands the rest), the sampler, the preset's most recent image, and the most common steps and CFG for that preset. Steps, CFG, and seed do not split presets.
+
+**Ignore LoRA weights** is off by default, so `Frostbite (0.80)` and `Frostbite (0.50)` are different presets. Turn it on to merge presets that differ only in LoRA weights, which gives fewer, larger presets. The count next to it shows how many presets the current grouping has. Weights are compared to two decimals, and LoRA order, letter case, and file extensions are ignored. For ComfyUI images, weights come from each LoRA loader's model strength; LoRA names in the viewer stay without weights. A LoRA loaded at two different strengths in one workflow has no single weight and groups as weight 1.
+
+Select a preset to open Grid filtered to exactly the images that use it. The preset filter replaces other result filters and appears as a removable chip; Grid and intermediate visibility settings are kept, so the gallery matches the card's count. Preset filters are not saved into smart collections.
+
+Ambit recomputes presets from current metadata each time library data changes and the Presets page opens. A preset filter that stays active while new images are imported includes them after the Presets page is opened again. Images with no recorded model and no LoRAs have no preset. Accuracy depends on the parsed metadata: workflows whose model, LoRAs, or sampler Ambit cannot fully trace may land in a separate preset.
 
 ## Selection
 
