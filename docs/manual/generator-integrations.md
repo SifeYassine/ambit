@@ -68,6 +68,8 @@ Select the `output` folder where ComfyUI saves generated images, then use Link O
 
 After linking, scans and rescans behave like other monitored folders and also admit supported video files. Live Watch tracks media and matching video workflow-sidecar changes. InvokeAI database synchronization remains an image integration.
 
+Ambit reads the model, LoRAs, and sampler by following the workflow from the sampler back to its loaders, including links created by the Use Everywhere nodes. Loader values are read even when a frontend such as SeaArt saves display names instead of file names, and bypassed or muted LoRA nodes are not counted. For images made with Civitai's on-site generator, the readable model and LoRA names are used instead of internal `EMS-…` file names. Images whose generation nodes were all bypassed, such as upscale-only runs, keep an unknown model because the workflow does not record what generated the source image.
+
 ## SD WebUI, A1111, Forge, SD.Next, And Anapnoe
 
 Open Settings > Connections > SD WebUI.
