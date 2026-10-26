@@ -186,3 +186,73 @@ fn a_lora_loaded_at_two_strengths_gets_no_single_weight() {
     assert_eq!(meta.loras, vec!["style".to_string()]);
     assert!(meta.lora_weights.is_empty());
 }
+
+fn ip_adapter_workflow(apply_mode: i64) -> HashMap<String, String> {
+    let workflow = json!({
+        "nodes": [
+            {
+                "id": 1, "type": "CheckpointLoaderSimple", "mode": 0, "inputs": [],
+                "outputs": [{ "name": "MODEL", "type": "MODEL", "links": [1] }],
+                "widgets_values": ["WAI-illustrious-SDXL-v10.0"]
+            },
+            {
+                "id": 2, "type": "IPAdapterModelLoader", "mode": 0, "inputs": [],
+                "outputs": [{ "name": "IPADAPTER", "type": "IPADAPTER", "links": [2] }],
+                "widgets_values": ["noobIPAMARK1_mark1.safetensors"]
+            },
+            {
+                "id": 3, "type": "IPAdapterAdvanced", "mode": apply_mode,
+                "inputs": [
+                    { "name": "model", "type": "MODEL", "link": 1 },
+                    { "name": "ipadapter", "type": "IPADAPTER", "link": 2 }
+                ],
+                "outputs": [{ "name": "MODEL", "type": "MODEL", "links": [3] }],
+                "widgets_values": [1, "linear", "concat", 0, 1, "V only"]
+            },
+            {
+                "id": 4, "type": "KSampler", "mode": 0,
+                "inputs": [
+                    { "name": "model", "type": "MODEL", "link": 3 },
+                    { "name": "positive", "type": "CONDITIONING", "link": 40 },
+                    { "name": "negative", "type": "CONDITIONING", "link": 41 }
+                ],
+                "outputs": [{ "name": "LATENT", "type": "LATENT", "links": [] }],
+                "widgets_values": [7, "fixed", 29, 3.5, "dpmpp_2m", "karras", 1]
+            },
+            {
+                "id": 40, "type": "CLIPTextEncode", "mode": 0, "inputs": [],
+                "outputs": [{ "name": "CONDITIONING", "type": "CONDITIONING", "links": [40] }],
+                "widgets_values": ["masterpiece, a castle at dusk"]
+            },
+            {
+                "id": 41, "type": "CLIPTextEncode", "mode": 0, "inputs": [],
+                "outputs": [{ "name": "CONDITIONING", "type": "CONDITIONING", "links": [41] }],
+                "widgets_values": ["lowres, worst quality"]
+            }
+        ],
+        "links": [
+            [1, 1, 0, 3, 0, "MODEL"],
+            [2, 2, 0, 3, 1, "IPADAPTER"],
+            [3, 3, 0, 4, 0, "MODEL"],
+            [40, 40, 0, 4, 1, "CONDITIONING"],
+            [41, 41, 0, 4, 2, "CONDITIONING"]
+        ]
+    });
+    HashMap::from([("workflow".to_string(), workflow.to_string())])
+}
+
+/// Current IPAdapter_plus nodes (IPAdapterAdvanced and friends) replaced the legacy IPAdapterApply.
+#[test]
+fn ip_adapter_advanced_records_its_adapter_and_passes_the_model_through() {
+    let meta = extract_comfyui_metadata(&ip_adapter_workflow(0));
+
+    assert_eq!(meta.model, clean("WAI-illustrious-SDXL-v10.0"));
+    assert_eq!(meta.ip_adapters, vec![clean("noobIPAMARK1_mark1.safetensors")]);
+}
+
+#[test]
+fn a_bypassed_ip_adapter_is_not_recorded() {
+    let meta = extract_comfyui_metadata(&ip_adapter_workflow(4));
+
+    assert!(meta.ip_adapters.is_empty(), "{:?}", meta.ip_adapters);
+}

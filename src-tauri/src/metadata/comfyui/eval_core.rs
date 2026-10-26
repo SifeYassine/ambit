@@ -1069,7 +1069,11 @@ fn trace_model_chain_with_mode(
             }
         }
 
-        if get_node_type(node).contains("IPAdapterApply") {
+        // Legacy IPAdapterApply* and current IPAdapter, IPAdapterAdvanced, IPAdapterFaceID, ...
+        // nodes all take the adapter on an `ipadapter` input; a bypassed or muted one applies nothing.
+        if get_node_type(node).starts_with("IPAdapter")
+            && !matches!(node.get("mode").and_then(Value::as_i64), Some(2 | 4))
+        {
             if let Some(ip_source) =
                 get_model_chain_source_id(graph, node, "ipadapter", strict_connections)
             {
