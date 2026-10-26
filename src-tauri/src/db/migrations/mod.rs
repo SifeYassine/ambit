@@ -52,6 +52,7 @@ pub mod m81_photography;
 pub mod m82_photo_refresh;
 pub mod m83_photo_scope_invalidation;
 pub mod m84_thumbnail_repair_version;
+pub mod m85_generation_presets;
 
 pub fn init_db() -> Vec<Migration> {
     get_migrations()
@@ -112,6 +113,7 @@ pub fn get_migrations() -> Vec<Migration> {
     migrations.push(m82_photo_refresh::migration82());
     migrations.push(m83_photo_scope_invalidation::migration83());
     migrations.push(m84_thumbnail_repair_version::migration84());
+    migrations.push(m85_generation_presets::migration85());
 
     migrations.sort_by_key(|m| m.version);
 
@@ -192,6 +194,7 @@ mod tests {
         assert!(versions.contains(&82));
         assert!(versions.contains(&83));
         assert!(versions.contains(&84));
+        assert!(versions.contains(&85));
     }
 
     #[test]

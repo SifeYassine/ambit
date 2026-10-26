@@ -189,6 +189,17 @@ async computeImageFileHash(imageId: string) : Promise<Result<string, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Recomputes every image's preset signature. Returns how many images have one.
+ */
+async rebuildGenerationPresets() : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rebuild_generation_presets") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async refreshBoardsNative(boardMapping: Partial<{ [key in string]: string }>) : Promise<Result<number, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("refresh_boards_native", { boardMapping }) };

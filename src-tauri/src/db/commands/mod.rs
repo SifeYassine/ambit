@@ -5,6 +5,7 @@ use tauri::AppHandle;
 pub mod filter_commands;
 pub mod image_commands;
 pub mod maintenance;
+pub mod preset_commands;
 pub mod reparse_commands;
 
 /// Standard wrapper for Tauri commands to reduce boilerplate.
