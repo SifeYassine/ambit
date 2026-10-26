@@ -44,12 +44,13 @@ const KEY_TAG_COLORS = {
     loras: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
     sampler: 'bg-pink-100 text-pink-700 dark:bg-pink-500/15 dark:text-pink-300',
 } as const;
-const VALUE_TAG_CLASS = `${TAG_BOX_CLASS} min-w-0 truncate border border-gray-200 bg-white text-xs text-gray-800 dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-200`;
+// Hover matches the viewer's Smart Tags chips.
+const VALUE_TAG_CLASS = `${TAG_BOX_CLASS} min-w-0 truncate border border-gray-200 bg-white text-xs text-gray-800 transition-colors hover:border-sage-500/30 hover:bg-gray-200 dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-white/10`;
 
 const PresetSettingTag = ({ label, keyColor, value }: { label: string; keyColor: keyof typeof KEY_TAG_COLORS; value: string }) => (
-    <div className="flex min-w-0 items-center gap-1.5" title={value}>
+    <div className="flex min-w-0 items-center gap-1.5">
         <span className={`${KEY_TAG_CLASS} ${KEY_TAG_COLORS[keyColor]}`}>{label}</span>
-        <span className={VALUE_TAG_CLASS}>{value}</span>
+        <span className={VALUE_TAG_CLASS} title={value}>{value}</span>
     </div>
 );
 
@@ -72,8 +73,11 @@ const PresetLoraList = ({ loras }: { loras: string[] }) => {
                     <button
                         type="button"
                         aria-expanded={isExpanded}
-                        onClick={() => setIsExpanded(expanded => !expanded)}
-                        className="pointer-events-auto relative z-10 rounded-md px-1.5 py-0.5 text-xs font-medium text-sky-700 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:text-sky-300 dark:hover:bg-sky-500/10"
+                        onClick={event => {
+                            event.stopPropagation();
+                            setIsExpanded(expanded => !expanded);
+                        }}
+                        className="relative z-10 rounded-md px-1.5 py-0.5 text-xs font-medium text-sky-700 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:text-sky-300 dark:hover:bg-sky-500/10"
                     >
                         {isExpanded ? 'Show less' : `+${hidden} more`}
                     </button>
@@ -125,8 +129,9 @@ const PresetCard = ({ preset, rank, matchWeights, onSelect }: {
         preset.typicalCfg !== null ? `CFG ${formatCfg(preset.typicalCfg)}` : null,
     ].filter((part): part is string => part !== null);
 
-    // The full-card button sits underneath the content (as in ImageCard), so the LoRA toggle can
-    // be its own button instead of being nested inside one.
+    // The full-card button sits underneath the content (as in ImageCard) for keyboard users, so the
+    // LoRA toggle can be its own button. The content stays hoverable for tooltips and opens the
+    // preset on click itself.
     return (
         <li className="relative flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-sage-300 hover:shadow-lg dark:border-white/10 dark:bg-zinc-900 dark:hover:border-sage-500/40">
             <button
@@ -135,7 +140,7 @@ const PresetCard = ({ preset, rank, matchWeights, onSelect }: {
                 aria-label={`Show ${preset.count} images using preset ${rank}: ${getPresetLabel(preset, matchWeights)}`}
                 className="absolute inset-0 cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500"
             />
-            <div className="pointer-events-none flex flex-col gap-3">
+            <div className="relative flex cursor-pointer flex-col gap-3" onClick={onSelect}>
                 <PresetSample preset={preset} />
                 <div className="flex items-center justify-between gap-2 px-1">
                     <h2 className="truncate text-base font-bold text-gray-900 dark:text-white">Preset {rank}</h2>
@@ -163,14 +168,18 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
     const { presets, isLoading, error, retry } = usePresets(filters, matchWeights);
 
     return (
-        <div className="custom-scrollbar h-full overflow-y-auto p-6">
-            <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex h-full flex-col overflow-hidden">
+            {/* Floating header, matching Statistics and Maintenance */}
+            <div className="z-20 flex-shrink-0 pb-4 pl-6 pr-8 pt-4">
+            <header className="flex flex-col justify-between gap-4 rounded-2xl border border-gray-200 bg-white/80 p-4 shadow-lg backdrop-blur-xl md:flex-row md:items-center dark:border-white/10 dark:bg-zinc-900/80">
                 <div>
-                    <h1 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
-                        <Boxes className="h-5 w-5 text-sage-500" aria-hidden="true" />
-                        Presets
-                    </h1>
-                    <p className="mt-1 max-w-xl text-sm text-gray-500 dark:text-zinc-400">
+                    <div className="mb-1 flex items-center gap-3">
+                        <div className="rounded-lg bg-sage-100 p-2 text-sage-600 dark:bg-sage-900/30 dark:text-sage-300">
+                            <Boxes className="h-5 w-5" aria-hidden="true" />
+                        </div>
+                        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Presets</h1>
+                    </div>
+                    <p className="pl-1 text-xs text-gray-500 dark:text-gray-400">
                         Your most used model, LoRA, and sampler combinations. Select a preset to see its images.
                     </p>
                 </div>
@@ -186,6 +195,9 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
                     />
                 </label>
             </header>
+            </div>
+
+            <div className="custom-scrollbar flex-1 overflow-y-auto px-6 pb-8" style={{ scrollbarGutter: 'stable' }}>
 
             {error ? (
                 <div role="alert" className="flex flex-col items-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
@@ -219,6 +231,7 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
                     ))}
                 </ol>
             )}
+            </div>
         </div>
     );
 };
