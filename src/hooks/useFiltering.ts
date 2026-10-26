@@ -1,3 +1,4 @@
+import { SUPPORTING_MODEL_KEYS } from '../constants/supportingModels';
 
 import { useState, useMemo, useEffect } from 'react';
 import { AIImage, FilterState, Collection, SortOption, AppSettings } from '../types';
@@ -75,6 +76,7 @@ export const useFiltering = (
             collectionId: null, // Clear collection too
             assetFilterAliases: undefined,
             preset: undefined,
+            ...Object.fromEntries(SUPPORTING_MODEL_KEYS.map(key => [key, []])),
         }));
     };
 

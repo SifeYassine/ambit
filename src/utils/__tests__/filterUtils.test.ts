@@ -52,3 +52,20 @@ describe('parseAndApplyFilter', () => {
             .toBe('new prompt');
     });
 });
+
+describe('parseAndApplyFilter supporting models', () => {
+    it('turns vae:, upscaler:, clipvision:, and detector: searches into filters', () => {
+        let filters = createFilters();
+        const setFilters = (update: (prev: FilterState) => FilterState) => { filters = update(filters); };
+
+        parseAndApplyFilter('vae:sdxl_vae', setFilters);
+        parseAndApplyFilter('vae:sdxl_vae', setFilters);
+        parseAndApplyFilter('detector:face_yolov8m', setFilters);
+        parseAndApplyFilter('clipvision:clip_vit', setFilters);
+
+        expect(filters.vaes).toEqual(['sdxl_vae']);
+        expect(filters.detectors).toEqual(['face_yolov8m']);
+        expect(filters.clipVisions).toEqual(['clip_vit']);
+        expect(filters.searchQuery).toBe('');
+    });
+});

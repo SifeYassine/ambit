@@ -1,3 +1,4 @@
+import { SUPPORTING_MODEL_KEYS } from '../constants/supportingModels';
 import { BaseDirectory, exists, mkdir, readTextFile, remove, writeTextFile } from '@tauri-apps/plugin-fs';
 import { commands } from '../bindings';
 import { AppState, IRepository, PurgeScheduleResult } from './repository';
@@ -119,11 +120,11 @@ const isPersistedFilterState = (value: unknown): boolean => {
 
     const stringArrayKeys = [
         'models', 'loras', 'embeddings', 'hypernetworks', 'samplers', 'generationTypes',
-        'controlNets', 'ipAdapters'
+        'controlNets', 'ipAdapters', ...SUPPORTING_MODEL_KEYS
     ];
     const numberKeys = ['minSteps', 'maxSteps', 'minCfg', 'maxCfg'];
     const booleanKeys = ['favoritesOnly', 'pinnedOnly', 'showIntermediates', 'showGrids', 'showInvokeImageAssets'];
-    const aliasKeys = ['models', 'loras', 'embeddings', 'hypernetworks', 'controlNets', 'ipAdapters'];
+    const aliasKeys = ['models', 'loras', 'embeddings', 'hypernetworks', 'controlNets', 'ipAdapters', ...SUPPORTING_MODEL_KEYS];
 
     return hasValidOptionalValue(value, 'searchQuery', item => typeof item === 'string')
         && hasValidOptionalValue(value, 'sourceKind', item =>

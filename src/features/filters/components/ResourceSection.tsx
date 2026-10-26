@@ -1,3 +1,4 @@
+import { getSupportingModelType, isSupportingModelKey, type SupportingModelKey } from '../../../constants/supportingModels';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,8 +16,8 @@ import type { ResourceThumbnailSource } from '../../../services/db/searchRepo';
 
 export type { AssetScope };
 
-type ResourceSectionType = 'loras' | 'embeddings' | 'hypernetworks' | 'checkpoints' | 'controlNets' | 'ipAdapters';
-type ResourceFilterKey = 'models' | 'loras' | 'embeddings' | 'hypernetworks' | 'controlNets' | 'ipAdapters';
+type ResourceSectionType = 'loras' | 'embeddings' | 'hypernetworks' | 'checkpoints' | 'controlNets' | 'ipAdapters' | SupportingModelKey;
+type ResourceFilterKey = 'models' | 'loras' | 'embeddings' | 'hypernetworks' | 'controlNets' | 'ipAdapters' | SupportingModelKey;
 
 interface ResourceItem {
     name: string;
@@ -219,7 +220,7 @@ export const ResourceSection: React.FC<ResourceSectionProps> = ({
             }
         }), [assetScope, data, getAddedSortValue, getItemAliases, searchQuery, selectedNames, sortOption, validNameSet]);
 
-    const singularType = type === 'loras'
+    const singularType = isSupportingModelKey(type) ? getSupportingModelType(type).singular : type === 'loras'
         ? 'LoRA'
         : type === 'embeddings'
             ? 'Embedding'
@@ -245,7 +246,9 @@ export const ResourceSection: React.FC<ResourceSectionProps> = ({
     const queryClient = useQueryClient();
 
     const getBackendResourceType = useCallback(() => (
-        type === 'checkpoints'
+        isSupportingModelKey(type)
+            ? getSupportingModelType(type).cacheType
+            : type === 'checkpoints'
             ? 'checkpoint'
             : type === 'controlNets'
                 ? 'control_nets'
@@ -256,6 +259,7 @@ export const ResourceSection: React.FC<ResourceSectionProps> = ({
 
     const getFallbackHash = useCallback((item: ResourceItem) => {
         if (item.hash) return item.hash;
+        if (isSupportingModelKey(type)) return `${getSupportingModelType(type).hashPrefix}${item.name}`;
         switch (type) {
             case 'checkpoints':
                 return `name:${item.name}`;

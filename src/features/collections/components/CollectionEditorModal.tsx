@@ -1,3 +1,4 @@
+import { SUPPORTING_MODEL_TYPES } from '../../../constants/supportingModels';
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { Collection, FilterState } from '../../../types';
@@ -218,6 +219,7 @@ export const CollectionEditorModal: React.FC<CollectionEditorModalProps> = ({
             { key: 'loras', label: 'LoRA' },
             { key: 'embeddings', label: 'Embedding' },
             { key: 'hypernetworks', label: 'Hypernet' },
+            ...SUPPORTING_MODEL_TYPES.map(type => ({ key: type.key, label: type.singular })),
             { key: 'samplers', label: 'Sampler' },
             { key: 'generationTypes', label: 'GenType' },
         ];

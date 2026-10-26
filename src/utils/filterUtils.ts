@@ -1,3 +1,4 @@
+import { SUPPORTING_MODEL_TYPES } from '../constants/supportingModels';
 import { FilterState } from '../types';
 
 /**
@@ -9,6 +10,18 @@ export const parseAndApplyFilter = (
     setFilters: (update: (prev: FilterState) => FilterState) => void
 ) => {
     if (!term) return;
+
+    const supportingModel = SUPPORTING_MODEL_TYPES.find(type => term.startsWith(type.searchPrefix));
+    if (supportingModel) {
+        const name = term.slice(supportingModel.searchPrefix.length).trim();
+        if (name) {
+            setFilters(prev => {
+                const current = prev[supportingModel.key] ?? [];
+                return { ...prev, [supportingModel.key]: current.includes(name) ? current : [...current, name] };
+            });
+        }
+        return;
+    }
 
     if (term.startsWith('lora:')) {
         const loraName = term.replace('lora:', '').trim();

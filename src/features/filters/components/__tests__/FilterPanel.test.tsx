@@ -114,7 +114,11 @@ const emptyFacets = (): Facets => ({
     hypernetworks: [],
     controlNets: [],
     ipAdapters: [],
-    tools: []
+    tools: [],
+    vaes: [],
+    upscalers: [],
+    clipVisions: [],
+    detectors: []
 });
 
 const defaultSearchContext = (overrides: Partial<SearchContextValue> = {}): SearchContextValue => ({
@@ -345,7 +349,11 @@ describe('FilterPanel interactions', () => {
                 hypernetworks: ['local-hypernet'],
                 controlNets: ['both-control'],
                 ipAdapters: ['unused-ip'],
-                tools: []
+                tools: [],
+                vaes: [],
+                upscalers: [],
+                clipVisions: [],
+                detectors: []
             }
         });
 

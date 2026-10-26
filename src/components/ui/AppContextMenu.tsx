@@ -1,3 +1,4 @@
+import { SUPPORTING_MODEL_TYPES } from '../../constants/supportingModels';
 import * as React from 'react';
 import { ContextMenu } from './ContextMenu';
 import { useToast } from '../../hooks/useToast';
@@ -252,6 +253,7 @@ export const AppContextMenu: React.FC<AppContextMenuProps> = ({
                 pushResources(m.hypernetworks, 'hyper_', 'hypernetworks');
                 pushResources(m.controlNets, 'cnet_', 'control_nets');
                 pushResources(m.ipAdapters, 'ipad_', 'ip_adapters');
+                SUPPORTING_MODEL_TYPES.forEach(type => pushResources(m[type.key], type.hashPrefix, type.cacheType));
 
                 return res;
             })()}

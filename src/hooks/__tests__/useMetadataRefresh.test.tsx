@@ -339,6 +339,10 @@ describe('useMetadataRefresh', () => {
             'hypernetworks',
             'controlNets',
             'ipAdapters',
+            'vaes',
+            'upscalers',
+            'clipVisions',
+            'detectors',
             'tools'
         ]);
         expect(useLibraryStore.getState().facetCacheVersion).toBe(1);
@@ -367,6 +371,10 @@ describe('useMetadataRefresh', () => {
             'hypernetworks',
             'controlNets',
             'ipAdapters',
+            'vaes',
+            'upscalers',
+            'clipVisions',
+            'detectors',
             'tools'
         ]);
         expect(useLibraryStore.getState().facetCacheVersion).toBe(1);
@@ -417,6 +425,10 @@ describe('useMetadataRefresh', () => {
             'hypernetworks',
             'controlNets',
             'ipAdapters',
+            'vaes',
+            'upscalers',
+            'clipVisions',
+            'detectors',
             'tools'
         ]);
         expect(useLibraryStore.getState().facetCacheVersion).toBe(1);

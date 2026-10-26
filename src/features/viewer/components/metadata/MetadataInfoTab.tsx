@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Wand2, Undo2, Copy, Check, ClipboardList,
-    Sparkles, Eye, Shuffle, Tag, Puzzle, Code, Target, Link, Plus
+    Sparkles, Eye, Shuffle, Tag, Puzzle, Code, Target, Link, Plus, Layers, Maximize2, ScanFace
 } from 'lucide-react';
 import { AIImage, GeneratorTool } from '../../../../types';
 import { ResourcesSection } from './ResourcesSection';
@@ -428,6 +428,10 @@ export const MetadataInfoTab = ({
                             { title: 'Hypernetworks', items: image.metadata.hypernetworks, icon: Sparkles, filterKind: 'hypernet' },
                             { title: 'ControlNets', items: image.metadata.controlNets, icon: Target, filterKind: 'controlnet' },
                             { title: 'IP adapters', items: image.metadata.ipAdapters, icon: Link, filterKind: 'ipadapter' },
+                            { title: 'VAEs', items: image.metadata.vaes, icon: Layers, filterKind: 'vae' },
+                            { title: 'Upscale models', items: image.metadata.upscalers, icon: Maximize2, filterKind: 'upscaler' },
+                            { title: 'CLIP Vision', items: image.metadata.clipVisions, icon: Eye, filterKind: 'clipvision' },
+                            { title: 'Detection models', items: image.metadata.detectors, icon: ScanFace, filterKind: 'detector' },
                         ]}
                         onSearch={onSearch}
                         onClose={onClose}

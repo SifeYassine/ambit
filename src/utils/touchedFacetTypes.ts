@@ -1,4 +1,5 @@
 import { FacetType, ImageMetadata } from '../types';
+import { SUPPORTING_MODEL_KEYS, type SupportingModelKey } from '../constants/supportingModels';
 
 const FACET_TYPE_ORDER: readonly FacetType[] = [
     'checkpoints',
@@ -7,6 +8,7 @@ const FACET_TYPE_ORDER: readonly FacetType[] = [
     'hypernetworks',
     'controlNets',
     'ipAdapters',
+    ...SUPPORTING_MODEL_KEYS,
     'tools'
 ];
 
@@ -17,12 +19,17 @@ export interface TouchedFacetResources {
     hypernetworks: string[];
     controlNets: string[];
     ipAdapters: string[];
+    // Optional: backend touches from older callers omit supporting models.
+    vaes?: string[];
+    upscalers?: string[];
+    clipVisions?: string[];
+    detectors?: string[];
     tools: string[];
 }
 
 type MetadataLike = Partial<Pick<
     ImageMetadata,
-    'tool' | 'model' | 'overrideModel' | 'loras' | 'embeddings' | 'hypernetworks' | 'controlNets' | 'ipAdapters'
+    'tool' | 'model' | 'overrideModel' | 'loras' | 'embeddings' | 'hypernetworks' | 'controlNets' | 'ipAdapters' | SupportingModelKey
 >> | null | undefined;
 
 export const createEmptyTouchedFacetResources = (): TouchedFacetResources => ({
@@ -94,6 +101,7 @@ export const collectTouchedFacetTypesFromMetadata = (metadata: MetadataLike): Fa
     addArrayFacetType(touched, metadata?.hypernetworks, 'hypernetworks');
     addArrayFacetType(touched, metadata?.controlNets, 'controlNets');
     addArrayFacetType(touched, metadata?.ipAdapters, 'ipAdapters');
+    SUPPORTING_MODEL_KEYS.forEach(key => addArrayFacetType(touched, metadata?.[key], key));
 
     return orderFacetTypes(touched);
 };
@@ -113,6 +121,7 @@ export const collectTouchedFacetResourcesFromMetadata = (metadata: MetadataLike)
     metadata?.hypernetworks?.forEach(value => addUnique(touched.hypernetworks, normalizeName(value)));
     metadata?.controlNets?.forEach(value => addUnique(touched.controlNets, normalizeName(value)));
     metadata?.ipAdapters?.forEach(value => addUnique(touched.ipAdapters, normalizeName(value)));
+    SUPPORTING_MODEL_KEYS.forEach(key => metadata?.[key]?.forEach(value => addUnique((touched[key] ??= []), normalizeName(value))));
 
     return touched;
 };
@@ -129,6 +138,7 @@ export const mergeTouchedFacetResources = (
         resource.hypernetworks.forEach(value => addUnique(merged.hypernetworks, value));
         resource.controlNets.forEach(value => addUnique(merged.controlNets, value));
         resource.ipAdapters.forEach(value => addUnique(merged.ipAdapters, value));
+        SUPPORTING_MODEL_KEYS.forEach(key => resource[key]?.forEach(value => addUnique((merged[key] ??= []), value)));
         resource.tools.forEach(value => addUnique(merged.tools, value));
     });
 
@@ -148,6 +158,9 @@ export const touchedFacetResourcesToTypes = (resources: TouchedFacetResources): 
     if (resources.hypernetworks.length > 0) types.add('hypernetworks');
     if (resources.controlNets.length > 0) types.add('controlNets');
     if (resources.ipAdapters.length > 0) types.add('ipAdapters');
+    SUPPORTING_MODEL_KEYS.forEach(key => {
+        if ((resources[key]?.length ?? 0) > 0) types.add(key);
+    });
     if (resources.tools.length > 0) types.add('tools');
 
     return orderFacetTypes(types);

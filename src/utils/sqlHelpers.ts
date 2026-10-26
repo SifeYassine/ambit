@@ -1,3 +1,4 @@
+import { SUPPORTING_MODEL_TYPES, type SupportingModelKey } from '../constants/supportingModels';
 import { FilterState, AppSettings, Collection } from '../types';
 import { getDateFilterBounds, getSearchDateBounds, type DateFilterBounds } from './dateFilters';
 import { toPhotoWallTimeBounds } from './imageDates';
@@ -37,7 +38,7 @@ const buildEffectiveDateConditions = (bounds: DateFilterBounds): { conditions: s
     return { conditions, params };
 };
 
-type AssetAliasFilterKey = 'models' | 'loras' | 'embeddings' | 'hypernetworks' | 'controlNets' | 'ipAdapters';
+type AssetAliasFilterKey = 'models' | 'loras' | 'embeddings' | 'hypernetworks' | 'controlNets' | 'ipAdapters' | SupportingModelKey;
 
 export const normalizeResourceReferenceForFilter = (value: string): string => {
     const trimmed = value.trim();
@@ -467,6 +468,19 @@ export const buildSqlWhereClause = (
             ), params)
         ));
         conditions.push(`(${hnConditions.join(hnMode === 'all' ? ' AND ' : ' OR ')})`);
+    }
+
+    // Supporting models (VAEs, upscalers, CLIP Vision, detectors)
+    for (const type of SUPPORTING_MODEL_TYPES) {
+        const selected = filters[type.key] ?? [];
+        if (selected.length === 0 || excludeCategories.includes(type.key)) continue;
+        const mode = filters.matchModes?.[type.key] || 'any';
+        const typeConditions = getResourceAliasGroups(filters, type.key, selected).map(aliases => (
+            buildAliasGroupCondition(aliases, () => (
+                `EXISTS (SELECT 1 FROM ${type.table} sm WHERE sm.image_id = id AND ${resourceReferenceEqualsSql(`sm.${type.column}`)})`
+            ), params)
+        ));
+        conditions.push(`(${typeConditions.join(mode === 'all' ? ' AND ' : ' OR ')})`);
     }
 
     // ControlNets

@@ -6,7 +6,7 @@ interface ResourceChipsProps {
     onSelect?: (name: string) => void;
 }
 
-export type ResourceFilterKind = 'lora' | 'embedding' | 'hypernet' | 'controlnet' | 'ipadapter';
+export type ResourceFilterKind = 'lora' | 'embedding' | 'hypernet' | 'controlnet' | 'ipadapter' | 'vae' | 'upscaler' | 'clipvision' | 'detector';
 
 const RESOURCE_FILTER_PREFIX: Record<ResourceFilterKind, string> = {
     lora: 'lora:',
@@ -14,6 +14,10 @@ const RESOURCE_FILTER_PREFIX: Record<ResourceFilterKind, string> = {
     hypernet: 'hypernet:',
     controlnet: 'cn:',
     ipadapter: 'ip:',
+    vae: 'vae:',
+    upscaler: 'upscaler:',
+    clipvision: 'clipvision:',
+    detector: 'detector:',
 };
 
 const WEIGHT_SUFFIX = /\s+\((-?\d+(?:\.\d+)?)\)$/;

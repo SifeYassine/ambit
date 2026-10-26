@@ -112,3 +112,22 @@ describe('touchedFacetTypes', () => {
         });
     });
 });
+
+describe('touchedFacetTypes supporting models', () => {
+    it('tracks VAEs, upscalers, CLIP Vision, and detectors like other resources', () => {
+        const metadata = { vaes: ['sdxl_vae.safetensors'], upscalers: ['4x_ultrasharp'], clipVisions: [], detectors: ['face_yolov8m'] };
+
+        expect(collectTouchedFacetTypesFromMetadata(metadata)).toEqual(['checkpoints', 'vaes', 'upscalers', 'detectors', 'tools']);
+        const touched = collectTouchedFacetResourcesFromMetadata(metadata);
+        expect(touched.vaes).toEqual(['sdxl_vae']);
+        expect(touched.detectors).toEqual(['face_yolov8m']);
+        expect(touchedFacetResourcesToTypes(touched)).toContain('upscalers');
+    });
+
+    it('accepts backend touches that omit supporting models', () => {
+        const legacy = { checkpoints: ['a'], loras: [], embeddings: [], hypernetworks: [], controlNets: [], ipAdapters: [], tools: [] };
+
+        expect(mergeTouchedFacetResources(legacy, { ...createEmptyTouchedFacetResources(), vaes: ['v'] }).vaes).toEqual(['v']);
+        expect(touchedFacetResourcesToTypes(legacy)).toEqual(['checkpoints']);
+    });
+});

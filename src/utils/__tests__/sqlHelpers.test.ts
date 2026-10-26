@@ -814,3 +814,32 @@ describe('sqlHelpers preset filter', () => {
         expect(excluded.where).not.toContain('image_presets');
     });
 });
+
+describe('sqlHelpers supporting model filters', () => {
+    const baseFilters: FilterState = {
+        searchQuery: '', models: [], tools: [], loras: [], embeddings: [], hypernetworks: [],
+        controlNets: [], ipAdapters: [], samplers: [], generationTypes: [], dateRange: 'all',
+        favoritesOnly: false, collectionId: null,
+    };
+
+    it('filters by each supporting model junction, honoring all-match mode', () => {
+        // The text between the two alias-group conditions holds their joiner.
+        const joinerBetween = (where: string, table: string) => {
+            const [, first = '', second = ''] = where.split(`EXISTS (SELECT 1 FROM ${table}`);
+            expect(second).not.toBe('');
+            return first.slice(first.lastIndexOf('))')).replace(/\s+/g, ' ');
+        };
+
+        const any = buildSqlWhereClause({ ...baseFilters, vaes: ['sdxl_vae', 'ae'] }, false, 'blur', []);
+        expect(any.where).toContain('EXISTS (SELECT 1 FROM image_vaes sm WHERE sm.image_id = id');
+        expect(joinerBetween(any.where, 'image_vaes')).toContain(' OR ');
+        expect(any.params).toEqual(expect.arrayContaining(['sdxl_vae', 'ae']));
+
+        const all = buildSqlWhereClause({ ...baseFilters, detectors: ['face', 'hand'], matchModes: { detectors: 'all' } }, false, 'blur', []);
+        expect(joinerBetween(all.where, 'image_detectors')).toContain(' AND ');
+    });
+
+    it('ignores saved filters that predate supporting models', () => {
+        expect(buildSqlWhereClause(baseFilters, false, 'blur', []).where).not.toMatch(/image_(vaes|upscalers|clip_visions|detectors)/);
+    });
+});

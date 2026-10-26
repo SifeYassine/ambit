@@ -60,9 +60,11 @@ The Assets tab has three scopes:
 - Local on Disk: resources discovered from configured resource folders
 - All Assets: both used resources and local disk inventory
 
-The Assets tab shows sections for checkpoints, LoRAs, embeddings, hypernetworks, ControlNet, and IP-Adapter resources when matching items exist. You can search within a section, sort it, and switch between list and grid views.
+The Assets tab shows sections for checkpoints, LoRAs, embeddings, hypernetworks, ControlNet, IP-Adapter, VAE, upscale model, CLIP Vision, and detection model (such as YOLO face detectors and SAM) resources when matching items exist. You can search within a section, sort it, and switch between list and grid views.
 
-For LoRAs, embeddings, hypernetworks, ControlNet, and IP-Adapter resources, Match Any shows images with at least one selected asset and Match All shows images that contain every selected asset in that category. Checkpoints stay Match Any because each image has one main checkpoint or model.
+VAEs, upscale models, CLIP Vision encoders, and detection models are supporting models: they come from the image's recorded workflow or, for A1111-style images, from the VAE and hires upscaler fields. A ComfyUI loader counts only when it is active and its output is used by another active node, so models in bypassed or disconnected groups are not listed. These sections show the models your images used; they are not part of the Local on Disk inventory.
+
+For LoRAs, embeddings, hypernetworks, ControlNet, IP-Adapter, and supporting-model resources, Match Any shows images with at least one selected asset and Match All shows images that contain every selected asset in that category. Checkpoints stay Match Any because each image has one main checkpoint or model.
 
 ## Empty Or Confusing Results
 

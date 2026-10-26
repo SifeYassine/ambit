@@ -1,3 +1,4 @@
+import { SUPPORTING_MODEL_KEYS, SUPPORTING_MODEL_TYPES } from '../../../constants/supportingModels';
 import * as React from 'react';
 import { Check, Filter, ExternalLink, FolderOpen, Sliders, Puzzle, Save, FolderSearch, Images, HardDrive, Layers3, type LucideIcon } from 'lucide-react';
 import { AIImage, FilterState, type SmartCollection } from '../../../types';
@@ -112,6 +113,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         hypernetworks: false,
         controlNets: false,
         ipAdapters: false,
+        vaes: false,
+        upscalers: false,
+        clipVisions: false,
+        detectors: false,
         guidance: true,
         date: true
     });
@@ -178,6 +183,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 hypernetworks: Array.from(new Set([...saved.hypernetworks, ...manual.hypernetworks])),
                 controlNets: Array.from(new Set([...saved.controlNets, ...manual.controlNets])),
                 ipAdapters: Array.from(new Set([...saved.ipAdapters, ...manual.ipAdapters])),
+                ...Object.fromEntries(SUPPORTING_MODEL_KEYS.map(key => [
+                    key,
+                    Array.from(new Set([...(saved[key] ?? []), ...(manual[key] ?? [])])),
+                ])),
 
                 // Keep Collection ID? Usually filters object for a collection definition doesn't contain its own ID or 'collectionId'.
                 // But FilterState might. Let's explicitly NOT include collectionId in the saved rule "payload" if possible, 
@@ -214,7 +223,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 minCfg: undefined,
                 maxCfg: undefined,
                 controlNets: [],
-                ipAdapters: []
+                ipAdapters: [],
+                ...Object.fromEntries(SUPPORTING_MODEL_KEYS.map(key => [key, []])),
                 // Preserve collectionId and view options
             }));
         } else {
@@ -230,7 +240,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     // Note: dateRange is NOT included in isOrganizeDirty because Date Range is a global section in the footer, not part of Organize tab
     const isOrganizeDirty = !!(filters.collectionId || filters.favoritesOnly || filters.pinnedOnly);
     const isGenerateDirty = !!(filters.tools.length > 0 || filters.minSteps || filters.maxSteps || filters.minCfg || filters.maxCfg || (filters.samplers && filters.samplers.length > 0) || (filters.generationTypes && filters.generationTypes.length > 0) || filters.controlNets.length > 0 || filters.ipAdapters.length > 0);
-    const isResourcesDirty = !!(filters.models.length > 0 || filters.loras.length > 0 || (filters.embeddings && filters.embeddings.length > 0) || (filters.hypernetworks && filters.hypernetworks.length > 0) || filters.controlNets.length > 0 || filters.ipAdapters.length > 0);
+    const isResourcesDirty = !!(filters.models.length > 0 || filters.loras.length > 0 || (filters.embeddings && filters.embeddings.length > 0) || (filters.hypernetworks && filters.hypernetworks.length > 0) || filters.controlNets.length > 0 || filters.ipAdapters.length > 0
+        || SUPPORTING_MODEL_KEYS.some(key => (filters[key]?.length ?? 0) > 0));
 
     const allResourceItems = React.useMemo(() => [
         ...facets.checkpoints,
@@ -238,7 +249,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         ...facets.embeddings,
         ...facets.hypernetworks,
         ...facets.controlNets,
-        ...facets.ipAdapters
+        ...facets.ipAdapters,
+        ...SUPPORTING_MODEL_KEYS.flatMap(key => facets[key])
     ], [facets]);
 
     const hasLocalDiskAssets = React.useMemo(
@@ -490,6 +502,19 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                                             assetScope={assetScope}
                                         />
                                     )}
+                                    {SUPPORTING_MODEL_TYPES.map(type => hasScopedResourceItems(facets[type.key]) && (
+                                        <ResourceSection
+                                            key={type.key}
+                                            title={`Resources (${type.label})`}
+                                            type={type.key}
+                                            filters={filters} setFilters={setFilters}
+                                            data={facets[type.key]}
+                                            isOpen={expanded[type.key]} onToggle={() => toggleSection(type.key)}
+                                            isLoading={isFacetsLoading}
+                                            validNames={validNamesForScope(validFacetNames?.[type.key])}
+                                            assetScope={assetScope}
+                                        />
+                                    ))}
                                 </>
                             )}
                         </div>

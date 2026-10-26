@@ -1,3 +1,4 @@
+import { SUPPORTING_MODEL_KEYS } from '../../constants/supportingModels';
 import { invoke } from '@tauri-apps/api/core';
 import { commands, type DeleteRemovedImagesResult, type ImageRecord, type RemovedLifecycleMutationResult } from '../../bindings';
 import { unwrap } from '../../utils/spectaUtils';
@@ -186,11 +187,17 @@ const normalizeFacetType = (type: string): FacetType | null => {
         case 'controlNets':
         case 'ipAdapters':
         case 'tools':
+        case 'vaes':
+        case 'upscalers':
+        case 'clipVisions':
+        case 'detectors':
             return type;
         case 'control_nets':
             return 'controlNets';
         case 'ip_adapters':
             return 'ipAdapters';
+        case 'clip_visions':
+            return 'clipVisions';
         default:
             return null;
     }
@@ -435,7 +442,8 @@ export const rebuildThumbnailFacetCache = async (): Promise<void> => {
         'embeddings',
         'hypernetworks',
         'controlNets',
-        'ipAdapters'
+        'ipAdapters',
+        ...SUPPORTING_MODEL_KEYS
     ]);
 };
 

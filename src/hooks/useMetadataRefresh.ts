@@ -1,3 +1,4 @@
+import { SUPPORTING_MODEL_KEYS } from '../constants/supportingModels';
 /**
  * useMetadataRefresh Hook
  *
@@ -50,6 +51,7 @@ const METADATA_REFRESH_FACET_TYPES = [
     'hypernetworks',
     'controlNets',
     'ipAdapters',
+    ...SUPPORTING_MODEL_KEYS,
     'tools'
 ];
 const ACTIVE_REFRESH_PROGRESS_PHASES = new Set(['counting', 'starting', 'processing']);
