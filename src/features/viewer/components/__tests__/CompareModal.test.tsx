@@ -167,7 +167,7 @@ describe('CompareModal', () => {
 
         fireEvent.click(screen.getByText('Overlay'));
         fireEvent.mouseMove(root, { clientX: 500, clientY: 300 });
-        expect(screen.getByText('Hover to reveal comparison')).toBeTruthy();
+        expect(screen.queryByText('Hover to reveal comparison')).toBeNull();
         fireEvent.mouseLeave(root);
         fireEvent.click(screen.getByText('Split'));
     });

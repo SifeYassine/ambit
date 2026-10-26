@@ -608,11 +608,6 @@ export const CompareModal: React.FC<CompareModalProps> = ({
         left: sliderTravelX - activeMediaFrame.left,
         width: SLIDER_HIT_TARGET_WIDTH_PX
     };
-    const overlayHintStyle: React.CSSProperties = {
-        left: activeMediaFrame.left + activeMediaFrame.width / 2,
-        top: Math.max(activeMediaFrame.top + 12, activeMediaFrame.top + activeMediaFrame.height - 48),
-        transform: 'translateX(-50%)'
-    };
     const sliderClipPath = `polygon(${activeMediaFrame.left}px ${activeMediaFrame.top}px, ${sliderTravelX + DIAGONAL_OFFSET_PX}px ${activeMediaFrame.top}px, ${sliderTravelX - DIAGONAL_OFFSET_PX}px ${activeMediaFrame.top + activeMediaFrame.height}px, ${activeMediaFrame.left}px ${activeMediaFrame.top + activeMediaFrame.height}px)`;
     const sliderDividerClipPath = `polygon(calc(50% + ${DIAGONAL_OFFSET_PX}px - ${DIAGONAL_DIVIDER_WIDTH_PX / 2}px) 0, calc(50% + ${DIAGONAL_OFFSET_PX}px + ${DIAGONAL_DIVIDER_WIDTH_PX / 2}px) 0, calc(50% - ${DIAGONAL_OFFSET_PX}px + ${DIAGONAL_DIVIDER_WIDTH_PX / 2}px) 100%, calc(50% - ${DIAGONAL_OFFSET_PX}px - ${DIAGONAL_DIVIDER_WIDTH_PX / 2}px) 100%)`;
 
@@ -753,12 +748,6 @@ export const CompareModal: React.FC<CompareModalProps> = ({
                             <div className="absolute z-50 pointer-events-none" style={activeMediaFrameStyle}>
                                 <ImageActions img={imageA} side="left" onToggleFavorite={onToggleFavorite} onTogglePin={onTogglePin} />
                                 <ImageActions img={imageB} side="right" onToggleFavorite={onToggleFavorite} onTogglePin={onTogglePin} />
-                            </div>
-                            <div
-                                className="absolute z-40 bg-black/80 text-white px-4 py-2 rounded-full text-xs pointer-events-none border border-white/10 backdrop-blur-md"
-                                style={overlayHintStyle}
-                            >
-                                Hover to reveal comparison
                             </div>
                         </div>
                     )}
