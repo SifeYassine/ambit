@@ -35,7 +35,7 @@ const KEY_TAG_COLORS = {
     loras: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
     sampler: 'bg-pink-100 text-pink-700 dark:bg-pink-500/15 dark:text-pink-300',
 } as const;
-// Hover matches the viewer's Smart Tags chips.
+// Hover matches the viewer's resource chips.
 const VALUE_TAG_CLASS = `${TAG_BOX_CLASS} min-w-0 truncate border border-gray-200 bg-white text-xs text-gray-800 transition-colors hover:border-sage-500/30 hover:bg-gray-200 dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-white/10`;
 
 const PresetSettingTag = ({ label, keyColor, value }: { label: string; keyColor: keyof typeof KEY_TAG_COLORS; value: string }) => (
@@ -97,7 +97,8 @@ const PresetSample = ({ preset }: { preset: GenerationPreset }) => {
                     src={image.thumbnailUrl}
                     alt=""
                     isSensitive={isImageMasked(image, privacyEnabled, getEffectiveMaskedKeywords(settings))}
-                    wrapperClassName="h-full w-full"
+                    // Hovering the card zooms the image inside its frame, like gallery cards (the frame clips it).
+                    wrapperClassName="h-full w-full transition-transform duration-700 ease-spring group-hover/card:scale-[1.15] motion-reduce:transition-none"
                     fallback={<ImageOff className="h-8 w-8" />}
                 />
             ) : (
@@ -124,7 +125,7 @@ const PresetCard = ({ preset, rank, matchWeights, onSelect }: {
     // LoRA toggle can be its own button. The content stays hoverable for tooltips and opens the
     // preset on click itself.
     return (
-        <li className="relative flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-sage-300 hover:shadow-lg dark:border-white/10 dark:bg-zinc-900 dark:hover:border-sage-500/40">
+        <li className="group/card relative flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-sage-300 hover:shadow-lg dark:border-white/10 dark:bg-zinc-900 dark:hover:border-sage-500/40">
             <button
                 type="button"
                 onClick={onSelect}
