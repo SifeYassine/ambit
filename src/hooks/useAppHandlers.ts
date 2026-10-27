@@ -1,16 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { AIImage, GeneratorTool } from '../types';
+import { AIImage } from '../types';
 import { useToast } from './useToast';
 import {
     deleteRemovedImagesFromDisk,
-    getImagesByIds,
     rebuildFacetCache,
-    rebuildFacetCacheIncremental,
     refreshFacetCacheForResourcesStrict,
     removeImagesFromLibrary,
     restoreRemovedImages,
-    revertImageMetadata,
-    updateImageMetadataFields,
 } from '../services/db/imageRepo';
 import { useLibraryStore } from '../stores/libraryStore';
 import { removeImagesFromQueryCaches, updateImagesQueryCaches } from '../utils/imageQueryCache';
@@ -36,138 +32,6 @@ export const useAppHandlers = ({ images, setImages, refreshMaintenanceCounts, re
             .then(() => incrementFacetCacheVersion())
             .catch(error => console.error('Failed to refresh facet cache', error));
     };
-    const getImage = (id: string) => activeImageState?.getImage(id) ?? images.find(image => image.id === id);
-    const updateImage = (id: string, updater: (image: AIImage) => AIImage) => {
-        if (activeImageState) {
-            activeImageState.updateImage(id, updater);
-            return;
-        }
-        setImages(prev => prev.map(image => image.id === id ? updater(image) : image));
-    };
-
-    const handleUpdatePrompt = async (id: string, prompt: string) => {
-        const img = getImage(id);
-        if (!img) return;
-        if ((img.metadata.positivePrompt ?? '') === prompt) return;
-
-        const originalMetadata = img.originalMetadata || { ...img.metadata };
-        const updatedImg = {
-            ...img,
-            originalMetadata,
-            metadata: {
-                ...img.metadata,
-                positivePrompt: prompt,
-                fieldSources: img.mediaType === 'video'
-                    ? { ...img.metadata.fieldSources, positivePrompt: 'user_override' as const }
-                    : img.metadata.fieldSources
-            }
-        };
-
-        updateImage(id, () => updatedImg);
-        await updateImageMetadataFields(id, { positivePrompt: prompt });
-        addToast('Updated', 'success');
-    };
-
-    const handleUpdateNegativePrompt = async (id: string, negativePrompt: string) => {
-        const img = getImage(id);
-        if (!img) return;
-        if ((img.metadata.negativePrompt ?? '') === negativePrompt) return;
-
-        const originalMetadata = img.originalMetadata || { ...img.metadata };
-        const updatedImg = {
-            ...img,
-            originalMetadata,
-            metadata: {
-                ...img.metadata,
-                negativePrompt,
-                fieldSources: img.mediaType === 'video'
-                    ? { ...img.metadata.fieldSources, negativePrompt: 'user_override' as const }
-                    : img.metadata.fieldSources
-            }
-        };
-
-        updateImage(id, () => updatedImg);
-        await updateImageMetadataFields(id, { negativePrompt });
-        addToast('Updated', 'success');
-    };
-
-    const handleUpdateModel = async (id: string, model: string) => {
-        const img = getImage(id);
-        if (!img) return;
-        const normalizedModel = model.trim();
-        if (!normalizedModel || (img.metadata.overrideModel || img.metadata.model) === normalizedModel) return;
-
-        const originalMetadata = img.originalMetadata || { ...img.metadata };
-        const updatedImg = {
-            ...img,
-            originalMetadata,
-            metadata: {
-                ...img.metadata,
-                overrideModel: normalizedModel,
-                fieldSources: img.mediaType === 'video'
-                    ? { ...img.metadata.fieldSources, model: 'user_override' as const, overrideModel: 'user_override' as const }
-                    : img.metadata.fieldSources
-            }
-        };
-
-        updateImage(id, () => updatedImg);
-        await updateImageMetadataFields(id, { overrideModel: normalizedModel });
-
-        // Ensure filter panel is updated
-        rebuildFacetCacheIncremental('checkpoints').then(() => incrementFacetCacheVersion());
-
-        addToast('Updated', 'success');
-    };
-
-    const handleUpdateTool = async (id: string, tool: GeneratorTool) => {
-        const img = getImage(id);
-        if (!img) return;
-        if (img.metadata.tool === tool) return;
-
-        const originalMetadata = img.originalMetadata || { ...img.metadata };
-        const updatedImg = {
-            ...img,
-            originalMetadata,
-            metadata: {
-                ...img.metadata,
-                tool,
-                fieldSources: img.mediaType === 'video'
-                    ? { ...img.metadata.fieldSources, tool: 'user_override' as const }
-                    : img.metadata.fieldSources
-            }
-        };
-
-        updateImage(id, () => updatedImg);
-        await updateImageMetadataFields(id, { tool });
-
-        // Ensure filter panel is updated
-        rebuildFacetCacheIncremental('tools').then(() => incrementFacetCacheVersion());
-
-        addToast('Updated', 'success');
-    };
-
-    const handleUpdateVideoGenerationMode = async (id: string, generationMode: string) => {
-        const img = getImage(id);
-        if (!img) return;
-        if ((img.metadata.generationMode ?? 'unknown') === generationMode) return;
-        const updatedImg = {
-            ...img,
-            metadata: {
-                ...img.metadata,
-                generationMode,
-                generationType: generationMode,
-                fieldSources: {
-                    ...img.metadata.fieldSources,
-                    generationMode: 'user_override' as const,
-                    generationType: 'user_override' as const
-                }
-            }
-        } as AIImage;
-        updateImage(id, () => updatedImg);
-        await updateImageMetadataFields(id, { generationMode, generationType: generationMode });
-        addToast('Updated', 'success');
-    };
-
     const handleGroupImages = (ids: string[]) => {
         const groupId = `stack_${Date.now()}`;
         setImages(prev => prev.map(img =>
@@ -334,42 +198,7 @@ export const useAppHandlers = ({ images, setImages, refreshMaintenanceCounts, re
         refreshMaintenanceCounts();
     };
 
-    const handleRevertMetadata = async (id: string) => {
-        await revertImageMetadata(id);
-        const [revertedImage] = await getImagesByIds([id]);
-        if (!revertedImage) {
-            addToast('Metadata reverted, but the image could not be refreshed.', 'warning');
-            return;
-        }
-
-        const applyRevertedImage = (current: AIImage): AIImage => (
-            current.id === id
-                ? { ...revertedImage, stack: current.stack }
-                : current
-        );
-        if (activeImageState) {
-            activeImageState.updateImage(id, applyRevertedImage);
-        } else {
-            setImages(prev => prev.map(applyRevertedImage));
-        }
-        updateImagesQueryCaches(queryClient, applyRevertedImage);
-
-        // Revert can change tools and models, so we rebuild both incrementally
-        Promise.all([
-            rebuildFacetCacheIncremental('tools'),
-            rebuildFacetCacheIncremental('checkpoints')
-        ]).then(() => incrementFacetCacheVersion());
-
-        addToast('Reverted to original', 'success');
-    };
-
     return {
-        handleUpdatePrompt,
-        handleUpdateNegativePrompt,
-        handleUpdateModel,
-        handleUpdateTool,
-        handleUpdateVideoGenerationMode,
-        handleRevertMetadata,
         handleGroupImages,
         handleResolveDuplicate,
         handleRestoreImages,

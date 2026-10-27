@@ -727,15 +727,11 @@ describe('AppLayout', () => {
         await screen.findByTestId('maintenance-view');
         const maintenance = capturedProps.maintenance as {
             onViewImage: (id: string) => void;
-            onRecoverMetadata: (id: string, onRecovered: (image: AIImage) => void) => void;
             onToggleFavorite: (id: string) => void;
         };
-        const onRecovered = vi.fn();
         maintenance.onViewImage('image-1');
-        maintenance.onRecoverMetadata('image-1', onRecovered);
         maintenance.onToggleFavorite('image-1');
         expect(setViewingImageId).toHaveBeenCalledWith('image-1');
-        expect(openMetadataRecovery).toHaveBeenCalledWith('image-1', onRecovered);
         expect(searchState.value.toggleFavorite).toHaveBeenCalledWith('image-1');
     });
 

@@ -2,7 +2,7 @@ import { SUPPORTING_MODEL_KEYS } from '../../constants/supportingModels';
 import { invoke } from '@tauri-apps/api/core';
 import { commands, type DeleteRemovedImagesResult, type ImageRecord, type RemovedLifecycleMutationResult } from '../../bindings';
 import { unwrap } from '../../utils/spectaUtils';
-import { AIImage, FacetType, GeneratorTool, ImageMetadata, getDetectedSourceKind, type PhotoMetadata, type SourceKind, type VideoMetadataField } from '../../types';
+import { AIImage, FacetType, GeneratorTool, ImageMetadata, getDetectedSourceKind, type PhotoMetadata, type SourceKind } from '../../types';
 import { getDb, dbMutex } from './connection';
 import { mapRowToImage, getImageFieldsLight, getImageFieldsFull, INVOKE_IMAGE_SOURCE_FIELDS, REMOVED_IMAGE_FIELDS, type ImageRow } from './repoUtils';
 import { normalizePath, urlToPath } from '../../utils/pathUtils';
@@ -35,9 +35,6 @@ interface CountRow {
     count: number;
 }
 
-interface OriginalParsedMetadataRow {
-    original_parsed_json: string | null;
-}
 
 interface MetadataJsonRow {
     metadata_json: string | null;
@@ -505,189 +502,6 @@ export const syncCollectionImages = async (ids?: string[]) => {
             await clearInvokeBoardThumbnailCaches();
         }
         console.log('[DB] Bulk collection sync complete.');
-    });
-};
-
-/**
- * Safely updates individual fields within the metadata_json blob without overwriting the entire object.
- * CRITICAL: Prevents data loss when editing from "light" grid view imagery.
- */
-export const updateImageMetadataFields = async (id: string, updates: Record<string, unknown>) => {
-    if (isBrowserMockMode()) {
-        const image = getBrowserMockImages().find(item => item.id === id);
-        if (image) {
-            const fieldSources = image.mediaType === 'video'
-                ? Object.keys(updates).reduce((sources, key) => {
-                    if (['tool', 'positivePrompt', 'negativePrompt', 'model', 'overrideModel', 'generationType', 'generationMode'].includes(key)) {
-                        sources[key as VideoMetadataField] = 'user_override';
-                        if (key === 'overrideModel') sources.model = 'user_override';
-                    }
-                    return sources;
-                }, { ...image.metadata.fieldSources })
-                : image.metadata.fieldSources;
-            updateBrowserMockImage(id, { metadata: { ...image.metadata, ...updates, fieldSources } });
-        }
-        return;
-    }
-
-    await dbMutex.dispatch(async () => {
-        const db = await getDb();
-        const normalizedId = normalizePath(id);
-
-        let query = 'UPDATE images SET metadata_json = ';
-        let jsonSetExpr = 'metadata_json';
-        const params: unknown[] = [];
-
-        Object.entries(updates).forEach(([key, value]) => {
-            // CRITICAL: If value is an array or object, it must be serialized and passed via JSON function
-            // Otherwise SQLite might store it as a literal string "[object Object]" or similar corruption.
-            const previousExpr = jsonSetExpr;
-            if (value !== null && typeof value === 'object') {
-                jsonSetExpr = `json_set(${previousExpr}, '$.${key}', json(?))`;
-                params.push(JSON.stringify(value));
-            } else {
-                jsonSetExpr = `json_set(${previousExpr}, '$.${key}', ?)`;
-                params.push(value);
-            }
-            if (['tool', 'positivePrompt', 'negativePrompt', 'model', 'overrideModel', 'generationType', 'generationMode'].includes(key)) {
-                let videoExpr = `json_set(${jsonSetExpr}, '$.fieldSources.${key}', 'user_override')`;
-                if (key === 'overrideModel') {
-                    videoExpr = `json_set(${videoExpr}, '$.fieldSources.model', 'user_override')`;
-                }
-                jsonSetExpr = `CASE WHEN media_type = 'video' THEN ${videoExpr} ELSE ${jsonSetExpr} END`;
-            }
-        });
-
-        query += jsonSetExpr;
-
-        // SPECIAL CASE: 'tool' is a real column, so we must update it too if it's in the updates
-        if ('tool' in updates) {
-            query += ', tool = ?';
-            params.push(updates.tool);
-        }
-
-        if ('positivePrompt' in updates || 'positive_prompt' in updates) {
-            query += ', positive_prompt = ?';
-            params.push((updates.positivePrompt ?? updates.positive_prompt) || null);
-        }
-
-        if ('negativePrompt' in updates || 'negative_prompt' in updates) {
-            query += ', negative_prompt = ?';
-            params.push((updates.negativePrompt ?? updates.negative_prompt) || null);
-        }
-
-        if ('seed' in updates) {
-            query += ', seed = ?';
-            params.push(updates.seed ?? null);
-        }
-
-        if ('generationMode' in updates || 'generationType' in updates) {
-            query += ', generation_type = ?';
-            params.push(updates.generationMode ?? updates.generationType ?? null);
-        }
-
-        // SPECIAL CASE: Model name is also denormalized for filtering
-        if ('overrideModel' in updates) {
-            query += ', resolved_model_name = ?';
-            params.push(updates.overrideModel);
-        } else if ('model' in updates) {
-            query += ', resolved_model_name = ?';
-            params.push(updates.model);
-        }
-
-        query += ' WHERE id = ? AND id IN (SELECT id FROM scoped_images)';
-        params.push(normalizedId);
-
-        const result = await db.execute(query, params);
-        assertMutationMatched(result, normalizedId, 'Updating metadata');
-    });
-};
-
-
-/**
- * Reverts the entire metadata_json for an image to its original state (if stored) 
- * or effectively clears all user-applied overrides by setting metadata_json to null.
- * Also resets denormalized columns like 'tool'.
- */
-export const revertImageMetadata = async (id: string) => {
-    if (isBrowserMockMode()) return;
-
-    await dbMutex.dispatch(async () => {
-        const db = await getDb();
-        const normalizedId = normalizePath(id);
-
-        // 1. Fetch the original parsed metadata (already parsed, no re-parsing needed!)
-        const rows = await db.select<OriginalParsedMetadataRow[]>('SELECT original_parsed_json FROM scoped_images WHERE id = ?', [normalizedId]);
-        if (rows.length === 0) {
-            throw new Error(`Reverting metadata failed because the asset was not found: ${normalizedId}`);
-        }
-        const img = rows[0];
-
-        if (!img.original_parsed_json) {
-            // If no original parsed metadata, just clear overrides
-            const result = await db.execute(`
-                UPDATE images 
-                SET metadata_json = NULL,
-                    tool = NULL,
-                    model_hash = NULL,
-                    model_name = NULL,
-                    resolved_model_name = NULL,
-                    seed = NULL,
-                    generation_type = NULL,
-                    positive_prompt = NULL,
-                    negative_prompt = NULL
-                WHERE id = ? AND id IN (SELECT id FROM scoped_images)
-            `, [normalizedId]);
-            assertMutationMatched(result, normalizedId, 'Reverting metadata');
-            return;
-        }
-
-        let originalMetadata: Partial<ImageMetadata> & {
-            positive_prompt?: string;
-            negative_prompt?: string;
-        };
-        try {
-            originalMetadata = JSON.parse(img.original_parsed_json) as typeof originalMetadata;
-        } catch (error) {
-            console.error('[DB] Failed to parse original metadata:', error);
-            const result = await db.execute(
-                'UPDATE images SET metadata_json = NULL, seed = NULL, generation_type = NULL, positive_prompt = NULL, negative_prompt = NULL WHERE id = ? AND id IN (SELECT id FROM scoped_images)',
-                [normalizedId]
-            );
-            assertMutationMatched(result, normalizedId, 'Reverting metadata');
-            return;
-        }
-
-        // SAFEGUARD: Ensure the image doesn't disappear from the UI after revert.
-        originalMetadata.isIntermediate = false;
-
-        // 2. Update metadata_json and denormalized columns with the baseline
-        // CRITICAL: Set metadata_json = original_parsed_json to ensure they match exactly
-        const result = await db.execute(`
-                UPDATE images 
-                SET metadata_json = ?,
-                    model_hash = ?,
-                    model_name = ?,
-                    tool = ?,
-                    resolved_model_name = ?,
-                    seed = ?,
-                    positive_prompt = ?,
-                    negative_prompt = ?,
-                    generation_type = ?
-                WHERE id = ? AND id IN (SELECT id FROM scoped_images)
-            `, [
-                img.original_parsed_json, // Use the exact same JSON string!
-                originalMetadata.modelHash || null,
-                originalMetadata.model || null,
-                originalMetadata.tool || GeneratorTool.UNKNOWN,
-                originalMetadata.model || null, // resolved_model_name matches model_name on revert
-                originalMetadata.seed ?? null,
-                originalMetadata.positivePrompt ?? originalMetadata.positive_prompt ?? null,
-                originalMetadata.negativePrompt ?? originalMetadata.negative_prompt ?? null,
-                originalMetadata.generationMode ?? originalMetadata.generationType ?? null,
-                normalizedId
-            ]);
-        assertMutationMatched(result, normalizedId, 'Reverting metadata');
     });
 };
 

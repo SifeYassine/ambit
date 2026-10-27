@@ -47,7 +47,6 @@ import { getImageWithFullMetadata } from './services/db/imageRepo';
 import { INVOKE_REFERENCE_QUERY_KEY } from './services/db/invokeReferenceRepo';
 import type { ActiveImageStateAdapter } from './hooks/activeImageState';
 import { getEffectiveMaskedKeywords, isImageMasked } from './utils/maskingUtils';
-import { useLibraryModelOptions } from './features/viewer/hooks/useLibraryModelOptions';
 import { startupDiagnostics } from './utils/startupDiagnostics';
 import { commands } from './bindings';
 import { isTauriRuntime } from './services/runtime';
@@ -63,7 +62,6 @@ interface RetainedLibraryPresentation {
     totalImages: number;
     scopeTotal: number | null;
     scopeName: string;
-    availableTags: string[];
     activeCollection: Collection | null;
     activeSmartCollection: SmartCollection | null;
 }
@@ -95,7 +93,6 @@ export default function App() {
     const queryClient = useQueryClient();
     const modals = useModalManager();
     const appVersion = useAppVersion();
-    const modelOptions = useLibraryModelOptions();
 
     // --- Interaction State ---
     const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -536,12 +533,6 @@ export default function App() {
         modals.openModal('addToCollection');
     }, [modals]);
 
-    const handleViewerSearch = useCallback((term: string) => {
-        void import('./utils/filterUtils').then(({ parseAndApplyFilter }) => {
-            parseAndApplyFilter(term, setFilters);
-        });
-        setRecentSearches(prev => [term, ...prev.filter(search => search !== term)].slice(0, 8));
-    }, [setFilters, setRecentSearches]);
     const submitNavbarSearch = useCallback((query: string) => {
         if (!query.trim()) {
             void submitSearch(query);
@@ -590,7 +581,6 @@ export default function App() {
         totalImages,
         scopeTotal,
         scopeName,
-        availableTags,
         activeCollection,
         activeSmartCollection,
     };
@@ -931,17 +921,14 @@ export default function App() {
                 workspaceRef={workspaceRef}
                 scrollContainerRef={scrollContainerRef}
                 images={libraryPresentation.images}
-                modelOptions={modelOptions}
                 handlers={{ ...handlers, setImages, setContextMenu }}
                 setViewingImageId={setViewingImageId}
                 onMaintenanceViewerOpenChange={setIsMaintenanceViewerOpen}
                 onOpenReferencedImage={handleOpenReferencedImage}
-                onViewerSearch={handleViewerSearch}
                 isViewerShortcutBlocked={isViewerShortcutBlocked}
 
                 toggleFavorite={toggleFavorite}
                 actions={actions}
-                availableTags={libraryPresentation.availableTags}
                 selectedIds={selectedIds}
                 handleImageClick={handleViewerImageClick}
                 setSelectedImageIndex={setSelectedImageIndex}
@@ -1010,7 +997,6 @@ export default function App() {
                         modals.setCollectionToDelete(null);
                     }
                 }}
-                onRecoverMetadata={actions.executeMetadataRecovery}
                 onCollectionAction={async (ids, targetId, mode, sourceId) => {
                     if (mode === 'move' && sourceId) {
                         await colOps.moveImagesBetweenCollections(ids, sourceId, targetId);
@@ -1025,7 +1011,6 @@ export default function App() {
                 collectionToDeleteId={modals.collectionToDelete}
                 addToCollectionMode={modals.addToCollectionMode}
                 sourceCollectionId={modals.sourceCollectionId}
-                isRecoveringMetadata={fileOps.isRecoveringMetadata}
                 isExporting={fileOps.isExporting}
                 slideshowShuffle={modals.slideshowShuffle}
                 initialSettingsTab={modals.initialSettingsTab}
@@ -1110,14 +1095,6 @@ export default function App() {
                             onToggleFavorite={(id) => actions.handleFavoriteImage(id, { showToast: false })}
                             onTogglePin={(id, pinned) => actions.handlePinImage(id, pinned, { showToast: false })}
                             onDelete={(id) => actions.handleDeleteViewerImage(id)}
-                            onUpdatePrompt={(id, prompt) => handlers.handleUpdatePrompt(id, prompt)}
-                            onUpdateNegativePrompt={(id, prompt) => handlers.handleUpdateNegativePrompt(id, prompt)}
-                            onUpdateModel={(id, model) => handlers.handleUpdateModel(id, model)}
-                            onUpdateTool={(id, tool) => handlers.handleUpdateTool(id, tool)}
-                            onUpdateGenerationMode={(id, mode) => handlers.handleUpdateVideoGenerationMode(id, mode)}
-                            onRevertMetadata={(id) => handlers.handleRevertMetadata(id)}
-                            onSearch={handleViewerSearch}
-                            modelOptions={modelOptions}
                             isShortcutBlocked={isViewerShortcutBlocked}
                             canNavigatePrevious={selectedImageIndex !== null && selectedImageIndex > 0}
                             canNavigateNext={selectedImageIndex !== null && selectedImageIndex < viewerImages.length - 1}
@@ -1151,19 +1128,10 @@ export default function App() {
                             }}
                             canNavigateNext={selectedImageIndex !== null && selectedImageIndex < viewerImages.length - 1}
                             canNavigatePrevious={selectedImageIndex !== null && selectedImageIndex > 0}
-                            onUpdatePrompt={(id, prompt) => handlers.handleUpdatePrompt(id, prompt)}
-                            onUpdateNegativePrompt={(id, neg) => handlers.handleUpdateNegativePrompt(id, neg)}
-                            onUpdateModel={(id, model) => handlers.handleUpdateModel(id, model)}
-                            onUpdateTool={(id, tool) => handlers.handleUpdateTool(id, tool)}
                             onToggleFavorite={(id) => actions.handleFavoriteImage(id, { showToast: false })}
                             onTogglePin={(id, p) => actions.handlePinImage(id, p, { showToast: false })}
                             onDelete={(id) => actions.handleDeleteViewerImage(id)}
                             onOpenSettings={() => { modals.setInitialSettingsTab('intelligence'); modals.openModal('settings'); }}
-                            onSearch={handleViewerSearch}
-                            onRevertMetadata={(id) => handlers.handleRevertMetadata(id)}
-                            onRecoverMetadata={() => actions.openMetadataRecovery()}
-                            availableTags={libraryPresentation.availableTags}
-                            modelOptions={modelOptions}
                             isSidebarOpen={!settings.defaultTheaterMode}
                             onToggleSidebar={() => setSettings(p => ({ ...p, defaultTheaterMode: !p.defaultTheaterMode }))}
                             searchHighlights={searchHighlights}

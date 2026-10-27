@@ -2,7 +2,7 @@ import * as React from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { ExternalLink, Film, Heart, Link, Pin, Puzzle, RotateCcw, RotateCw, Save, Target, Trash2, X } from 'lucide-react';
 import { commands } from '../../../bindings';
-import { GeneratorTool, isVideoAsset, VideoAsset, type VideoGenerationMode } from '../../../types';
+import { isVideoAsset, VideoAsset, type VideoGenerationMode } from '../../../types';
 import { openFileInDefaultApp } from '../../../services/osOpen';
 import { getImageWithFullMetadata, updateVideoPlaybackStatus } from '../../../services/db/imageRepo';
 import { unwrap } from '../../../utils/spectaUtils';
@@ -32,6 +32,16 @@ const VIDEO_VIEWER_TABS: readonly ViewerTabDefinition<VideoViewerTab>[] = [
 ];
 const VIDEO_VIEWER_TAB_IDS = VIDEO_VIEWER_TABS.map(tab => tab.id);
 
+const GENERATION_MODE_LABELS: Partial<Record<VideoGenerationMode, string>> = {
+    unknown: 'Unknown',
+    text_to_video: 'Text to video',
+    image_to_video: 'Image to video',
+    first_last_frame_to_video: 'First/last frame',
+    video_editing: 'Video editing',
+    audio_lip_sync: 'Audio / lip sync',
+    guided_video: 'Guided video',
+};
+
 interface VideoViewerProps {
     video: VideoAsset;
     isMasked: boolean;
@@ -42,14 +52,6 @@ interface VideoViewerProps {
     onToggleFavorite?: (id: string) => void;
     onTogglePin?: (id: string, isPinned: boolean) => void;
     onDelete?: (id: string) => void;
-    onUpdatePrompt?: (id: string, prompt: string) => void;
-    onUpdateNegativePrompt?: (id: string, prompt: string) => void;
-    onUpdateModel?: (id: string, model: string) => void;
-    onUpdateTool?: (id: string, tool: GeneratorTool) => void;
-    onUpdateGenerationMode?: (id: string, mode: VideoGenerationMode) => void;
-    onRevertMetadata?: (id: string) => void;
-    onSearch?: (term: string) => void;
-    modelOptions?: readonly string[];
     isShortcutBlocked?: boolean;
     canNavigateNext?: boolean;
     canNavigatePrevious?: boolean;
@@ -65,14 +67,6 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
     onToggleFavorite,
     onTogglePin,
     onDelete,
-    onUpdatePrompt,
-    onUpdateNegativePrompt,
-    onUpdateModel,
-    onUpdateTool,
-    onUpdateGenerationMode,
-    onRevertMetadata,
-    onSearch,
-    modelOptions = [],
     isShortcutBlocked = false,
     canNavigateNext = true,
     canNavigatePrevious = true,
@@ -91,13 +85,11 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
         url: null as string | null,
     });
     const { activeTab, onExplicitTabChange } = useViewerPreferredTab(VIDEO_VIEWER_TAB_IDS);
-    const [positivePromptState, setPositivePromptState] = React.useState({ videoId: video.id, value: video.metadata.positivePrompt });
-    const [negativePromptState, setNegativePromptState] = React.useState({ videoId: video.id, value: video.metadata.negativePrompt });
     const [fullVideo, setFullVideo] = React.useState<VideoAsset | null>(null);
     const playbackStatus = playbackState.videoId === video.id ? playbackState.status : video.playbackStatus;
     const playbackUrl = playbackState.videoId === video.id ? playbackState.url : null;
-    const positivePrompt = positivePromptState.videoId === video.id ? positivePromptState.value : video.metadata.positivePrompt;
-    const negativePrompt = negativePromptState.videoId === video.id ? negativePromptState.value : video.metadata.negativePrompt;
+    const positivePrompt = video.metadata.positivePrompt;
+    const negativePrompt = video.metadata.negativePrompt;
 
     React.useEffect(() => {
         setRevealedVideoId(initiallyRevealed ? video.id : null);
@@ -110,11 +102,6 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
             url: current.videoId === video.id ? current.url : null,
         }));
     }, [video.id, video.playbackStatus]);
-
-    React.useEffect(() => {
-        setPositivePromptState({ videoId: video.id, value: video.metadata.positivePrompt });
-        setNegativePromptState({ videoId: video.id, value: video.metadata.negativePrompt });
-    }, [video.id, video.metadata]);
 
     React.useEffect(() => {
         if (!revealed || video.isMissing) {
@@ -162,7 +149,6 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
         () => getModelPresentation(metadataVideo.metadata),
         [metadataVideo.metadata]
     );
-    const hasUserOverrides = Object.values(metadataVideo.metadata.fieldSources ?? {}).includes('user_override');
 
     React.useEffect(() => {
         if (!revealed || video.isMissing) return;
@@ -370,51 +356,18 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
                     <MetadataTextAreaField
                         kind="positivePrompt"
                         value={positivePrompt}
-                        onChange={event => setPositivePromptState({ videoId: video.id, value: event.target.value })}
-                        onBlur={() => {
-                            if (positivePrompt !== (metadataVideo.metadata.positivePrompt ?? '')) {
-                                onUpdatePrompt?.(video.id, positivePrompt);
-                            }
-                        }}
                         source={metadataVideo.metadata.fieldSources?.positivePrompt}
-                        readOnly={!onUpdatePrompt}
                     />
                     <MetadataTextAreaField
                         kind="negativePrompt"
                         value={negativePrompt}
-                        onChange={event => setNegativePromptState({ videoId: video.id, value: event.target.value })}
-                        onBlur={() => {
-                            if (negativePrompt !== (metadataVideo.metadata.negativePrompt ?? '')) {
-                                onUpdateNegativePrompt?.(video.id, negativePrompt);
-                            }
-                        }}
                         source={metadataVideo.metadata.fieldSources?.negativePrompt}
-                        readOnly={!onUpdateNegativePrompt}
                     />
                     <MetadataField label="Generation mode" icon={Film} source={metadataVideo.metadata.fieldSources?.generationMode}>
-                        <select aria-label="Generation mode" value={metadataVideo.metadata.generationMode ?? 'unknown'} disabled={!onUpdateGenerationMode} onChange={event => onUpdateGenerationMode?.(video.id, event.target.value as VideoGenerationMode)} className="w-full rounded-lg border border-gray-200 bg-white p-2.5 text-gray-900 disabled:cursor-default disabled:opacity-80 dark:border-white/10 dark:bg-black dark:text-white">
-                            <option value="unknown">Unknown</option>
-                            <option value="text_to_video">Text to video</option>
-                            <option value="image_to_video">Image to video</option>
-                            <option value="first_last_frame_to_video">First/last frame</option>
-                            <option value="video_editing">Video editing</option>
-                            <option value="audio_lip_sync">Audio / lip sync</option>
-                            <option value="guided_video">Guided video</option>
-                        </select>
+                        <div aria-label="Generation mode" className="w-full rounded-lg border border-gray-200 bg-white p-2.5 text-sm font-medium text-gray-700 dark:border-white/10 dark:bg-zinc-800/50 dark:text-zinc-200">{GENERATION_MODE_LABELS[metadataVideo.metadata.generationMode ?? 'unknown'] ?? metadataVideo.metadata.generationMode}</div>
                     </MetadataField>
-                    <MetadataGeneratorField
-                        key={`generator:${metadataVideo.id}`}
-                        value={metadataVideo.metadata.tool}
-                        source={metadataVideo.metadata.fieldSources?.tool}
-                        onSave={onUpdateTool ? value => onUpdateTool(video.id, value) : undefined}
-                    />
-                    <MetadataModelField
-                        key={`model:${metadataVideo.id}`}
-                        presentation={modelPresentation}
-                        options={modelOptions}
-                        source={metadataVideo.metadata.fieldSources?.model}
-                        onSave={onUpdateModel ? value => onUpdateModel(video.id, value) : undefined}
-                    />
+                    <MetadataGeneratorField value={metadataVideo.metadata.tool} source={metadataVideo.metadata.fieldSources?.tool} />
+                    <MetadataModelField presentation={modelPresentation} source={metadataVideo.metadata.fieldSources?.model} />
                     <MetadataParameterList rows={[
                         { label: 'Seed', value: metadataVideo.metadata.seed?.toString() || 'Unknown', source: metadataVideo.metadata.fieldSources?.seed },
                         { label: 'Steps', value: metadataVideo.metadata.steps > 0 ? metadataVideo.metadata.steps.toString() : 'Unknown', source: metadataVideo.metadata.fieldSources?.steps },
@@ -424,18 +377,15 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
                     ]} expanded={metadataDisclosure.isExpanded('generationParameters')} onExpandedChange={expanded => metadataDisclosure.setExpanded('generationParameters', expanded)} />
                     <ResourcesSection
                         groups={[
-                            { title: 'LoRAs', icon: Puzzle, filterKind: 'lora', items: metadataVideo.metadata.loras, source: metadataVideo.metadata.fieldSources?.loras },
-                            { title: 'ControlNets', icon: Target, filterKind: 'controlnet', items: metadataVideo.metadata.controlNets, source: metadataVideo.metadata.fieldSources?.controlNets },
-                            { title: 'IP adapters', icon: Link, filterKind: 'ipadapter', items: metadataVideo.metadata.ipAdapters, source: metadataVideo.metadata.fieldSources?.ipAdapters },
+                            { title: 'LoRAs', icon: Puzzle, items: metadataVideo.metadata.loras, source: metadataVideo.metadata.fieldSources?.loras },
+                            { title: 'ControlNets', icon: Target, items: metadataVideo.metadata.controlNets, source: metadataVideo.metadata.fieldSources?.controlNets },
+                            { title: 'IP adapters', icon: Link, items: metadataVideo.metadata.ipAdapters, source: metadataVideo.metadata.fieldSources?.ipAdapters },
                         ]}
-                        onSearch={onSearch}
-                        onClose={onClose}
                         expanded={metadataDisclosure.isExpanded('resources')}
                         onExpandedChange={expanded => metadataDisclosure.setExpanded('resources', expanded)}
                     />
                     {metadataVideo.metadata.conflicts && metadataVideo.metadata.conflicts.length > 0 && <section className="rounded-lg border border-ember-200 bg-ember-50 p-3 text-xs dark:border-ember-500/30 dark:bg-ember-500/10"><h3 className="font-bold text-ember-600 dark:text-ember-300">Conflicting evidence</h3>{metadataVideo.metadata.conflicts.map((conflict, index) => <p key={`${conflict.field}:${index}`} className="mt-2 text-gray-700 dark:text-zinc-300">{conflict.field}: ignored {conflict.ignoredValue} from {formatSource(conflict.ignoredSource)}</p>)}</section>}
                     {metadataVideo.metadata.diagnostics && metadataVideo.metadata.diagnostics.length > 0 && <section className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs dark:border-white/10 dark:bg-black"><h3 className="font-bold">Diagnostics</h3>{metadataVideo.metadata.diagnostics.map(diagnostic => <p key={diagnostic.code} className="mt-2 text-gray-600 dark:text-zinc-400">{diagnostic.message}</p>)}</section>}
-                    {onRevertMetadata && hasUserOverrides ? <button type="button" onClick={() => onRevertMetadata(video.id)} className="w-full rounded-lg border border-gray-200 px-3 py-2 font-bold hover:bg-gray-100 dark:border-white/10 dark:hover:bg-white/10">Revert user overrides</button> : null}
                 </div>}
 
                 {activeTab === 'workflow' && (metadataVideo.metadata.workflowJson

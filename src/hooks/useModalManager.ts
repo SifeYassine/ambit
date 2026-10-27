@@ -8,7 +8,6 @@ export type ModalKey =
     | 'compare'
     | 'shortcuts'
     | 'onboarding'
-    | 'recovery'
     | 'slideshow'
     | 'donation'
     | 'export'
@@ -24,7 +23,6 @@ export const useModalManager = () => {
         compare: false,
         shortcuts: false,
         onboarding: false,
-        recovery: false,
         slideshow: false,
         donation: false,
         export: false,
@@ -52,7 +50,6 @@ export const useModalManager = () => {
         compare: false,
         shortcuts: false,
         onboarding: false,
-        recovery: false,
         slideshow: false,
         donation: false,
         export: false,

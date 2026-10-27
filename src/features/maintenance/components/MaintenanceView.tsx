@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AIImage, GeneratorTool, isVideoAsset, type VideoGenerationMode } from '../../../types';
+import { AIImage, isVideoAsset } from '../../../types';
 import { DuplicateFinder } from './DuplicateFinder';
 import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
 import { ImageViewer } from '../../../features/viewer/components/ImageViewer';
@@ -40,22 +40,12 @@ interface MaintenanceViewProps {
     onViewImage: (id: string) => void;
     onRegenerateThumbnails?: (ids?: string[]) => void;
     maskedKeywords: string[];
-    onUpdatePrompt?: (id: string, prompt: string) => void;
-    onUpdateNegativePrompt?: (id: string, prompt: string) => void;
-    onUpdateModel?: (id: string, model: string) => void;
-    onUpdateTool?: (id: string, tool: GeneratorTool) => void;
-    onUpdateGenerationMode?: (id: string, mode: VideoGenerationMode) => void;
-    onRevertMetadata?: (id: string) => void;
-    onSearch: (term: string) => void;
     onOpenSettings: () => void;
-    onRecoverMetadata?: (targetId: string, onRecovered: (image: AIImage) => void) => void;
     onToggleFavorite?: (id: string) => void;
     onTogglePin?: (id: string, isPinned: boolean) => void;
-    availableTags?: string[];
     onViewerOpenChange: (isOpen: boolean) => void;
     onOpenReferencedImage: (imageId: string) => Promise<boolean>;
     isShortcutBlocked: boolean;
-    modelOptions?: readonly string[];
 }
 
 // Lazy load LibraryHealth
@@ -69,22 +59,12 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
     onDeleteFile,
     onRegenerateThumbnails,
     maskedKeywords,
-    onUpdatePrompt,
-    onUpdateNegativePrompt,
-    onUpdateModel,
-    onUpdateTool,
-    onUpdateGenerationMode,
-    onRevertMetadata,
-    onSearch,
     onOpenSettings,
-    onRecoverMetadata,
     onToggleFavorite,
     onTogglePin,
-    availableTags,
     onViewerOpenChange,
     onOpenReferencedImage,
     isShortcutBlocked,
-    modelOptions = []
 }) => {
     // --- State ---
     const [activeTab, setActiveTabOriginal] = useState<MaintenanceTab>('missing');
@@ -108,7 +88,6 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
     const [viewingImageId, setViewingImageId] = useState<string | null>(null);
     const [viewerRevealGrantId, setViewerRevealGrantId] = useState<string | null>(null);
     const [compareImages, setCompareImages] = useState<[AIImage, AIImage] | null>(null);
-    const [recoveredImages, setRecoveredImages] = useState<Map<string, AIImage>>(() => new Map());
     const [removedAction, setRemovedAction] = useState<'restoring' | 'deleting' | null>(null);
     const privacyEnabled = useSettingsStore(state => state.privacyEnabled);
     const [deleteConfirmationIds, setDeleteConfirmationIds] = useState<string[] | null>(null);
@@ -209,16 +188,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
         const image = allPool.find(i => i.id === viewingImageId) || null;
         if (!image) return null;
         if (image.id === removedViewerId) return removedViewerImage ?? image;
-        return recoveredImages.get(image.id) ?? image;
-    }, [removedViewerId, removedViewerImage, viewingImageId, missingImages, localUntaggedImages, localDeletedImages, localUnoptimizedImages, localDuplicateCandidates, localIntermediateImages, activeImages, recoveredImages]);
-
-    const handleRecoveredImage = useCallback((image: AIImage) => {
-        setRecoveredImages(previous => {
-            const next = new Map(previous);
-            next.set(image.id, image);
-            return next;
-        });
-    }, []);
+        return image;
+    }, [removedViewerId, removedViewerImage, viewingImageId, missingImages, localUntaggedImages, localDeletedImages, localUnoptimizedImages, localDuplicateCandidates, localIntermediateImages, activeImages]);
 
     // --- Selection Hook ---
     const {
@@ -809,14 +780,6 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                         onToggleFavorite={activeTab === 'trash' || !onToggleFavorite ? undefined : onToggleFavorite}
                         onTogglePin={activeTab === 'trash' ? undefined : onTogglePin}
                         onDelete={activeTab === 'trash' ? undefined : () => { void handleViewerCleanup(); }}
-                        onUpdatePrompt={activeTab === 'trash' ? undefined : onUpdatePrompt}
-                        onUpdateNegativePrompt={activeTab === 'trash' ? undefined : onUpdateNegativePrompt}
-                        onUpdateModel={activeTab === 'trash' ? undefined : onUpdateModel}
-                        onUpdateTool={activeTab === 'trash' ? undefined : onUpdateTool}
-                        onUpdateGenerationMode={activeTab === 'trash' ? undefined : onUpdateGenerationMode}
-                        onRevertMetadata={activeTab === 'trash' ? undefined : onRevertMetadata}
-                        onSearch={onSearch}
-                        modelOptions={modelOptions}
                         isShortcutBlocked={isShortcutBlocked}
                         canNavigatePrevious={currentList.findIndex(item => item.id === viewingImageId) > 0}
                         canNavigateNext={currentList.findIndex(item => item.id === viewingImageId) < currentList.length - 1}
@@ -843,19 +806,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                                 setViewingImageId(currentList[idx - 1].id);
                             }
                         }}
-                        onSearch={onSearch}
                         onToggleFavorite={activeTab === 'trash' || !onToggleFavorite ? undefined : onToggleFavorite}
                         onTogglePin={activeTab === 'trash' ? undefined : onTogglePin}
-                        onUpdatePrompt={activeTab === 'trash' ? undefined : onUpdatePrompt}
-                        onUpdateNegativePrompt={activeTab === 'trash' ? undefined : onUpdateNegativePrompt}
-                        onUpdateModel={activeTab === 'trash' ? undefined : onUpdateModel}
-                        onUpdateTool={activeTab === 'trash' ? undefined : onUpdateTool}
-                        onRevertMetadata={activeTab === 'trash' ? undefined : onRevertMetadata}
-                        onRecoverMetadata={activeTab === 'trash' || !onRecoverMetadata
-                            ? undefined
-                            : () => onRecoverMetadata(viewingImageId, handleRecoveredImage)}
-                        availableTags={availableTags}
-                        modelOptions={modelOptions}
                         onOpenSettings={onOpenSettings}
                         onDelete={activeTab === 'trash' ? undefined : handleViewerCleanup}
                         onOpenReferencedImage={handleOpenReferencedImage}

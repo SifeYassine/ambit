@@ -16,10 +16,7 @@ const image = (metadata: Partial<AIImage['metadata']> = {}): AIImage => ({
 
 const setup = (activeTab: 'metadata' | 'workflow', target = image()) => {
     const props: React.ComponentProps<typeof MetadataSidebar> = {
-        image: target, activeTab, setActiveTab: vi.fn(), availableTags: [],
-        promptValue: 'prompt', setPromptValue: vi.fn(), negativePromptValue: 'negative', setNegativePromptValue: vi.fn(),
-        onUpdatePrompt: vi.fn(), onUpdateNegativePrompt: vi.fn(), onUpdateModel: vi.fn(), onUpdateTool: vi.fn(),
-        onSearch: vi.fn(), onClose: vi.fn(), onRecoverMetadata: vi.fn(), onRevertMetadata: vi.fn(),
+        image: target, activeTab, setActiveTab: vi.fn(),
         onAIAnalysis: vi.fn(), onGenerateVariations: vi.fn(), isAnalyzing: false, onOpenAIResult: vi.fn(),
     };
     return { ...render(<MetadataSidebar {...props} />), props };
@@ -77,19 +74,6 @@ describe('MetadataSidebar', () => {
         expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Metadata', 'Workflow']);
         fireEvent.click(screen.getByRole('tab', { name: 'Workflow' }));
         expect(props.setActiveTab).toHaveBeenCalledWith('workflow');
-    });
-
-    it('forwards metadata and workflow contracts and hides unsupported workflow tabs', () => {
-        const metadata = setup('metadata', image({ hasWorkflowHint: false }));
-        expect(screen.getByText('metadata-content')).toBeTruthy();
-        expect(screen.getByText('metadata-content').parentElement?.className).toContain('flex-col');
-        expect(screen.queryByRole('tab', { name: 'Workflow' })).toBeNull();
-        expect(captures.metadata).toHaveBeenCalledWith(expect.objectContaining({ promptValue: 'prompt', onUpdatePrompt: metadata.props.onUpdatePrompt }));
-        metadata.unmount();
-
-        const workflow = setup('workflow', image({ hasWorkflowHint: true }));
-        expect(screen.getByText('workflow-content')).toBeTruthy();
-        expect(captures.workflow).toHaveBeenCalledWith(expect.objectContaining({ image: workflow.props.image }));
     });
 
     it('falls back to Metadata when navigation removes the active Workflow tab', () => {

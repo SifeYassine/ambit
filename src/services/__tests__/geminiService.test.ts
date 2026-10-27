@@ -5,7 +5,6 @@ import {
     generatePromptVariations,
     generateTitleFromPrompt,
     getGeminiThinkingConfig,
-    recoverImageMetadata,
     verifyApiKey,
 } from '../geminiService';
 
@@ -126,49 +125,6 @@ describe('geminiService: thinking configuration', () => {
         expect(getGeminiThinkingConfig('gemini-3.1-pro-preview', 'minimal')).toBeUndefined();
         expect(getGeminiThinkingConfig('gemini-2.5-pro', 'off')).toBeUndefined();
     });
-
-    it('applies Gemini 3 thinking effort to every Ambit AI workflow', async () => {
-        mockGenerateContent
-            .mockResolvedValueOnce({ text: 'analysis' })
-            .mockResolvedValueOnce({ text: '["variation"]' })
-            .mockResolvedValueOnce({ text: 'Title' })
-            .mockResolvedValueOnce({ text: '{}' })
-            .mockResolvedValueOnce({ text: '{"positivePrompt":"recovered"}' });
-
-        await analyzePromptAndSuggest('prompt', 'key', 'gemini-3.5-flash', undefined, 'low');
-        await generatePromptVariations('prompt', 'key', 'gemini-3.5-flash', undefined, 'low');
-        await generateTitleFromPrompt('prompt', 'key', 'gemini-3.5-flash', undefined, 'low');
-        await generateFiltersFromQuery('query', 'key', 'gemini-3.5-flash', undefined, 'low');
-        await recoverImageMetadata('data:image/png;base64,abc', 'generic', 'key', 'gemini-3.5-flash', undefined, 'low');
-
-        expect(mockGenerateContent).toHaveBeenCalledTimes(5);
-        for (const [request] of mockGenerateContent.mock.calls) {
-            expect(request.config).toEqual(expect.objectContaining({
-                thinkingConfig: { thinkingLevel: 'LOW' },
-            }));
-        }
-    });
-});
-
-describe('geminiService: image recovery', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
-    it('preserves the image MIME type when sending local image data to Gemini', async () => {
-        mockGenerateContent.mockResolvedValue({ text: '{"positivePrompt":"recovered"}' });
-
-        await recoverImageMetadata('data:image/jpeg;base64,abc', 'generic', 'key');
-
-        expect(mockGenerateContent).toHaveBeenCalledWith(expect.objectContaining({
-            contents: {
-                parts: [
-                    { inlineData: { mimeType: 'image/jpeg', data: 'abc' } },
-                    expect.objectContaining({ text: expect.any(String) })
-                ]
-            }
-        }));
-    });
 });
 
 describe('geminiService: fallback behavior', () => {
@@ -265,20 +221,5 @@ describe('geminiService: fallback behavior', () => {
             config: expect.not.objectContaining({ thinkingConfig: expect.anything() })
         }));
         expect(mockGenerateContent.mock.calls[1][0].contents).toContain('Find query on ');
-    });
-
-    it('rejects invalid and missing recovery payloads while supporting raw base64 and style fallback', async () => {
-        mockGenerateContent.mockResolvedValueOnce({ text: '{"negativePrompt":"missing positive"}' });
-        await expect(recoverImageMetadata('raw-base64', 'missing-style' as never, 'key')).rejects.toThrow(
-            'Failed to validate Gemini response'
-        );
-        expect(mockGenerateContent).toHaveBeenLastCalledWith(expect.objectContaining({
-            contents: expect.objectContaining({
-                parts: expect.arrayContaining([{ inlineData: { mimeType: 'image/png', data: 'raw-base64' } }])
-            })
-        }));
-
-        mockGenerateContent.mockResolvedValueOnce({ text: '' });
-        await expect(recoverImageMetadata('raw-base64', 'generic', 'key')).rejects.toThrow('Failed to generate metadata');
     });
 });

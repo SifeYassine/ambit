@@ -39,25 +39,6 @@ export const AI_PROMPTS = {
             2. 'dateRange': If the user mentions "today", set dateRange to 'today'. "Last 7 days" -> 'week'. "Last 30 days" -> 'month'. For concrete calendar dates like "yesterday", "April 2026", or "2026-04-15", set dateRange to 'custom' and return absolute dateFrom/dateTo.
             3. 'favoritesOnly': Set to true if "favorites", "liked", or "best" is mentioned.
             4. 'tools'/'models': Match loosely.
-            `,
-
-    RECOVERY_GENERIC: `Analyze this image. {{stylePrompt}}
-    
-    IMPORTANT: 
-    1. Do NOT guess technical parameters (CFG, Steps, Seed) as they are impossible to know from visual inspection. Return 0 for them.
-    2. Do NOT guess the Model Architecture unless there is clear visual evidence (e.g. text watermark). Default 'model' to "Unknown".
-    3. Default 'tool' to "Unknown".
-    4. Provide a generic safety 'negativePrompt' (e.g., 'low quality, blurry, watermark').
-    
-    Return the result as JSON.
-    `
+            `
 } as const;
-
-export const RECOVERY_STYLES = {
-    midjourney: "Format the output as a Midjourney v6 prompt. Use --v 6 syntax parameters if applicable. Focus on artistic style, lighting, and composition.",
-    sdxl: "Format the output as a Stable Diffusion XL (SDXL) prompt. Use booru tags for key elements if helpful, but prioritize natural language description. Mention art style, artist references, and quality boosters (e.g. 'masterpiece, best quality').",
-    danbooru: "Format the output as a list of comma-separated Danbooru tags. Focus on character traits, clothing, background elements, and framing.",
-    generic: "Provide a detailed descriptive prompt that would generate this image. Include subject, medium, style, lighting, and color palette."
-} as const;
-
 export type AIPromptKey = keyof typeof AI_PROMPTS;

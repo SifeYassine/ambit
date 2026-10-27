@@ -7,14 +7,12 @@ import {
     Type,
     type ThinkingConfig
 } from "@google/genai";
-import { FilterState, RecoveryStyle, ImageMetadata, GeneratorTool, type AiThinkingMode } from "../types";
-import { AI_PROMPTS, AIPromptKey, RECOVERY_STYLES } from "../constants/aiPrompts";
+import { FilterState, type AiThinkingMode } from "../types";
+import { AI_PROMPTS, AIPromptKey } from "../constants/aiPrompts";
 import {
     GeminiFilterResponseSchema,
-    GeminiMetadataResponseSchema,
     PromptVariationsSchema,
-    safeParse,
-    isValidGeneratorTool
+    safeParse
 } from "../utils/validation";
 
 import {
@@ -254,75 +252,3 @@ export const generateFiltersFromQuery = async (
     }
 };
 
-/**
- * Reverse engineers a prompt from an image using Gemini Vision.
- */
-export const recoverImageMetadata = async (
-    base64Image: string,
-    style: RecoveryStyle,
-    apiKey: string,
-    modelId: string = DEFAULT_AI_MODEL,
-    prompts?: Record<string, string>,
-    thinkingMode: AiThinkingMode = DEFAULT_AI_THINKING_MODE
-): Promise<Partial<ImageMetadata>> => {
-    const ai = getAIClient(apiKey);
-
-    const stylePrompt = RECOVERY_STYLES[style] || RECOVERY_STYLES.generic;
-    const template = resolvePrompt('RECOVERY_GENERIC', prompts); // Use generic template key, could make specific keys if needed
-    // NOTE: For recovery, we are only templating the wrapping instruction. 
-    // The specific style instructions are still hardcoded in RECOVERY_STYLES for simplicity, 
-    // unless we want to explode that into multiple full prompt templates. 
-    // For now, let's keep it simple: The "Master Template" is exposed.
-
-    // We might need a slightly different template handling for recovery since it inserts `stylePrompt` mid-string.
-    // Let's use {{stylePrompt}} in the constant.
-    const prompt = template.replace('{{stylePrompt}}', stylePrompt);
-
-    const dataUrlMatch = /^data:([^;,]+);base64,(.*)$/s.exec(base64Image);
-    const mimeType = dataUrlMatch?.[1] || 'image/png';
-    const cleanBase64 = dataUrlMatch?.[2] || base64Image;
-    const thinkingConfig = getGeminiThinkingConfig(modelId, thinkingMode);
-
-    const response = await ai.models.generateContent({
-        model: modelId,
-        contents: {
-            parts: [
-                { inlineData: { mimeType, data: cleanBase64 } },
-                { text: prompt }
-            ]
-        },
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    positivePrompt: { type: Type.STRING },
-                    negativePrompt: { type: Type.STRING },
-                    cfg: { type: Type.NUMBER },
-                    steps: { type: Type.NUMBER },
-                    seed: { type: Type.NUMBER },
-                    model: { type: Type.STRING },
-                    tool: { type: Type.STRING }
-                },
-                required: ["positivePrompt"]
-            },
-            ...(thinkingConfig ? { thinkingConfig } : {})
-        }
-    });
-
-    if (response.text) {
-        const rawData = JSON.parse(response.text);
-        const validated = safeParse(GeminiMetadataResponseSchema, rawData);
-
-        if (!validated) {
-            throw new Error("Failed to validate Gemini response");
-        }
-
-        // SCOPE REDUCTION: Only return positivePrompt.
-        return {
-            positivePrompt: validated.positivePrompt
-        };
-    }
-
-    throw new Error("Failed to generate metadata");
-};

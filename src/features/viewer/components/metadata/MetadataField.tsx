@@ -7,7 +7,6 @@ interface MetadataFieldProps {
     label: string;
     icon: LucideIcon;
     source?: string;
-    modified?: boolean;
     children: React.ReactNode;
     className?: string;
 }
@@ -16,24 +15,16 @@ export const MetadataField: React.FC<MetadataFieldProps> = ({
     label,
     icon,
     source,
-    modified = false,
     children,
     className = '',
-}) => {
-    const isModified = modified || source === 'user_override';
-
-    return (
-        <section className={className}>
-            <MetadataSectionHeader
-                title={label}
-                icon={icon}
-                modified={isModified}
-                trailing={isModified || source
-                    ? <MetadataSourceBadge source={isModified ? 'user_override' : source} />
-                    : undefined}
-                className="mb-2"
-            />
-            {children}
-        </section>
-    );
-};
+}) => (
+    <section className={className}>
+        <MetadataSectionHeader
+            title={label}
+            icon={icon}
+            trailing={source ? <MetadataSourceBadge source={source} /> : undefined}
+            className="mb-2"
+        />
+        {children}
+    </section>
+);

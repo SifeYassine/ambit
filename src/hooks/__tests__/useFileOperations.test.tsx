@@ -113,13 +113,6 @@ describe('useFileOperations', () => {
         settings: mockSettings,
     }));
 
-    it('should initialize correctly', () => {
-        const { result } = renderFileOperations();
-
-        expect(result.current.isExporting).toBe(false);
-        expect(result.current.isRecoveringMetadata).toBe(false);
-    });
-
     describe('deleteImages', () => {
         it('should perform soft delete and update local state', async () => {
             const { removeImagesFromLibrary } = await import('../../services/db/imageRepo');

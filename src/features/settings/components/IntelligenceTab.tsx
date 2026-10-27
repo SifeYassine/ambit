@@ -136,7 +136,7 @@ export const IntelligenceTab: React.FC<TabProps> = React.memo(({ settings, setSe
                     >
                         <div className="min-w-0 pr-4">
                             <div className="text-base font-medium text-gray-900 transition-colors group-hover:text-amethyst-600 dark:text-gray-200 dark:group-hover:text-amethyst-300">Enable AI Features</div>
-                            <div className="text-sm text-gray-500">Unlocks natural language search, prompt analysis, and metadata recovery through on-demand Gemini requests.</div>
+                            <div className="text-sm text-gray-500">Unlocks natural language search, prompt analysis, and prompt variations through on-demand Gemini requests.</div>
                         </div>
                         <button
                             type="button"

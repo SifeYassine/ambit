@@ -37,20 +37,6 @@ export const GeminiFilterResponseSchema = z.object({
 
 export type GeminiFilterResponse = z.infer<typeof GeminiFilterResponseSchema>;
 
-/**
- * Schema for Gemini's recoverImageMetadata response
- */
-export const GeminiMetadataResponseSchema = z.object({
-    positivePrompt: z.string(),
-    negativePrompt: z.string().optional().default(''),
-    cfg: z.number().optional().default(0),
-    steps: z.number().optional().default(0),
-    seed: z.number().optional(),
-    model: z.string().optional().default('Unknown'),
-    tool: z.string().optional().default('Unknown'),
-});
-
-export type GeminiMetadataResponse = z.infer<typeof GeminiMetadataResponseSchema>;
 
 /**
  * Schema for prompt variations response (array of strings)

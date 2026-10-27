@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { AIImage, AppSettings, FilterState, Collection, RecoveryStyle, getDetectedSourceKind, isVideoAsset, type SourceKind } from '../types';
+import { AIImage, AppSettings, FilterState, Collection, getDetectedSourceKind, type SourceKind } from '../types';
 import { useToast } from './useToast';
 import { useSearchStore } from '../stores/searchStore';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -22,12 +22,11 @@ import type { ActiveImageStateAdapter } from './activeImageState';
 interface AppActionFileOps {
     deleteImages: (ids: string[]) => Promise<boolean>;
     exportImages: (filename: string, ids: Set<string> | string[], destinationFolder: string, onComplete?: () => void) => Promise<void>;
-    recoverMetadata?: (targetId: string, style: RecoveryStyle) => Promise<AIImage | null>;
 }
 
 interface AppActionModalManager {
-    openModal: (key: 'settings' | 'deleteConfirm' | 'recovery' | 'export') => void;
-    closeModal: (key: 'deleteConfirm' | 'recovery' | 'export') => void;
+    openModal: (key: 'settings' | 'deleteConfirm' | 'export') => void;
+    closeModal: (key: 'deleteConfirm' | 'export') => void;
     pendingViewerDeleteId: string | null;
     setPendingViewerDeleteId: React.Dispatch<React.SetStateAction<string | null>>;
     setInitialSettingsTab?: (tab: 'intelligence') => void;
@@ -52,11 +51,6 @@ interface SingleImageActionOptions {
     showToast?: boolean;
 }
 
-interface PendingMetadataRecovery {
-    targetId: string;
-    onRecovered?: (image: AIImage) => void;
-}
-
 export const useAppActions = ({
     viewingImageId,
     selectedImageIndex,
@@ -73,7 +67,6 @@ export const useAppActions = ({
 }: UseAppActionsProps) => {
     const { addToast } = useToast();
     const queryClient = useQueryClient();
-    const pendingMetadataRecoveryRef = React.useRef<PendingMetadataRecovery | null>(null);
 
     // Store access
     const images = useSearchStore(s => s.images);
@@ -393,70 +386,6 @@ export const useAppActions = ({
         addToast(next ? "Privacy Mode Enabled" : "Privacy Mode Disabled (Hidden/Blurred items revealed)", "info");
     };
 
-    const resolveMetadataRecoveryTargetId = (targetId?: string) => (
-        targetId
-        || viewingImageId
-        || (selectedImageIndex !== null ? viewerImages[selectedImageIndex]?.id : null)
-        || (selectedIds.size > 0 ? Array.from(selectedIds)[0] : null)
-    );
-
-    const openMetadataRecovery = (targetId?: string, onRecovered?: (image: AIImage) => void) => {
-        const resolvedTargetId = resolveMetadataRecoveryTargetId(targetId);
-        if (!resolvedTargetId) {
-            addToast('Select an image before starting Prompt Recovery.', 'error');
-            return;
-        }
-        const target = viewerImages.find(image => image.id === resolvedTargetId)
-            ?? images.find(image => image.id === resolvedTargetId);
-        if (target && isVideoAsset(target)) {
-            addToast('Prompt Recovery is currently image-only.', 'info');
-            return;
-        }
-
-        const currentSettings = useSettingsStore.getState();
-        if (!currentSettings.settings.enableAI || !currentSettings.geminiApiKey) {
-            pendingMetadataRecoveryRef.current = null;
-            modals.setInitialSettingsTab?.('intelligence');
-            openModal('settings');
-            addToast('Enable AI features and configure a Gemini API key in Settings to use Prompt Recovery.', 'info');
-            return;
-        }
-
-        pendingMetadataRecoveryRef.current = { targetId: resolvedTargetId, onRecovered };
-        openModal('recovery');
-    };
-
-    const executeMetadataRecovery = async (style: RecoveryStyle) => {
-        const pendingRecovery = pendingMetadataRecoveryRef.current;
-        const targetId = pendingRecovery?.targetId ?? resolveMetadataRecoveryTargetId();
-        if (!targetId) {
-            addToast('Select an image before starting Prompt Recovery.', 'error');
-            return;
-        }
-
-        const currentSettings = useSettingsStore.getState();
-        if (!currentSettings.settings.enableAI || !currentSettings.geminiApiKey) {
-            pendingMetadataRecoveryRef.current = null;
-            closeModal('recovery');
-            modals.setInitialSettingsTab?.('intelligence');
-            openModal('settings');
-            addToast('Enable AI features and configure a Gemini API key in Settings to use Prompt Recovery.', 'info');
-            return;
-        }
-
-        if (!fileOps.recoverMetadata) {
-            addToast('Prompt Recovery is unavailable in this runtime.', 'error');
-            return;
-        }
-
-        const recoveredImage = await fileOps.recoverMetadata(targetId, style);
-        if (!recoveredImage) return;
-
-        pendingMetadataRecoveryRef.current = null;
-        closeModal('recovery');
-        pendingRecovery?.onRecovered?.(recoveredImage);
-    };
-
     const handlePinImage = (id: string, newPinned: boolean, options: SingleImageActionOptions = { showToast: true }) => {
         const previousActiveImage = getImage(id);
         const previousImages = images;
@@ -530,8 +459,6 @@ export const useAppActions = ({
         handleBulkMask,
         handleSetImageSourceKind,
         handleTogglePrivacy,
-        openMetadataRecovery,
-        executeMetadataRecovery,
         handleFavoriteImage,
         handlePinImage,
         handleShortcutFavorite,

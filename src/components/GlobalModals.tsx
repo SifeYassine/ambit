@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { ConfirmDialog } from './ui/ConfirmDialog';
-import { AIImage, AppSettings, AppSettingsUpdate, Collection, FilterState, RecoveryStyle, ViewMode, isVideoAsset } from '../types';
+import { AIImage, AppSettings, AppSettingsUpdate, Collection, FilterState, ViewMode, isVideoAsset } from '../types';
 import { AppUpdaterStatus } from '../hooks/useAppUpdater';
 import type { ImportResult } from '../services/importService';
 import { createDefaultFilters } from '../utils/filterState';
@@ -9,7 +9,6 @@ import type { AmbitCollectionScopeTarget } from '../services/db/collectionRepo';
 const SettingsModal = React.lazy(() => import('../features/settings/components/SettingsModal').then(module => ({ default: module.SettingsModal })));
 const ExportModal = React.lazy(() => import('../features/library/components/ExportModal').then(module => ({ default: module.ExportModal })));
 const SlideshowModal = React.lazy(() => import('../features/viewer/components/SlideshowModal').then(module => ({ default: module.SlideshowModal })));
-const MetadataRecoveryModal = React.lazy(() => import('../features/library/components/MetadataRecoveryModal').then(module => ({ default: module.MetadataRecoveryModal })));
 const AddToCollectionModal = React.lazy(() => import('../features/collections/components/AddToCollectionModal').then(module => ({ default: module.AddToCollectionModal })));
 const CommandPalette = React.lazy(() => import('./ui/CommandPalette').then(module => ({ default: module.CommandPalette })));
 const ShortcutsModal = React.lazy(() => import('./ui/ShortcutsModal').then(module => ({ default: module.ShortcutsModal })));
@@ -27,7 +26,6 @@ interface GlobalModalsProps {
     onExportConfirm: (name: string, folder: string) => void;
     onDeleteConfirm: () => void | Promise<void>;
     onDeleteCollectionConfirm: () => void | Promise<void>;
-    onRecoverMetadata: (style: RecoveryStyle) => void;
     onCollectionAction: (ids: string[], targetId: string, mode: 'add' | 'move', sourceId?: string) => void;
     onCloseExport: () => void;
     exportIds: Set<string>;
@@ -35,7 +33,6 @@ interface GlobalModalsProps {
     collectionToDeleteId: string | null;
     addToCollectionMode: 'add' | 'move';
     sourceCollectionId: string | null;
-    isRecoveringMetadata: boolean;
     isExporting: boolean;
     slideshowShuffle: boolean;
     initialSettingsTab: 'general' | 'folders' | 'resources' | 'privacy' | 'experiments' | 'intelligence' | 'invokeai' | 'a1111' | 'comfyui' | 'dev';
@@ -82,7 +79,6 @@ export const GlobalModals: React.FC<GlobalModalsProps> = ({
     onExportConfirm,
     onDeleteConfirm,
     onDeleteCollectionConfirm,
-    onRecoverMetadata,
     onCollectionAction,
     onCloseExport,
     exportIds,
@@ -90,7 +86,6 @@ export const GlobalModals: React.FC<GlobalModalsProps> = ({
     collectionToDeleteId,
     addToCollectionMode,
     sourceCollectionId,
-    isRecoveringMetadata,
     isExporting,
     slideshowShuffle,
     initialSettingsTab,
@@ -218,15 +213,6 @@ export const GlobalModals: React.FC<GlobalModalsProps> = ({
                         images={imageOnlyResults}
                         initialIndex={0}
                         isShuffleDefault={slideshowShuffle}
-                    />
-                )}
-
-                {modals.recovery && (
-                    <MetadataRecoveryModal
-                        isOpen={modals.recovery}
-                        onClose={() => closeModal('recovery')}
-                        onConfirm={onRecoverMetadata}
-                        isProcessing={isRecoveringMetadata}
                     />
                 )}
 

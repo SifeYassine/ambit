@@ -5,7 +5,6 @@ interface MetadataSectionHeaderProps {
     title: string;
     icon: LucideIcon;
     trailing?: React.ReactNode;
-    modified?: boolean;
     iconClassName?: string;
     headingId?: string;
     labelFor?: string;
@@ -16,17 +15,15 @@ export const MetadataSectionHeader: React.FC<MetadataSectionHeaderProps> = ({
     title,
     icon: Icon,
     trailing,
-    modified = false,
     iconClassName = 'text-gray-500 dark:text-zinc-500',
     headingId,
     labelFor,
     className = '',
 }) => {
-    const textClassName = `whitespace-nowrap text-xs font-bold uppercase tracking-wider ${modified ? 'text-ember-600 dark:text-ember-300' : 'text-gray-500 dark:text-zinc-400'}`;
-    const resolvedIconClassName = modified ? 'text-ember-600 dark:text-ember-300' : iconClassName;
+    const textClassName = 'whitespace-nowrap text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-zinc-400';
     const content = (
         <>
-            <Icon aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 ${resolvedIconClassName}`} />
+            <Icon aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 ${iconClassName}`} />
             {labelFor ? (
                 <label htmlFor={labelFor} className={textClassName}>{title}</label>
             ) : (

@@ -278,7 +278,7 @@ vi.mock('./ScanPlaceholder', () => ({
 }));
 
 vi.mock('../../../features/viewer/components/ImageViewer', () => ({
-    ImageViewer: ({ image, onDelete, onNext, onPrev, onClose, onToggleFavorite, onTogglePin, onSearch, onOpenSettings, onRecoverMetadata, onOpenReferencedImage, onUpdatePrompt, isShortcutBlocked }: {
+    ImageViewer: ({ image, onDelete, onNext, onPrev, onClose, onToggleFavorite, onTogglePin, onOpenSettings, onOpenReferencedImage, isShortcutBlocked }: {
         image: AIImage;
         onDelete?: () => void;
         onNext: () => void;
@@ -286,38 +286,32 @@ vi.mock('../../../features/viewer/components/ImageViewer', () => ({
         onClose: () => void;
         onToggleFavorite?: (id: string) => void;
         onTogglePin?: (id: string, pinned: boolean) => void;
-        onSearch: () => void;
         onOpenSettings: () => void;
         onOpenReferencedImage?: (imageId: string) => Promise<boolean>;
-        onRecoverMetadata?: () => void;
-        onUpdatePrompt?: (id: string, prompt: string) => void;
         isShortcutBlocked?: boolean;
     }) => (
-        <div data-testid="maintenance-viewer" data-image-id={image.id} data-prompt={image.metadata.positivePrompt} data-metadata={JSON.stringify(image.metadata)} data-original-chunks={JSON.stringify(image.originalChunks)} data-editable={String(Boolean(onUpdatePrompt))} data-shortcuts-blocked={String(isShortcutBlocked)}>
+        <div data-testid="maintenance-viewer" data-image-id={image.id} data-prompt={image.metadata.positivePrompt} data-metadata={JSON.stringify(image.metadata)} data-original-chunks={JSON.stringify(image.originalChunks)} data-shortcuts-blocked={String(isShortcutBlocked)}>
             {onDelete && <button onClick={onDelete}>Viewer Cleanup</button>}
             <button onClick={onNext}>Viewer Next</button>
             <button onClick={onPrev}>Viewer Previous</button>
             <button onClick={onClose}>Close Viewer</button>
             {onToggleFavorite && <button onClick={() => onToggleFavorite(image.id)}>Favorite Viewer</button>}
             {onTogglePin && <button onClick={() => onTogglePin(image.id, true)}>Pin Viewer</button>}
-            <button onClick={onSearch}>Viewer Search</button>
             <button onClick={onOpenSettings}>Viewer Settings</button>
-            {onRecoverMetadata && <button onClick={onRecoverMetadata}>Recover Viewer Prompt</button>}
             {onOpenReferencedImage && <button onClick={() => void onOpenReferencedImage('hidden-reference')}>Open Viewer Reference</button>}
         </div>
     )
 }));
 
 vi.mock('../../../features/viewer/components/VideoViewer', () => ({
-    VideoViewer: ({ video, onDelete, onClose, onToggleFavorite, onTogglePin, onUpdatePrompt }: {
+    VideoViewer: ({ video, onDelete, onClose, onToggleFavorite, onTogglePin }: {
         video: VideoAsset;
         onDelete?: (id: string) => void;
         onClose: () => void;
         onToggleFavorite?: (id: string) => void;
         onTogglePin?: (id: string, pinned: boolean) => void;
-        onUpdatePrompt?: (id: string, prompt: string) => void;
     }) => (
-        <div data-testid="maintenance-video-viewer" data-video-id={video.id} data-metadata={JSON.stringify(video.metadata)} data-original-chunks={JSON.stringify(video.originalChunks)} data-editable={String(Boolean(onUpdatePrompt))}>
+        <div data-testid="maintenance-video-viewer" data-video-id={video.id} data-metadata={JSON.stringify(video.metadata)} data-original-chunks={JSON.stringify(video.originalChunks)}>
             {onDelete && <button onClick={() => onDelete(video.id)}>Video Cleanup</button>}
             <button onClick={onClose}>Close Video Viewer</button>
             {onToggleFavorite && <button onClick={() => onToggleFavorite(video.id)}>Favorite Video Viewer</button>}
@@ -379,7 +373,6 @@ const createProps = (): React.ComponentProps<typeof MaintenanceView> => ({
     onTogglePin: vi.fn(),
     onViewerOpenChange: vi.fn(),
     onOpenReferencedImage: vi.fn().mockResolvedValue(true),
-    onSearch: vi.fn(),
     onOpenSettings: vi.fn(),
     isShortcutBlocked: false
 });
@@ -540,8 +533,6 @@ describe('MaintenanceView', () => {
 
         fireEvent.click(screen.getByText('Tab trash'));
         fireEvent.click(await screen.findByText('Open Trash Viewer'));
-        expect(screen.getByTestId('maintenance-viewer').getAttribute('data-editable')).toBe('false');
-        expect(screen.queryByText('Recover Viewer Prompt')).toBeNull();
         expect(screen.queryByText('Favorite Viewer')).toBeNull();
         expect(screen.queryByText('Pin Viewer')).toBeNull();
         expect(screen.queryByText('Add Viewer Collection')).toBeNull();
@@ -549,7 +540,6 @@ describe('MaintenanceView', () => {
         maintenanceDataMock.localDeletedImages = [createVideo({ id: 'trash-video', isDeleted: true })];
         view.rerender(<MaintenanceView {...view.props} />);
         fireEvent.click(await screen.findByText('Open Trash Viewer'));
-        expect(screen.getByTestId('maintenance-video-viewer').getAttribute('data-editable')).toBe('false');
         expect(screen.queryByText('Favorite Video Viewer')).toBeNull();
         expect(screen.queryByText('Pin Video Viewer')).toBeNull();
         expect(screen.queryByText('Add Video Collection')).toBeNull();
@@ -981,13 +971,7 @@ describe('MaintenanceView', () => {
         const onToggleFavorite = vi.fn();
         const onTogglePin = vi.fn();
         const onViewerOpenChange = vi.fn();
-        const onRecoverMetadata = vi.fn((id: string, onRecovered: (image: AIImage) => void) => {
-            onRecovered(createImage({
-                id,
-                metadata: { ...createImage().metadata, positivePrompt: 'Recovered maintenance prompt' }
-            }));
-        });
-        renderView({ onToggleFavorite, onTogglePin, onViewerOpenChange, onRecoverMetadata, isShortcutBlocked: true });
+        renderView({ onToggleFavorite, onTogglePin, onViewerOpenChange, isShortcutBlocked: true });
 
         fireEvent.click(screen.getByText('Select Missing Item'));
         expect(onViewerOpenChange).toHaveBeenLastCalledWith(true);
@@ -1002,11 +986,7 @@ describe('MaintenanceView', () => {
         fireEvent.click(screen.getByText('Pin Viewer'));
         expect(onToggleFavorite).toHaveBeenCalledWith('missing-a');
         expect(onTogglePin).toHaveBeenCalledWith('missing-a', true);
-        fireEvent.click(screen.getByText('Viewer Search'));
         fireEvent.click(screen.getByText('Viewer Settings'));
-        fireEvent.click(screen.getByText('Recover Viewer Prompt'));
-        expect(onRecoverMetadata).toHaveBeenCalledWith('missing-a', expect.any(Function));
-        expect(screen.getByTestId('maintenance-viewer').getAttribute('data-prompt')).toBe('Recovered maintenance prompt');
         fireEvent.click(screen.getByText('Close Viewer'));
         expect(screen.queryByTestId('maintenance-viewer')).toBeNull();
         expect(onViewerOpenChange).toHaveBeenLastCalledWith(false);

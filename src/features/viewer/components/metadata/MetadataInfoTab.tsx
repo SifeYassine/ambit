@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import {
-    Wand2, Undo2, Copy, Check, ClipboardList,
-    Sparkles, Eye, Shuffle, Tag, Puzzle, Code, Target, Link, Plus, Layers, Maximize2, ScanFace
+    Wand2, Copy, Check, ClipboardList,
+    Sparkles, Eye, Shuffle, Puzzle, Code, Target, Link, Layers, Maximize2, ScanFace, type LucideIcon
 } from 'lucide-react';
 import { AIImage, GeneratorTool } from '../../../../types';
 import { ResourcesSection } from './ResourcesSection';
@@ -12,141 +12,46 @@ import { TooltipButton } from '../../../../components/ui/InfoTooltip';
 import { formatInvokeImageCategory, isKnownInvokeImageAsset } from '../../../../utils/invokeImageSource';
 import { InvokeReferenceLinks } from './InvokeReferenceLinks';
 import { MetadataTextAreaField } from './MetadataTextAreaField';
-import { MetadataChip } from './MetadataChip';
 import { MetadataParameterList } from './MetadataParameterList';
 import { MetadataSectionHeader } from './MetadataSectionHeader';
 import { getModelPresentation } from './modelPresentation';
 import { MetadataGeneratorField } from './MetadataGeneratorField';
 import { MetadataModelField } from './MetadataModelField';
-import { MetadataDisclosureSection } from './MetadataDisclosureSection';
+import { RESOURCE_GROUPS, getResourceWeights } from '../../utils/resourceGroups';
 import type { MetadataDisclosureController } from '../../hooks/useMetadataDisclosureState';
+
+const RESOURCE_ICONS: Record<(typeof RESOURCE_GROUPS)[number]['key'], LucideIcon> = {
+    loras: Puzzle, embeddings: Code, hypernetworks: Sparkles, controlNets: Target, ipAdapters: Link,
+    vaes: Layers, upscalers: Maximize2, clipVisions: Eye, detectors: ScanFace,
+};
 
 interface MetadataInfoTabProps {
     image: AIImage;
-    promptValue: string;
-    setPromptValue: (s: string) => void;
-    negativePromptValue: string;
-    setNegativePromptValue: (value: string) => void;
-    availableTags: string[];
-    modelOptions?: readonly string[];
     disclosure?: MetadataDisclosureController;
-    onUpdatePrompt?: (id: string, prompt: string) => void;
-    onUpdateNegativePrompt?: (id: string, prompt: string) => void;
-    onSearch: (term: string) => void;
-    onClose: () => void;
-    onRecoverMetadata?: () => void;
-    onRevertMetadata?: (id: string) => void;
-    onUpdateModel?: (id: string, model: string) => void;
-    onUpdateTool?: (id: string, tool: GeneratorTool) => void;
     onAIAnalysis: () => void;
     onGenerateVariations: () => void;
     isAnalyzing: boolean;
     onOpenAIResult?: () => void;
-    isLoading?: boolean;
     searchHighlights?: PromptHighlightSpec;
     onOpenReferencedImage?: (imageId: string) => Promise<boolean>;
 }
 
 export const MetadataInfoTab = ({
     image,
-    promptValue,
-    setPromptValue,
-    negativePromptValue,
-    setNegativePromptValue,
-    availableTags,
-    modelOptions = [],
     disclosure,
-    onUpdatePrompt,
-    onUpdateNegativePrompt,
-    onSearch,
-    onClose,
-    onRecoverMetadata,
-    onRevertMetadata,
-    onUpdateModel,
-    onUpdateTool,
     onAIAnalysis,
     onGenerateVariations,
     isAnalyzing,
     onOpenAIResult,
-    isLoading,
     searchHighlights,
     onOpenReferencedImage
 }: MetadataInfoTabProps) => {
     // Feedback State
     const [copiedPrompt, setCopiedPrompt] = useState(false);
     const [copiedData, setCopiedData] = useState(false);
-    const [isPromptDirty, setIsPromptDirty] = useState(false);
-    const [isNegativePromptDirty, setIsNegativePromptDirty] = useState(false);
-    const [showOriginalPrompt, setShowOriginalPrompt] = useState(false);
-    const [promptSuggestions, setPromptSuggestions] = useState<string[]>([]);
-    const promptDraftRef = useRef(promptValue);
-    const promptDirtyRef = useRef(false);
-    const promptSuggestionsRef = useRef<HTMLDivElement>(null);
-    const negativePromptDraftRef = useRef(negativePromptValue);
+    const positivePrompt = image.metadata.positivePrompt || '';
+    const negativePrompt = image.metadata.negativePrompt || '';
 
-    // --- Helpers ---
-    useEffect(() => {
-        setIsPromptDirty(false);
-        promptDirtyRef.current = false;
-        setIsNegativePromptDirty(false);
-        setShowOriginalPrompt(false);
-        setPromptSuggestions([]);
-    }, [image.id]);
-
-    useEffect(() => {
-        promptDraftRef.current = promptValue;
-    }, [promptValue]);
-
-    useEffect(() => {
-        negativePromptDraftRef.current = negativePromptValue;
-    }, [negativePromptValue]);
-
-    const isModified = (key: keyof typeof image.metadata) => {
-        if (!image.originalMetadata || isLoading) return false;
-        const cur = image.metadata[key];
-        const orig = image.originalMetadata[key];
-
-        if (cur === orig) return false;
-
-        // Handle equivalent empty values (null, undefined, empty string)
-        // CRITICAL: We also treat "Unknown" as empty to avoid modification flags for unresolved models
-        const isEmpty = (v: unknown) => v === null || v === undefined || v === '' || (typeof v === 'string' && v.toLowerCase() === 'unknown');
-
-        if (isEmpty(cur) && isEmpty(orig)) return false;
-
-        // Numerical comparison with epsilon to avoid float jitter (e.g. 7.0 vs 7)
-        if (typeof cur === 'number' || typeof orig === 'number') {
-            const nCur = Number(cur);
-            const nOrig = Number(orig);
-            if (!isNaN(nCur) && !isNaN(nOrig)) {
-                if (Math.abs(nCur - nOrig) < 0.0001) {
-                    return false;
-                }
-            }
-        }
-
-        // Handle string comparison (trimmed)
-        if (typeof cur === 'string' && typeof orig === 'string') {
-            if (cur.trim() === orig.trim()) return false;
-        }
-
-        // Final fallback: standard comparison (already checked cur === orig above)
-        return true;
-    };
-
-    const hasModifications = () => {
-        return (
-            isModified('positivePrompt') ||
-            isModified('negativePrompt') ||
-            isModified('tool') ||
-            isModified('model') ||
-            isModified('overrideModel')
-        );
-    };
-
-    const smartTags = (typeof image.metadata.positivePrompt === 'string')
-        ? image.metadata.positivePrompt.split(',').map(t => t.trim()).filter(t => t.length > 2 && t.length < 30 && !t.startsWith('score_')).slice(0, 15)
-        : [];
     const invokeImageName = image.invokeImageName?.trim() || undefined;
     const invokeImageCategory = formatInvokeImageCategory(image.invokeImageCategory);
     const invokeImageOrigin = image.invokeImageOrigin?.trim() || undefined;
@@ -155,108 +60,9 @@ export const MetadataInfoTab = ({
     const modelPresentation = getModelPresentation(image.metadata);
 
     const handleCopyPrompt = () => {
-        navigator.clipboard.writeText(promptValue);
+        navigator.clipboard.writeText(positivePrompt);
         setCopiedPrompt(true);
         setTimeout(() => setCopiedPrompt(false), 2000);
-    };
-
-    const handlePromptChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const nextValue = event.target.value;
-        promptDraftRef.current = nextValue;
-        setPromptValue(nextValue);
-        setIsPromptDirty(true);
-        promptDirtyRef.current = true;
-        const lastToken = nextValue.split(',').pop()?.trim().toLowerCase();
-        setPromptSuggestions(lastToken && lastToken.length > 1
-            ? availableTags.filter(tag => tag.toLowerCase().includes(lastToken)
-                && tag.toLowerCase() !== lastToken).slice(0, 5)
-            : []);
-    };
-
-    const commitPrompt = () => {
-        if (!showOriginalPrompt && promptDirtyRef.current) {
-            onUpdatePrompt?.(image.id, promptDraftRef.current);
-            promptDirtyRef.current = false;
-            setIsPromptDirty(false);
-        }
-    };
-
-    const savePrompt = (event: React.FocusEvent<HTMLTextAreaElement>) => {
-        if (event.relatedTarget instanceof Node && promptSuggestionsRef.current?.contains(event.relatedTarget)) {
-            event.preventDefault();
-            return;
-        }
-        commitPrompt();
-        setTimeout(() => setPromptSuggestions([]), 200);
-    };
-
-    const cancelPromptEdit = (editStartValue: string) => {
-        promptDraftRef.current = editStartValue;
-        promptDirtyRef.current = false;
-        setPromptValue(editStartValue);
-        setIsPromptDirty(false);
-        setPromptSuggestions([]);
-    };
-
-    const selectPromptSuggestion = (suggestion: string) => {
-        const parts = promptDraftRef.current.split(',');
-        parts.pop();
-        const nextValue = [...parts, suggestion].join(', ') + ', ';
-        promptDraftRef.current = nextValue;
-        setPromptValue(nextValue);
-        promptDirtyRef.current = false;
-        setIsPromptDirty(false);
-        setPromptSuggestions([]);
-        onUpdatePrompt?.(image.id, nextValue);
-    };
-
-    const saveNegativePrompt = () => {
-        if (isNegativePromptDirty) {
-            onUpdateNegativePrompt?.(image.id, negativePromptDraftRef.current);
-            setIsNegativePromptDirty(false);
-        }
-    };
-
-    const cancelNegativePromptEdit = (editStartValue: string) => {
-        negativePromptDraftRef.current = editStartValue;
-        setNegativePromptValue(editStartValue);
-        setIsNegativePromptDirty(false);
-    };
-
-    const handleParseClipboard = async () => {
-        try {
-            const text = await navigator.clipboard.readText();
-            if (!text || !text.includes('Steps:')) return;
-            const lines = text.split('\n');
-            let positive = '';
-            let negative = '';
-            let state = 0;
-            for (const line of lines) {
-                const clean = line.trim();
-                if (!clean) continue;
-                if (clean.startsWith('Negative prompt:')) {
-                    state = 1;
-                    negative = clean.replace('Negative prompt:', '').trim();
-                    continue;
-                }
-                if (clean.startsWith('Steps:')) {
-                    state = 2;
-                    continue;
-                }
-                if (state === 0) positive += (positive ? '\n' : '') + clean;
-                else if (state === 1) negative += (negative ? '\n' : '') + clean;
-            }
-            if (positive) {
-                setPromptValue(positive);
-                onUpdatePrompt?.(image.id, positive);
-            }
-            if (negative) {
-                setNegativePromptValue(negative);
-                onUpdateNegativePrompt?.(image.id, negative);
-            }
-        } catch (error) {
-            console.error('Clipboard paste failed', error);
-        }
     };
 
     const handleCopyGenData = () => {
@@ -275,7 +81,7 @@ export const MetadataInfoTab = ({
             if (md.modelHash) params.push(`Model hash: ${md.modelHash}`);
             if (md.model && md.model !== 'Unknown') params.push(`Model: ${md.model}`);
 
-            const neg = negativePromptValue ? `\nNegative prompt: ${negativePromptValue}` : '';
+            const neg = negativePrompt ? `\nNegative prompt: ${negativePrompt}` : '';
             text = `${md.positivePrompt || ''}${neg}\n${params.join(', ')}`;
         }
 
@@ -328,81 +134,35 @@ export const MetadataInfoTab = ({
                 <div className="space-y-6 flex-1">
 
                     <MetadataTextAreaField
-                        key={`positivePrompt:${image.id}:${showOriginalPrompt ? 'original' : 'current'}`}
                         kind="positivePrompt"
-                        value={showOriginalPrompt ? (image.originalMetadata?.positivePrompt ?? '') : promptValue}
-                        onChange={handlePromptChange}
-                        onBlur={savePrompt}
-                        onCancelEdit={cancelPromptEdit}
-                        readContent={<HighlightedPromptText text={showOriginalPrompt ? (image.originalMetadata?.positivePrompt ?? '') : promptValue} terms={showOriginalPrompt ? [] : searchHighlights?.positivePrompt} />}
-                        readOnly={showOriginalPrompt || !onUpdatePrompt}
-                        isDirty={isPromptDirty}
-                        source={isModified('positivePrompt') ? 'user_override' : undefined}
-                        headerAction={<div className="flex items-center gap-1">
-                            {image.originalMetadata && image.originalMetadata.positivePrompt !== image.metadata.positivePrompt ? (
-                            <div className="flex rounded-lg border border-gray-200 bg-gray-100 p-0.5 dark:border-white/10 dark:bg-white/5">
-                                <button type="button" onClick={() => setShowOriginalPrompt(false)} className={`rounded px-2 py-0.5 text-[10px] font-bold ${!showOriginalPrompt ? 'bg-sage-600 text-white' : 'text-gray-500 dark:text-zinc-500'}`}>Current</button>
-                                <button type="button" onClick={() => setShowOriginalPrompt(true)} className={`rounded px-2 py-0.5 text-[10px] font-bold ${showOriginalPrompt ? 'bg-sage-600 text-white' : 'text-gray-500 dark:text-zinc-500'}`}>Original</button>
-                                </div>
-                            ) : null}
-                                {onRecoverMetadata ? <TooltipButton label="Recover Prompt with AI" content="Recover Prompt with AI" onClick={onRecoverMetadata} className="rounded p-1.5 text-amethyst-600 hover:bg-gray-100 dark:text-amethyst-300 dark:hover:bg-white/5"><Wand2 className="h-3.5 w-3.5" /></TooltipButton> : null}
-                            {onUpdatePrompt && onUpdateNegativePrompt && (image.metadata.tool === GeneratorTool.AUTOMATIC1111
-                                || image.metadata.tool === GeneratorTool.FORGE
-                                    || image.metadata.tool === GeneratorTool.UNKNOWN) ? <TooltipButton label="Parse Prompt from Clipboard" content="Parse Prompt from Clipboard" onClick={() => void handleParseClipboard()} className="rounded p-1.5 text-sage-600 hover:bg-gray-100 dark:text-sage-300 dark:hover:bg-white/5"><ClipboardList className="h-3.5 w-3.5" /></TooltipButton> : null}
-                                {image.originalMetadata && !isLoading && hasModifications() && onRevertMetadata ? <TooltipButton label="Revert All Metadata to Original" content="Revert All Metadata to Original" onClick={() => onRevertMetadata(image.id)} className="rounded p-1.5 text-ember-600 hover:bg-gray-100 dark:text-ember-300 dark:hover:bg-white/5"><Undo2 className="h-3.5 w-3.5" /></TooltipButton> : null}
-                                <TooltipButton label="Copy Prompt" content="Copy Prompt" onClick={handleCopyPrompt} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-zinc-300">{copiedPrompt ? <Check className="h-3.5 w-3.5 text-sage-600 dark:text-sage-300" /> : <Copy className="h-3.5 w-3.5" />}</TooltipButton>
-                        </div>}
-                        overlay={promptSuggestions.length > 0 ? <div ref={promptSuggestionsRef} className="absolute bottom-full left-0 right-0 z-20 mb-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-zinc-900">
-                            {promptSuggestions.map(suggestion => <button key={suggestion} type="button" className="group flex w-full items-center justify-between px-3 py-2 text-left text-xs hover:bg-gray-100 dark:hover:bg-white/5" onMouseDown={event => event.preventDefault()} onBlur={event => {
-                                if (!(event.relatedTarget instanceof Node) || !promptSuggestionsRef.current?.contains(event.relatedTarget)) {
-                                    commitPrompt();
-                                    setPromptSuggestions([]);
-                                }
-                            }} onClick={() => selectPromptSuggestion(suggestion)}><span className="font-mono text-gray-700 dark:text-zinc-300">{suggestion}</span><Plus className="h-3 w-3 text-gray-400 group-hover:text-sage-600 dark:text-zinc-500 dark:group-hover:text-sage-300" /></button>)}
-                        </div> : null}
+                        value={positivePrompt}
+                        readContent={<HighlightedPromptText text={positivePrompt} terms={searchHighlights?.positivePrompt} />}
+                        headerAction={<TooltipButton label="Copy Prompt" content="Copy Prompt" onClick={handleCopyPrompt} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-zinc-300">{copiedPrompt ? <Check className="h-3.5 w-3.5 text-sage-600 dark:text-sage-300" /> : <Copy className="h-3.5 w-3.5" />}</TooltipButton>}
                     />
 
                     <MetadataTextAreaField
-                        key={`negativePrompt:${image.id}`}
                         kind="negativePrompt"
-                        value={negativePromptValue}
-                        onChange={event => { negativePromptDraftRef.current = event.target.value; setNegativePromptValue(event.target.value); setIsNegativePromptDirty(true); }}
-                        onBlur={saveNegativePrompt}
-                        onCancelEdit={cancelNegativePromptEdit}
-                        readContent={<HighlightedPromptText text={negativePromptValue} terms={searchHighlights?.negativePrompt} />}
-                        readOnly={!onUpdateNegativePrompt}
-                        isDirty={isNegativePromptDirty}
-                        source={isModified('negativePrompt') ? 'user_override' : undefined}
+                        value={negativePrompt}
+                        readContent={<HighlightedPromptText text={negativePrompt} terms={searchHighlights?.negativePrompt} />}
                     />
 
                     {isInvokeImageAsset ? invokeProvenance : null}
 
-                    <MetadataGeneratorField
-                        key={`generator:${image.id}`}
-                        value={image.metadata.tool}
-                        modified={isModified('tool')}
-                        onSave={onUpdateTool ? value => onUpdateTool(image.id, value) : undefined}
-                    />
+                    <MetadataGeneratorField value={image.metadata.tool} />
 
-                    <MetadataModelField
-                        key={`model:${image.id}`}
-                        presentation={modelPresentation}
-                        options={modelOptions}
-                        modified={isModified('model') || isModified('overrideModel')}
-                        onSave={onUpdateModel ? value => onUpdateModel(image.id, value) : undefined}
-                    />
+                    <MetadataModelField presentation={modelPresentation} />
 
                     <MetadataParameterList rows={[
-                        { label: 'Seed', value: image.metadata.seed?.toString() ?? 'Unknown', modified: isModified('seed') },
-                        { label: 'Steps', value: image.metadata.steps > 0 ? image.metadata.steps.toString() : 'Unknown', modified: isModified('steps') },
-                        { label: 'CFG', value: image.metadata.cfg > 0 ? image.metadata.cfg.toString() : 'Unknown', modified: isModified('cfg') },
-                        { label: 'Sampler', value: image.metadata.sampler || 'Unknown', modified: isModified('sampler') },
-                        { label: 'VAE', value: image.metadata.vae || 'Unknown', modified: isModified('vae'), optional: true },
-                        { label: 'Clip Skip', value: image.metadata.clipSkip?.toString() || 'Unknown', modified: isModified('clipSkip'), optional: true },
-                        { label: 'Denoising', value: image.metadata.denoisingStrength?.toString() || 'Unknown', modified: isModified('denoisingStrength'), optional: true },
-                        { label: 'Hires Upscale', value: image.metadata.hiresUpscale?.toString() || 'Unknown', modified: isModified('hiresUpscale'), optional: true },
-                        { label: 'Hires Steps', value: image.metadata.hiresSteps?.toString() || 'Unknown', modified: isModified('hiresSteps'), optional: true },
-                        { label: 'Hires Upscaler', value: image.metadata.hiresUpscaler || 'Unknown', modified: isModified('hiresUpscaler'), optional: true },
+                        { label: 'Seed', value: image.metadata.seed?.toString() ?? 'Unknown' },
+                        { label: 'Steps', value: image.metadata.steps > 0 ? image.metadata.steps.toString() : 'Unknown' },
+                        { label: 'CFG', value: image.metadata.cfg > 0 ? image.metadata.cfg.toString() : 'Unknown' },
+                        { label: 'Sampler', value: image.metadata.sampler || 'Unknown' },
+                        { label: 'VAE', value: image.metadata.vae || 'Unknown', optional: true },
+                        { label: 'Clip Skip', value: image.metadata.clipSkip?.toString() || 'Unknown', optional: true },
+                        { label: 'Denoising', value: image.metadata.denoisingStrength?.toString() || 'Unknown', optional: true },
+                        { label: 'Hires Upscale', value: image.metadata.hiresUpscale?.toString() || 'Unknown', optional: true },
+                        { label: 'Hires Steps', value: image.metadata.hiresSteps?.toString() || 'Unknown', optional: true },
+                        { label: 'Hires Upscaler', value: image.metadata.hiresUpscaler || 'Unknown', optional: true },
                         { label: 'Model Hash', value: modelPresentation.isHashFallback ? 'Unknown' : (image.metadata.modelHash || 'Unknown'), optional: true },
                     ]} expanded={disclosure?.isExpanded('generationParameters')} onExpandedChange={expanded => disclosure?.setExpanded('generationParameters', expanded)} headerAction={
                     <TooltipButton label="Copy generation data" content="Copy prompts and generation settings in the best available source-compatible format." onClick={handleCopyGenData} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-zinc-300">
@@ -410,31 +170,13 @@ export const MetadataInfoTab = ({
                         </TooltipButton>
                     } />
 
-                    {/* Tags */}
-                    {smartTags.length > 0 && (
-                        <MetadataDisclosureSection title="Smart Tags" icon={Tag} count={smartTags.length} expanded={disclosure?.isExpanded('smartTags')} onExpandedChange={expanded => disclosure?.setExpanded('smartTags', expanded)}>
-                            <div className="flex flex-wrap gap-2">
-                                {smartTags.map((tag, i) => <MetadataChip key={i} onClick={() => { onSearch(tag); onClose(); }} className="max-w-[150px]">
-                                    <span className="truncate px-2 py-1.5 text-xs text-gray-600 group-hover:text-sage-600 dark:text-gray-400 dark:group-hover:text-sage-300">{tag}</span>
-                                </MetadataChip>)}
-                            </div>
-                        </MetadataDisclosureSection>
-                    )}
-
                     <ResourcesSection
-                        groups={[
-                            { title: 'LoRAs', items: image.metadata.loras, icon: Puzzle, filterKind: 'lora' },
-                            { title: 'Embeddings', items: image.metadata.embeddings, icon: Code, filterKind: 'embedding' },
-                            { title: 'Hypernetworks', items: image.metadata.hypernetworks, icon: Sparkles, filterKind: 'hypernet' },
-                            { title: 'ControlNets', items: image.metadata.controlNets, icon: Target, filterKind: 'controlnet' },
-                            { title: 'IP adapters', items: image.metadata.ipAdapters, icon: Link, filterKind: 'ipadapter' },
-                            { title: 'VAEs', items: image.metadata.vaes, icon: Layers, filterKind: 'vae' },
-                            { title: 'Upscale models', items: image.metadata.upscalers, icon: Maximize2, filterKind: 'upscaler' },
-                            { title: 'CLIP Vision', items: image.metadata.clipVisions, icon: Eye, filterKind: 'clipvision' },
-                            { title: 'Detection models', items: image.metadata.detectors, icon: ScanFace, filterKind: 'detector' },
-                        ]}
-                        onSearch={onSearch}
-                        onClose={onClose}
+                        groups={RESOURCE_GROUPS.map(group => ({
+                            title: group.title,
+                            items: image.metadata[group.key],
+                            icon: RESOURCE_ICONS[group.key],
+                            weights: getResourceWeights(image.metadata, group),
+                        }))}
                         expanded={disclosure?.isExpanded('resources')}
                         onExpandedChange={expanded => disclosure?.setExpanded('resources', expanded)}
                     />

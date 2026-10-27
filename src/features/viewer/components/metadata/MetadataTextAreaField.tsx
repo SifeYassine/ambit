@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { FileText, Pencil } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { MetadataSourceBadge } from './MetadataSourceBadge';
 import { MetadataSectionHeader } from './MetadataSectionHeader';
 
@@ -8,147 +8,66 @@ type MetadataTextAreaKind = 'positivePrompt' | 'negativePrompt';
 interface MetadataTextAreaFieldProps {
     kind: MetadataTextAreaKind;
     value: string;
-    onChange: React.ChangeEventHandler<HTMLTextAreaElement>;
-    onBlur?: React.FocusEventHandler<HTMLTextAreaElement>;
     source?: string;
-    isDirty?: boolean;
     headerAction?: React.ReactNode;
-    status?: React.ReactNode;
-    overlay?: React.ReactNode;
     className?: string;
-    readOnly?: boolean;
+    /** Formatted content (e.g. search highlights); defaults to the plain value. */
     readContent?: React.ReactNode;
-    onCancelEdit?: (editStartValue: string) => void;
 }
 
 const FIELD_PRESENTATION = {
     positivePrompt: {
         label: 'Positive prompt',
-        placeholder: 'Enter positive prompt...',
+        placeholder: 'No positive prompt',
         icon: FileText,
         iconClassName: 'text-sage-500',
         heightClassName: 'min-h-32',
-        textareaClassName: 'bg-white dark:bg-zinc-800/50 focus:border-sage-500 focus:ring-1 focus:ring-sage-500',
     },
     negativePrompt: {
         label: 'Negative prompt',
-        placeholder: 'Enter negative prompt...',
+        placeholder: 'No negative prompt',
         icon: FileText,
         iconClassName: 'text-red-400',
         heightClassName: 'min-h-24',
-        textareaClassName: 'bg-white dark:bg-zinc-800/50 focus:border-red-400 focus:ring-1 focus:ring-red-400',
     },
 } as const;
 
 // Fields grow with their text (from the kind's minimum height) and scroll past this cap.
 const FIT_CONTENT_CLASS_NAME = 'max-h-[60vh]';
 
+/** A read-only prompt surface: metadata is shown as parsed from the file. */
 export const MetadataTextAreaField: React.FC<MetadataTextAreaFieldProps> = ({
     kind,
     value,
-    onChange,
-    onBlur,
     source,
-    isDirty = false,
     headerAction,
-    status,
-    overlay,
     className = '',
-    readOnly = false,
     readContent,
-    onCancelEdit,
 }) => {
     const field = FIELD_PRESENTATION[kind];
-    const Icon = field.icon;
-    const textareaId = React.useId();
-    const dirtyClassName = isDirty
-        ? 'border-ember-300 bg-ember-50/70 dark:border-ember-500/50 dark:bg-ember-500/10'
-        : 'border-gray-200 dark:border-white/10';
-    const [isEditing, setIsEditing] = React.useState(readContent === undefined);
-    const editButtonRef = React.useRef<HTMLButtonElement>(null);
-    const editStartValueRef = React.useRef(value);
-    const restoreEditFocusRef = React.useRef(false);
-    const showsReadSurface = readContent !== undefined && !isEditing;
-    const canEdit = readContent !== undefined && !readOnly;
-
-    React.useLayoutEffect(() => {
-        if (!showsReadSurface || !restoreEditFocusRef.current) return;
-        restoreEditFocusRef.current = false;
-        editButtonRef.current?.focus();
-    }, [showsReadSurface]);
-
-    const handleBlur: React.FocusEventHandler<HTMLTextAreaElement> = (event) => {
-        onBlur?.(event);
-        if (readContent !== undefined && !event.defaultPrevented) setIsEditing(false);
-    };
-
-    const handleKeyDown: React.KeyboardEventHandler<HTMLTextAreaElement> = (event) => {
-        if (event.key !== 'Escape' || readContent === undefined) return;
-        event.preventDefault();
-        onCancelEdit?.(editStartValueRef.current);
-        restoreEditFocusRef.current = true;
-        setIsEditing(false);
-    };
-
-    const handleStartEditing = () => {
-        editStartValueRef.current = value;
-        setIsEditing(true);
-    };
-
-    const editAction = canEdit && showsReadSurface ? (
-        <button
-            ref={editButtonRef}
-            type="button"
-            aria-label={'Edit ' + field.label}
-            title={'Edit ' + field.label}
-            onClick={handleStartEditing}
-            className="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-sage-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500/50 dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-sage-300"
-        >
-            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-    ) : null;
+    const headingId = React.useId();
 
     return (
         <div className={className}>
             <MetadataSectionHeader
                 title={field.label}
-                icon={Icon}
+                icon={field.icon}
                 iconClassName={field.iconClassName}
-                labelFor={showsReadSurface ? undefined : textareaId}
-                headingId={showsReadSurface ? textareaId + '-heading' : undefined}
-                trailing={headerAction || source || editAction
-                    ? <>{headerAction}{editAction}<MetadataSourceBadge source={source} /></>
+                headingId={headingId}
+                trailing={headerAction || source
+                    ? <>{headerAction}<MetadataSourceBadge source={source} /></>
                     : undefined}
                 className="mb-2"
             />
-            <div className="relative">
-                {showsReadSurface ? (
-                    <div
-                        role="textbox"
-                        tabIndex={0}
-                        aria-readonly="true"
-                        aria-multiline="true"
-                        aria-labelledby={textareaId + '-heading'}
-                        className={'w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl border p-3 font-sans text-sm text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-sage-500/50 dark:text-zinc-200 ' + FIT_CONTENT_CLASS_NAME + ' ' + field.heightClassName + ' ' + field.textareaClassName + ' ' + dirtyClassName + (readOnly ? ' cursor-default opacity-80' : '')}
-                    >
-                        {value ? readContent : <span className="text-gray-400">{field.placeholder}</span>}
-                    </div>
-                ) : (
-                    <textarea
-                        id={textareaId}
-                        aria-label={field.label}
-                        value={value}
-                        onChange={onChange}
-                        onBlur={handleBlur}
-                        onKeyDown={handleKeyDown}
-                        autoFocus={readContent !== undefined}
-                        readOnly={readOnly}
-                        placeholder={field.placeholder}
-                        className={`block w-full resize-none rounded-xl border p-3 font-sans text-sm text-gray-800 outline-none transition-colors placeholder:text-gray-400 dark:text-zinc-200 [field-sizing:content] ${FIT_CONTENT_CLASS_NAME} ${field.heightClassName} ${field.textareaClassName} ${dirtyClassName} ${readOnly ? 'cursor-default opacity-80' : ''}`}
-                    />
-                )}
-                {status}
-                {!showsReadSurface ? overlay : null}
+            <div
+                role="textbox"
+                tabIndex={0}
+                aria-readonly="true"
+                aria-multiline="true"
+                aria-labelledby={headingId}
+                className={`w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-gray-200 bg-white p-3 font-sans text-sm text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-sage-500/50 dark:border-white/10 dark:bg-zinc-800/50 dark:text-zinc-200 ${FIT_CONTENT_CLASS_NAME} ${field.heightClassName}`}
+            >
+                {value ? (readContent ?? value) : <span className="text-gray-400">{field.placeholder}</span>}
             </div>
         </div>
     );

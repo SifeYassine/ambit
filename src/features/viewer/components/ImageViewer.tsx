@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, Pin } from 'lucide-react';
-import { AIImage, GeneratorTool } from '../../../types';
+import { AIImage } from '../../../types';
 import { useZoomPan } from '../../../hooks/useZoomPan';
 import { ImageCanvas } from './ImageCanvas';
 import { MetadataSidebar } from './MetadataSidebar';
@@ -29,22 +29,13 @@ interface ImageViewerProps {
     image: AIImage;
     isMasked?: boolean;
     initiallyRevealed?: boolean;
-    availableTags?: string[];
-    modelOptions?: readonly string[];
     onClose: () => void;
     onNext: () => void;
     onPrev: () => void;
     canNavigateNext?: boolean;
     canNavigatePrevious?: boolean;
-    onSearch: (term: string) => void;
-    onUpdatePrompt?: (imageId: string, prompt: string) => void;
-    onUpdateNegativePrompt?: (imageId: string, negativePrompt: string) => void;
-    onUpdateModel?: (imageId: string, newModel: string) => void;
-    onUpdateTool?: (imageId: string, tool: GeneratorTool) => void;
     onToggleFavorite?: (id: string) => void;
     onTogglePin?: (id: string, isPinned: boolean) => void;
-    onRecoverMetadata?: () => void;
-    onRevertMetadata?: (imageId: string) => void;
     onOpenSettings: () => void;
     onDelete?: (id: string) => void;
     isOpen: boolean;
@@ -115,22 +106,13 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     image,
     isMasked = false,
     initiallyRevealed = false,
-    availableTags = [],
-    modelOptions = [],
     onClose,
     onNext,
     onPrev,
     canNavigateNext = true,
     canNavigatePrevious = true,
-    onSearch,
-    onUpdatePrompt,
-    onUpdateNegativePrompt,
-    onUpdateModel,
-    onUpdateTool,
     onToggleFavorite,
     onTogglePin,
-    onRecoverMetadata,
-    onRevertMetadata,
     onOpenSettings,
     onDelete,
     isOpen,
@@ -269,23 +251,11 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const statusHudTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // --- Buffers (Prompt editing local to displayImage) ---
-    const [promptValue, setPromptValue] = useState(displayImage.metadata.positivePrompt || '');
-    const [negativePromptValue, setNegativePromptValue] = useState(displayImage.metadata.negativePrompt || '');
-
-    // Sync state when display image changes (version switch or nav)
+    // Reset zoom and close AI results when the displayed image changes (version switch or nav).
     useEffect(() => {
-        setPromptValue(displayImage.metadata.positivePrompt || '');
-        setNegativePromptValue(displayImage.metadata.negativePrompt || '');
         resetZoom();
         ai.closeModal();
-    }, [
-        displayImage.id,
-        displayImage.metadata.positivePrompt,
-        displayImage.metadata.negativePrompt,
-        displayImage.originalMetadata,
-        resetZoom
-    ]);
+    }, [displayImage.id, resetZoom]);
 
     useEffect(() => {
         setRevealedImageId(initiallyRevealed ? image.id : null);
@@ -520,21 +490,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
                     image={displayImage} // Pass active version
                     activeTab={activeTab}
                     setActiveTab={onExplicitTabChange}
-                    availableTags={availableTags}
-                    modelOptions={modelOptions}
                     disclosure={metadataDisclosure}
-                    promptValue={promptValue}
-                    setPromptValue={setPromptValue}
-                    negativePromptValue={negativePromptValue}
-                    setNegativePromptValue={setNegativePromptValue}
-                    onUpdatePrompt={onUpdatePrompt}
-                    onUpdateNegativePrompt={onUpdateNegativePrompt}
-                    onUpdateModel={onUpdateModel}
-                    onUpdateTool={onUpdateTool}
-                    onSearch={onSearch}
-                    onClose={onClose}
-                    onRecoverMetadata={onRecoverMetadata}
-                    onRevertMetadata={onRevertMetadata}
                     onAIAnalysis={() => ai.analyzePrompt(displayImage.metadata.positivePrompt, onOpenSettings)}
                     onGenerateVariations={() => ai.generateVariations(displayImage.metadata.positivePrompt, onOpenSettings)}
                     isAnalyzing={ai.isAnalyzing}

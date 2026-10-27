@@ -8,7 +8,6 @@ import {
     EyeOff,
     FileJson,
     FolderOpen,
-    History,
     Image,
     Link2,
     Lock,
@@ -392,7 +391,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
                                         </div>
 
                                         <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                            <CompactFeature icon={<History className="h-4 w-4" />} title="AI Prompt Recovery" description="Infer a replacement prompt from an image" />
                                             <CompactFeature icon={<BrainCircuit className="h-4 w-4" />} title="Prompt Analysis" description="Review a prompt and suggest improvements" />
                                             <CompactFeature icon={<Wand2 className="h-4 w-4" />} title="Prompt Variations" description="Generate alternate prompt ideas" />
                                             <CompactFeature icon={<Search className="h-4 w-4" />} title="Natural-language search" description="Turn requests into library filters" />

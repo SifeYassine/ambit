@@ -128,35 +128,6 @@ describe('useAppHandlers', () => {
         ),
     });
 
-    it('should update positive prompt and call DB', async () => {
-        const { result } = renderHandlers();
-
-        await act(async () => {
-            await result.current.handleUpdatePrompt('img1', 'A cool cat');
-        });
-
-        expect(mockSetImages).toHaveBeenCalled();
-        expect(mockUpdateImageMetadataFields).toHaveBeenCalledWith('img1', { positivePrompt: 'A cool cat' });
-        expect(mockAddToast).toHaveBeenCalledWith('Updated', 'success');
-    });
-
-    it('ignores unchanged prompt and model values', async () => {
-        const { result } = renderHandlers();
-
-        await act(async () => {
-            await result.current.handleUpdatePrompt('img1', 'A cat');
-            await result.current.handleUpdateNegativePrompt('img1', 'low res');
-            await result.current.handleUpdateModel('img1', 'Model A');
-            await result.current.handleUpdateModel('img1', '   ');
-            await result.current.handleUpdateTool('img1', GeneratorTool.AUTOMATIC1111);
-        });
-
-        expect(mockSetImages).not.toHaveBeenCalled();
-        expect(mockUpdateImageMetadataFields).not.toHaveBeenCalled();
-        expect(mockRebuildFacetCacheIncremental).not.toHaveBeenCalled();
-        expect(mockAddToast).not.toHaveBeenCalled();
-    });
-
     it('should handle grouping images into a stack', () => {
         const { result } = renderHandlers();
 
@@ -365,112 +336,6 @@ describe('useAppHandlers', () => {
         expect(mockAddToast).toHaveBeenCalledWith(expect.stringContaining('still need attention'), 'warning');
     });
 
-    it('reloads the reverted image into local state and query caches', async () => {
-        const recoveredImage: AIImage = {
-            ...mockImages[0],
-            metadata: {
-                ...mockImages[0].metadata,
-                positivePrompt: 'Recovered prompt',
-            },
-        };
-        const revertedImage: AIImage = {
-            ...mockImages[0],
-            metadata: {
-                ...mockImages[0].metadata,
-                positivePrompt: 'A cat',
-            },
-            originalMetadata: mockImages[0].metadata,
-        };
-        mockGetImagesByIds.mockResolvedValue([revertedImage]);
-        queryClient.setQueryData(['images', { scope: 'library' }], {
-            pages: [{ images: [recoveredImage], totalCount: 1, globalCount: 1 }],
-            pageParams: [undefined],
-        });
-        const { result } = renderHandlers();
-
-        await act(async () => {
-            await result.current.handleRevertMetadata('img1');
-        });
-
-        expect(mockRevertImageMetadata).toHaveBeenCalledWith('img1');
-        expect(mockGetImagesByIds).toHaveBeenCalledWith(['img1']);
-
-        const updater = mockSetImages.mock.calls[0][0] as (images: AIImage[]) => AIImage[];
-        expect(updater([recoveredImage])[0].metadata.positivePrompt).toBe('A cat');
-
-        const cached = queryClient.getQueryData<{
-            pages: Array<{ images: AIImage[] }>;
-        }>(['images', { scope: 'library' }]);
-        expect(cached?.pages[0].images[0].metadata.positivePrompt).toBe('A cat');
-        expect(mockAddToast).toHaveBeenCalledWith('Reverted to original', 'success');
-    });
-
-    it('updates negative prompts while preserving existing original metadata', async () => {
-        const originalMetadata = { ...mockImages[0].metadata, positivePrompt: 'Original' };
-        const image = { ...mockImages[0], originalMetadata };
-        const { result } = renderHook(() => useAppHandlers({ ...props, images: [image] }), {
-            wrapper: ({ children }) => React.createElement(QueryClientProvider, { client: queryClient }, children),
-        });
-        await act(async () => result.current.handleUpdateNegativePrompt('img1', 'new negative'));
-        expect(dispatchedImages[0].metadata.negativePrompt).toBe('new negative');
-        expect(dispatchedImages[0].originalMetadata).toBe(originalMetadata);
-        expect(mockUpdateImageMetadataFields).toHaveBeenCalledWith('img1', { negativePrompt: 'new negative' });
-    });
-
-    it('updates model and tool metadata and refreshes their facet caches', async () => {
-        const { result } = renderHandlers();
-        await act(async () => result.current.handleUpdateModel('img1', 'Model B'));
-        await act(async () => Promise.resolve());
-        expect(dispatchedImages[0].metadata.overrideModel).toBe('Model B');
-        expect(mockRebuildFacetCacheIncremental).toHaveBeenCalledWith('checkpoints');
-
-        await act(async () => result.current.handleUpdateTool('img1', GeneratorTool.COMFYUI));
-        await act(async () => Promise.resolve());
-        expect(dispatchedImages[0].metadata.tool).toBe(GeneratorTool.COMFYUI);
-        expect(mockRebuildFacetCacheIncremental).toHaveBeenCalledWith('tools');
-        expect(mockIncrementFacetCacheVersion).toHaveBeenCalled();
-    });
-
-    it('ignores metadata updates for missing images', async () => {
-        const { result } = renderHandlers();
-        await act(async () => {
-            await result.current.handleUpdatePrompt('missing', 'x');
-            await result.current.handleUpdateNegativePrompt('missing', 'x');
-            await result.current.handleUpdateModel('missing', 'x');
-            await result.current.handleUpdateTool('missing', GeneratorTool.COMFYUI);
-        });
-        expect(mockUpdateImageMetadataFields).not.toHaveBeenCalled();
-    });
-
-    it('applies metadata edits to a directly opened asset outside the gallery', async () => {
-        let directImage: AIImage = {
-            ...mockImages[0],
-            id: 'hidden-control',
-            filename: 'hidden-control.png',
-        };
-        const activeImageState = {
-            getImage: (id: string) => id === directImage.id ? directImage : undefined,
-            updateImage: (id: string, updater: (image: AIImage) => AIImage) => {
-                if (id === directImage.id) directImage = updater(directImage);
-            },
-            removeImage: vi.fn(),
-        };
-        const { result } = renderHook(() => useAppHandlers({ ...props, activeImageState }), {
-            wrapper: ({ children }) => React.createElement(QueryClientProvider, { client: queryClient }, children),
-        });
-
-        await act(async () => result.current.handleUpdatePrompt(directImage.id, 'Direct prompt'));
-        await act(async () => result.current.handleUpdateModel(directImage.id, 'Direct model'));
-        await act(async () => result.current.handleUpdateTool(directImage.id, GeneratorTool.INVOKEAI));
-
-        expect(directImage.metadata).toEqual(expect.objectContaining({
-            positivePrompt: 'Direct prompt',
-            overrideModel: 'Direct model',
-            tool: GeneratorTool.INVOKEAI,
-        }));
-        expect(mockSetImages).not.toHaveBeenCalled();
-    });
-
     it('groups only requested images and applies the transactional duplicate result', async () => {
         const duplicate = { ...mockImages[0], id: 'img2' };
         dispatchedImages = [mockImages[0], duplicate];
@@ -658,36 +523,6 @@ describe('useAppHandlers', () => {
         await act(async () => result.current.handleEmptyTrash());
         expect(mockAddToast).toHaveBeenCalledWith('Removed items are now handled through the Removed tab actions.', 'info');
         expect(mockRefreshMaintenanceCounts).toHaveBeenCalled();
-    });
-
-    it('warns when reverted metadata cannot be reloaded', async () => {
-        mockGetImagesByIds.mockResolvedValueOnce([]);
-        const { result } = renderHandlers();
-        await act(async () => result.current.handleRevertMetadata('img1'));
-        expect(mockAddToast).toHaveBeenCalledWith('Metadata reverted, but the image could not be refreshed.', 'warning');
-        expect(mockSetImages).not.toHaveBeenCalled();
-    });
-
-    it('preserves stack data from current state when applying reverted metadata', async () => {
-        const current: AIImage = { ...mockImages[0], stack: [{ ...mockImages[0], id: 'stack-child' }] };
-        dispatchedImages = [current, { ...mockImages[0], id: 'other' }];
-        mockGetImagesByIds.mockResolvedValueOnce([{ ...mockImages[0], originalMetadata: mockImages[0].metadata }]);
-        const { result } = renderHandlers();
-        await act(async () => result.current.handleRevertMetadata('img1'));
-        expect(dispatchedImages[0].stack).toEqual(current.stack);
-        expect(dispatchedImages[1].id).toBe('other');
-    });
-
-    it('preserves unrelated images through every metadata updater and snapshots negative metadata', async () => {
-        const other = { ...mockImages[0], id: 'other' };
-        dispatchedImages = [mockImages[0], other];
-        const { result } = renderHandlers();
-        await act(async () => result.current.handleUpdatePrompt('img1', 'prompt'));
-        await act(async () => result.current.handleUpdateNegativePrompt('img1', 'negative'));
-        await act(async () => result.current.handleUpdateModel('img1', 'model'));
-        await act(async () => result.current.handleUpdateTool('img1', GeneratorTool.COMFYUI));
-        expect(dispatchedImages[1]).toBe(other);
-        expect(dispatchedImages[0].originalMetadata).toEqual(mockImages[0].metadata);
     });
 
     it('uses plural warning wording for partially deleted multiple files', async () => {

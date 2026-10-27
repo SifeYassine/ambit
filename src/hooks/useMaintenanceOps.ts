@@ -1,23 +1,14 @@
 import * as React from 'react';
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { AIImage, AppSettings, RecoveryStyle } from '../types';
+import { AIImage } from '../types';
 import { useToast } from './useToast';
-import { imageToAnalysisBase64 } from '../services/imageService';
 import { useLibraryStore } from '../stores/libraryStore';
-import { useSettingsStore } from '../stores/settingsStore';
 import {
-    getImagesByIds,
     refreshFacetCacheForResourcesStrict,
     removeImagesFromLibrary,
-    updateImageMetadataFields,
 } from '../services/db/imageRepo';
-import { removeImagesFromQueryCaches, updateImagesQueryCaches } from '../utils/imageQueryCache';
-import {
-    getEffectiveAiModel,
-    getEffectiveAiThinkingMode,
-    getEffectiveSystemPrompts
-} from '../utils/settingsUtils';
+import { removeImagesFromQueryCaches } from '../utils/imageQueryCache';
 import type { ActiveImageStateAdapter } from './activeImageState';
 import { invalidateInvokeReferenceQueries } from '../services/db/invokeReferenceRepo';
 
@@ -25,7 +16,6 @@ interface UseMaintenanceOpsProps {
     images: AIImage[];
     setImages: React.Dispatch<React.SetStateAction<AIImage[]>>;
     refreshCollections: () => Promise<void>;
-    settings: AppSettings;
     activeImageState?: ActiveImageStateAdapter;
 }
 
@@ -33,16 +23,11 @@ export const useMaintenanceOps = ({
     images,
     setImages,
     refreshCollections,
-    settings,
     activeImageState
 }: UseMaintenanceOpsProps) => {
     const { addToast } = useToast();
     const queryClient = useQueryClient();
-    const [isRecoveringMetadata, setIsRecoveringMetadata] = useState(false);
     const incrementFacetCacheVersion = useLibraryStore(state => state.incrementFacetCacheVersion);
-    const effectiveAiModel = getEffectiveAiModel(settings);
-    const effectiveAiThinkingMode = getEffectiveAiThinkingMode(settings);
-    const effectiveSystemPrompts = getEffectiveSystemPrompts(settings);
 
     const deleteImages = useCallback(async (ids: string[]): Promise<boolean> => {
         const logPrefix = '[MaintenanceOps] removeFromLibrary';
@@ -95,65 +80,7 @@ export const useMaintenanceOps = ({
         }
     }, [setImages, addToast, refreshCollections, incrementFacetCacheVersion, queryClient]);
 
-    const recoverMetadata = useCallback(async (targetId: string, style: RecoveryStyle): Promise<AIImage | null> => {
-        setIsRecoveringMetadata(true);
-        try {
-            const img = activeImageState?.getImage(targetId)
-                ?? images.find(i => i.id === targetId)
-                ?? (await getImagesByIds([targetId]))[0];
-            if (!img) {
-                addToast("Prompt Recovery could not find this image in the library.", "error");
-                return null;
-            }
-
-            const base64 = await imageToAnalysisBase64(img.id);
-            const apiKey = useSettingsStore.getState().geminiApiKey;
-            if (!apiKey) throw new Error("No API Key");
-
-            const { recoverImageMetadata } = await import('../services/geminiService');
-            const recoveredMeta = await recoverImageMetadata(
-                base64,
-                style,
-                apiKey,
-                effectiveAiModel,
-                effectiveSystemPrompts,
-                effectiveAiThinkingMode
-            );
-            const recoveredPrompt = recoveredMeta.positivePrompt ?? '';
-
-            const updatedImg = {
-                ...img,
-                metadata: {
-                    ...img.metadata,
-                    positivePrompt: recoveredPrompt
-                },
-                originalMetadata: img.originalMetadata
-            };
-
-            await updateImageMetadataFields(img.id, { positivePrompt: recoveredPrompt });
-            if (activeImageState) {
-                activeImageState.updateImage(img.id, () => updatedImg);
-            } else {
-                setImages(prev => prev.map(pImg => pImg.id === img.id ? updatedImg : pImg));
-            }
-            updateImagesQueryCaches(queryClient, cachedImage => (
-                cachedImage.id === img.id ? updatedImg : cachedImage
-            ));
-
-            addToast("Metadata recovered successfully!", "success");
-            return updatedImg;
-        } catch (e) {
-            console.error(e);
-            addToast("AI Prompt Recovery failed. Please try again.", "error");
-            return null;
-        } finally {
-            setIsRecoveringMetadata(false);
-        }
-    }, [images, effectiveAiModel, effectiveAiThinkingMode, effectiveSystemPrompts, setImages, addToast, queryClient, activeImageState]);
-
     return {
-        isRecoveringMetadata,
         deleteImages,
-        recoverMetadata
     };
 };

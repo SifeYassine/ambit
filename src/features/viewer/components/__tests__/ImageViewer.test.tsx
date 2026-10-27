@@ -161,7 +161,6 @@ const renderViewer = (overrides: Partial<React.ComponentProps<typeof ImageViewer
         onClose: vi.fn(),
         onNext: vi.fn(),
         onPrev: vi.fn(),
-        onSearch: vi.fn(),
         onToggleFavorite: vi.fn(),
         onOpenSettings: vi.fn(),
         isOpen: true,
@@ -308,7 +307,6 @@ describe('ImageViewer full metadata loading', () => {
             onClose={vi.fn()}
             onNext={vi.fn()}
             onPrev={vi.fn()}
-            onSearch={vi.fn()}
             onToggleFavorite={vi.fn()}
             onOpenSettings={vi.fn()}
             isOpen
@@ -344,7 +342,6 @@ describe('ImageViewer full metadata loading', () => {
             onClose={vi.fn()}
             onNext={vi.fn()}
             onPrev={vi.fn()}
-            onSearch={vi.fn()}
             onToggleFavorite={vi.fn()}
             onOpenSettings={vi.fn()}
             isOpen
@@ -363,7 +360,6 @@ describe('ImageViewer full metadata loading', () => {
             onClose={vi.fn()}
             onNext={vi.fn()}
             onPrev={vi.fn()}
-            onSearch={vi.fn()}
             onToggleFavorite={vi.fn()}
             onOpenSettings={vi.fn()}
             isOpen
@@ -495,68 +491,20 @@ describe('ImageViewer full metadata loading', () => {
         expect(onToggleFavorite).not.toHaveBeenCalled();
     });
 
-    it('forwards sidebar edits, searches, and AI commands', async () => {
+    it('forwards AI commands from the sidebar', async () => {
         aiState.value.result = 'analysis result';
-        const callbacks = {
-            onUpdatePrompt: vi.fn(), onUpdateNegativePrompt: vi.fn(),
-            onUpdateModel: vi.fn(), onUpdateTool: vi.fn(),
-            onSearch: vi.fn(), onRecoverMetadata: vi.fn(), onRevertMetadata: vi.fn(), onOpenSettings: vi.fn()
-        };
+        const callbacks = { onOpenSettings: vi.fn() };
         renderViewer(callbacks);
         await waitFor(() => expect(captures.sidebar).toBeTruthy());
         const sidebar = captures.sidebar as {
-            setActiveTab: (tab: 'edit') => void;
-            setPromptValue: (value: string) => void;
-            setNegativePromptValue: (value: string) => void;
-            onUpdatePrompt: (id: string, value: string) => void;
-            onUpdateNegativePrompt: (id: string, value: string) => void;
-            onUpdateModel: (id: string, value: string) => void;
-            onUpdateTool: (id: string, value: GeneratorTool) => void;
-            onSearch: (term: string) => void;
-            onRecoverMetadata: () => void; onRevertMetadata: (id: string) => void;
             onAIAnalysis: () => void; onGenerateVariations: () => void; onOpenAIResult: () => void;
         };
-        act(() => {
-            sidebar.setActiveTab('edit');
-            sidebar.setPromptValue('prompt');
-            sidebar.setNegativePromptValue('negative');
-        });
-        sidebar.onUpdatePrompt('id', 'prompt');
-        sidebar.onUpdateNegativePrompt('id', 'negative');
-        sidebar.onUpdateModel('id', 'Flux');
-        sidebar.onUpdateTool('id', GeneratorTool.COMFYUI);
-        sidebar.onSearch('term');
-        sidebar.onRecoverMetadata();
-        sidebar.onRevertMetadata('id');
         sidebar.onAIAnalysis();
         sidebar.onGenerateVariations();
         sidebar.onOpenAIResult();
-        expect(callbacks.onUpdatePrompt).toHaveBeenCalledWith('id', 'prompt');
-        expect(callbacks.onUpdateNegativePrompt).toHaveBeenCalledWith('id', 'negative');
-        expect(callbacks.onUpdateModel).toHaveBeenCalledWith('id', 'Flux');
-        expect(callbacks.onUpdateTool).toHaveBeenCalledWith('id', GeneratorTool.COMFYUI);
         expect(aiState.value.analyzePrompt).toHaveBeenCalledWith('Recovered prompt', callbacks.onOpenSettings);
         expect(aiState.value.generateVariations).toHaveBeenCalledWith('Recovered prompt', callbacks.onOpenSettings);
         expect(aiState.value.openModal).toHaveBeenCalled();
-    });
-
-    it('preserves absent mutation callbacks as a read-only viewer contract', async () => {
-        renderViewer({
-            onToggleFavorite: undefined,
-            onTogglePin: undefined,
-            onUpdatePrompt: undefined,
-            onUpdateNegativePrompt: undefined,
-            onUpdateModel: undefined,
-            onUpdateTool: undefined,
-        });
-
-        await waitFor(() => expect(captures.sidebar).toBeTruthy());
-        expect(captures.toolbar?.onToggleFavorite).toBeUndefined();
-        expect(captures.toolbar?.onTogglePin).toBeUndefined();
-        expect(captures.sidebar?.onUpdatePrompt).toBeUndefined();
-        expect(captures.sidebar?.onUpdateNegativePrompt).toBeUndefined();
-        expect(captures.sidebar?.onUpdateModel).toBeUndefined();
-        expect(captures.sidebar?.onUpdateTool).toBeUndefined();
     });
 
     it('sorts stacked versions and loads the selected version metadata', async () => {
@@ -711,10 +659,7 @@ describe('ImageViewer full metadata loading', () => {
         const { container } = renderViewer({ image });
         await act(async () => Promise.resolve());
         expect(container.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe('not liked, pinned');
-        const sidebar = captures.sidebar as {
-            promptValue: string; negativePromptValue: string; image: AIImage;
-        };
-        expect(sidebar).toMatchObject({ promptValue: '', negativePromptValue: '' });
+        const sidebar = captures.sidebar as { image: AIImage };
         expect(sidebar.image.metadata.overrideModel).toBe('Override Model');
 
         const selector = captures.versions as { onVersionSelect: (id: string) => void };

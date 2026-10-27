@@ -111,13 +111,6 @@ const setup = (isMasked = false, videoOverrides: Partial<VideoAsset> = {}, initi
         onToggleFavorite: vi.fn(),
         onTogglePin: vi.fn(),
         onDelete: vi.fn(),
-        onUpdatePrompt: vi.fn(),
-        onUpdateNegativePrompt: vi.fn(),
-        onUpdateModel: vi.fn(),
-        onUpdateTool: vi.fn(),
-        onUpdateGenerationMode: vi.fn(),
-        onRevertMetadata: vi.fn(),
-        onSearch: vi.fn()
     };
     return { ...render(<VideoViewer {...props} />), props };
 };
@@ -207,7 +200,7 @@ describe('VideoViewer', () => {
 
         fireEvent.click(screen.getByRole('tab', { name: 'Metadata' }));
 
-        await waitFor(() => expect((screen.getByLabelText('Generation mode') as HTMLSelectElement).value).toBe('text_to_video'));
+        await waitFor(() => expect(screen.getByLabelText('Generation mode').textContent).toBe('Text to video'));
         expect(screen.getAllByRole('button', { name: 'Source: trusted sidecar' }).length).toBeGreaterThan(0);
         expect(screen.getByText('full-evidence-lora')).toBeTruthy();
     });
@@ -281,45 +274,26 @@ describe('VideoViewer', () => {
         expect(document.querySelector('video')).toBeNull();
         expect(screen.getByText(/Preparing secure playback/)).toBeTruthy();
         fireEvent.click(screen.getByRole('tab', { name: 'Metadata' }));
-        expect((screen.getByLabelText('Positive prompt') as HTMLTextAreaElement).value).toBe('next prompt');
+        expect(screen.getByRole('textbox', { name: 'Positive prompt' }).textContent).toBe('next prompt');
 
         resolveNextPlayback?.({ status: 'ok', data: 'C:/videos/next.mp4' });
         await waitFor(() => expect(document.querySelector('video')?.getAttribute('src')).toContain('next.mp4'));
     });
 
     it.each([
-        ['loras', 'motion-detail.safetensors (0.75)', 'motion-detail', 'lora:motion-detail'],
-        ['controlNets', 'canny-video.safetensors', 'canny-video', 'cn:canny-video'],
-        ['ipAdapters', 'reference-face.pt', 'reference-face', 'ip:reference-face'],
-    ] as const)('filters the gallery from populated %s chips', (field, value, chipName, expectedSearch) => {
-        const { props } = setup(false, {
+        ['loras', 'motion-detail.safetensors (0.75)', 'motion-detail'],
+        ['controlNets', 'canny-video.safetensors', 'canny-video'],
+        ['ipAdapters', 'reference-face.pt', 'reference-face'],
+    ] as const)('shows populated %s chips as static labels', (field, value, chipName) => {
+        setup(false, {
             metadata: {
                 ...video.metadata,
                 [field]: [value],
             },
         });
         fireEvent.click(screen.getByRole('tab', { name: 'Metadata' }));
-        fireEvent.click(screen.getByRole('button', { name: new RegExp(chipName) }));
-
-        expect(props.onSearch).toHaveBeenCalledWith(expectedSearch);
-        expect(props.onClose).toHaveBeenCalledOnce();
-    });
-
-    it('renders resource chips as inert when gallery search is unavailable', () => {
-        setup(false, {
-            metadata: { ...video.metadata, loras: ['motion-detail'] },
-        }).rerender(<VideoViewer
-            video={{ ...video, metadata: { ...video.metadata, loras: ['motion-detail'] } }}
-            isMasked={false}
-            onClose={vi.fn()}
-            onNext={vi.fn()}
-            onPrev={vi.fn()}
-            onToggleFavorite={vi.fn()}
-        />);
-        fireEvent.click(screen.getByRole('tab', { name: 'Metadata' }));
-
-        expect(screen.getByText('motion-detail')).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'motion-detail' })).toBeNull();
+        expect(screen.getByText(chipName)).toBeTruthy();
+        expect(screen.queryByRole('button', { name: new RegExp(chipName) })).toBeNull();
     });
 
     it('uses a card reveal grant without showing a second viewer gate', async () => {
@@ -392,151 +366,6 @@ describe('VideoViewer', () => {
 
         await waitFor(() => expect(mocks.exportAssetOriginal).toHaveBeenCalledWith(video.id, 'C:/exports'));
         expect(mocks.addToast).toHaveBeenCalledWith('Exported C:/exports/clip.mp4', 'success');
-    });
-
-    it('does not persist unchanged blur values as user edits', () => {
-        const { props } = setup();
-
-        fireEvent.blur(screen.getByLabelText('Positive prompt'));
-        fireEvent.blur(screen.getByLabelText('Negative prompt'));
-
-        expect(props.onUpdateModel).not.toHaveBeenCalled();
-        expect(props.onUpdatePrompt).not.toHaveBeenCalled();
-        expect(props.onUpdateNegativePrompt).not.toHaveBeenCalled();
-    });
-
-    it('presents an unresolved model hash without saving it as an override', async () => {
-        const view = setup(false, {
-            metadata: { ...video.metadata, model: 'Unknown', modelHash: 'f8bb2922e1' },
-        });
-
-        fireEvent.click(screen.getByRole('tab', { name: 'Metadata' }));
-        await waitFor(() => expect(screen.getByText('f8bb2922e1')).toBeTruthy());
-        expect(screen.getByText('Unresolved hash')).toBeTruthy();
-        expect(screen.queryByText('Model Hash')).toBeNull();
-        fireEvent.click(screen.getByRole('button', { name: 'Edit Model' }));
-        expect((screen.getByRole('combobox', { name: 'Search models' }) as HTMLInputElement).value).toBe('');
-        fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-        expect(view.props.onUpdateModel).not.toHaveBeenCalled();
-
-        view.rerender(<VideoViewer
-            {...view.props}
-            video={{
-                ...view.props.video,
-                metadata: { ...view.props.video.metadata, model: 'Resolved model', modelHash: 'f8bb2922e1' },
-            }}
-        />);
-        await waitFor(() => expect(screen.getByText('Resolved model')).toBeTruthy());
-        expect(screen.queryByText('Unresolved hash')).toBeNull();
-        expect(screen.getByText('Model Hash').parentElement?.textContent).toContain('f8bb2922e1');
-    });
-
-    it('discards metadata editor drafts when navigating between videos with equal values', async () => {
-        const view = setup(false, {
-            metadata: { ...video.metadata, tool: GeneratorTool.COMFYUI, model: 'Shared Model' },
-        });
-
-        fireEvent.click(screen.getByRole('tab', { name: 'Metadata' }));
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Edit Generation Tool' })).toBeTruthy());
-        fireEvent.click(screen.getByRole('button', { name: 'Edit Generation Tool' }));
-        fireEvent.change(screen.getByRole('combobox', { name: 'Generator software' }), { target: { value: GeneratorTool.INVOKEAI } });
-        view.rerender(<VideoViewer
-            {...view.props}
-            video={{ ...view.props.video, id: 'C:/videos/next.mp4' }}
-        />);
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Edit Generation Tool' })).toBeTruthy());
-        expect(screen.queryByRole('button', { name: /save/i })).toBeNull();
-
-        fireEvent.click(screen.getByRole('button', { name: 'Edit Model' }));
-        fireEvent.click(screen.getByRole('option', { name: /Custom model/i }));
-        fireEvent.change(screen.getByLabelText('Custom model name'), { target: { value: 'Unsaved Model' } });
-        view.rerender(<VideoViewer
-            {...view.props}
-            video={{ ...view.props.video, id: 'C:/videos/third.mp4' }}
-        />);
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Edit Model' })).toBeTruthy());
-        expect(screen.queryByLabelText('Custom model name')).toBeNull();
-        expect(view.props.onUpdateTool).not.toHaveBeenCalled();
-        expect(view.props.onUpdateModel).not.toHaveBeenCalled();
-    });
-
-    it('shows video evidence and exposes explicit metadata overrides', async () => {
-        const { props } = setup(false, {
-            metadata: {
-                ...video.metadata,
-                model: 'ltx-video.safetensors',
-                seed: 42,
-                steps: 24,
-                cfg: 5,
-                sampler: 'euler',
-                loras: ['motion-detail'],
-                controlNets: ['canny-video'],
-                ipAdapters: ['reference-face'],
-                positivePrompt: 'A moving test pattern',
-                negativePrompt: 'static',
-                fieldSources: {
-                    ...video.metadata.fieldSources,
-                    model: 'user_override',
-                    overrideModel: 'user_override',
-                    seed: 'trusted_sidecar',
-                    steps: 'trusted_sidecar',
-                    cfg: 'trusted_sidecar',
-                    sampler: 'trusted_sidecar',
-                },
-                diagnostics: [{ code: 'sidecar_media_mismatch', message: 'Ignored mismatched sidecar' }]
-            }
-        });
-        fireEvent.click(screen.getByRole('tab', { name: 'Metadata' }));
-
-        expect(screen.getAllByRole('button', { name: 'Source: trusted sidecar' }).length).toBeGreaterThan(0);
-        expect(screen.getByText('Ignored mismatched sidecar')).toBeTruthy();
-        expect(screen.getByText('motion-detail')).toBeTruthy();
-        expect(screen.getByText('canny-video')).toBeTruthy();
-        expect(screen.getByText('reference-face')).toBeTruthy();
-        const mode = screen.getByLabelText('Generation mode');
-        const model = screen.getByRole('heading', { name: 'Model' });
-        const prompt = screen.getByLabelText('Positive prompt');
-        const parameters = screen.getByText('Seed').closest('dl');
-        const seedRow = screen.getByText('Seed').parentElement;
-        const negativePrompt = screen.getByLabelText('Negative prompt');
-        expect(prompt.compareDocumentPosition(negativePrompt) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(negativePrompt.compareDocumentPosition(mode) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(mode.compareDocumentPosition(model) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(model.compareDocumentPosition(parameters as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(seedRow?.children[1]?.textContent).toBe('42');
-        expect(seedRow?.lastElementChild?.querySelector('button')?.getAttribute('aria-label')).toBe('Source: trusted sidecar');
-        fireEvent.change(screen.getByLabelText('Generation mode'), { target: { value: 'guided_video' } });
-        expect(props.onUpdateGenerationMode).toHaveBeenCalledWith(video.id, 'guided_video');
-
-        fireEvent.change(prompt, { target: { value: 'Updated motion prompt' } });
-        fireEvent.blur(prompt);
-        expect(props.onUpdatePrompt).toHaveBeenCalledWith(video.id, 'Updated motion prompt');
-
-        fireEvent.click(screen.getByRole('button', { name: 'Edit Model' }));
-        fireEvent.click(screen.getByRole('option', { name: /Custom model/i }));
-        fireEvent.change(screen.getByLabelText('Custom model name'), { target: { value: 'override.safetensors' } });
-        fireEvent.click(screen.getByRole('button', { name: /save/i }));
-        expect(props.onUpdateModel).toHaveBeenCalledWith(video.id, 'override.safetensors');
-        fireEvent.click(screen.getByRole('button', { name: 'Revert user overrides' }));
-        expect(props.onRevertMetadata).toHaveBeenCalledWith(video.id);
-    });
-
-    it('shows the revert action only while user overrides exist', () => {
-        const { rerender, props } = setup();
-        fireEvent.click(screen.getByRole('tab', { name: 'Metadata' }));
-        expect(screen.queryByRole('button', { name: 'Revert user overrides' })).toBeNull();
-
-        rerender(<VideoViewer
-            {...props}
-            video={{
-                ...video,
-                metadata: {
-                    ...video.metadata,
-                    fieldSources: { ...video.metadata.fieldSources, positivePrompt: 'user_override' },
-                },
-            }}
-        />);
-        expect(screen.getByRole('button', { name: 'Revert user overrides' })).toBeTruthy();
     });
 
     it('seeks with visible controls and clamps at video boundaries', async () => {
@@ -636,10 +465,6 @@ describe('VideoViewer', () => {
         expect(player.currentTime).toBe(4);
 
         Object.defineProperty(player, 'duration', { configurable: true, value: 60 });
-        const prompt = screen.getByLabelText('Positive prompt');
-        fireEvent.keyDown(prompt, { key: 'l' });
-        expect(player.currentTime).toBe(4);
-
         const speed = screen.getByRole('combobox', { name: 'Playback speed' });
         fireEvent.keyDown(speed, { key: 'j' });
         expect(player.currentTime).toBe(4);

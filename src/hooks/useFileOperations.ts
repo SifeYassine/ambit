@@ -46,7 +46,6 @@ export const useFileOperations = ({
         images,
         setImages,
         refreshCollections,
-        settings,
         activeImageState
     });
 
@@ -54,7 +53,6 @@ export const useFileOperations = ({
         // State
         isImporting,
         isExporting: exportOps.isExporting,
-        isRecoveringMetadata: maintenanceOps.isRecoveringMetadata,
         isRegeneratingThumbnails,
         fileInputRef,
 
@@ -69,7 +67,6 @@ export const useFileOperations = ({
         // Other Actions
         exportImages: exportOps.exportImages,
         deleteImages: maintenanceOps.deleteImages,
-        recoverMetadata: maintenanceOps.recoverMetadata,
         regenerateThumbnails: thumbnailOps.regenerateThumbnails,
     };
 };

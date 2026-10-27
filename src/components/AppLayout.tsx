@@ -113,16 +113,13 @@ interface AppLayoutProps {
     // Grid/View Props
     scrollContainerRef: React.RefObject<HTMLDivElement | null>;
     images: AIImage[];
-    modelOptions?: readonly string[];
     handlers: AppHandlers;
     setViewingImageId: (id: string | null) => void;
     onMaintenanceViewerOpenChange: (isOpen: boolean) => void;
     onOpenReferencedImage: (imageId: string) => Promise<boolean>;
-    onViewerSearch: (term: string) => void;
     isViewerShortcutBlocked: boolean;
     toggleFavorite: (id: string) => void | Promise<void>;
     actions: ReturnType<typeof useAppActions>;
-    availableTags: string[];
     selectedIds: Set<string>;
     handleImageClick: (e: React.MouseEvent, id: string, index: number, callback: (index: number) => void, revealGranted?: boolean) => void;
     setSelectedImageIndex: (index: number | null) => void;
@@ -151,9 +148,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     viewMode, changeViewMode, searchProps, layoutMode, setLayoutMode,
     sortOption, setSortOption, displayedCount, scopeTotal, scopeName,
     fileOps, onOpenImportModal, workspaceRef, scrollContainerRef,
-    handlers, setViewingImageId, onMaintenanceViewerOpenChange, onOpenReferencedImage, onViewerSearch, isViewerShortcutBlocked,
-    modelOptions = [],
-    actions, availableTags, selectedIds,
+    handlers, setViewingImageId, onMaintenanceViewerOpenChange, onOpenReferencedImage, isViewerShortcutBlocked,
+    actions, selectedIds,
     handleImageClick, setSelectedImageIndex, handleSelectionToggle,
     activeCollection, activeSmartCollection, handleRangeSelection,
     clearSelection, gridRef, handleLayoutChange,
@@ -471,30 +467,15 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                                         onViewImage={(id) => setViewingImageId(id)}
                                         onRegenerateThumbnails={fileOps.regenerateThumbnails}
                                         maskedKeywords={effectiveMaskedKeywords}
-                                        onUpdatePrompt={handlers.handleUpdatePrompt}
-                                        onUpdateNegativePrompt={handlers.handleUpdateNegativePrompt}
-                                        onUpdateModel={handlers.handleUpdateModel}
-                                        onUpdateTool={handlers.handleUpdateTool}
-                                        onUpdateGenerationMode={(id, mode) => handlers.handleUpdateVideoGenerationMode(id, mode)}
-                                        onRevertMetadata={handlers.handleRevertMetadata}
-                                        onSearch={(term) => {
-                                            onViewerSearch(term);
-                                            changeViewMode('grid');
-                                        }}
                                         onOpenSettings={() => {
                                             modals.setInitialSettingsTab('intelligence');
                                             modals.openModal('settings');
                                         }}
-                                        onRecoverMetadata={(targetId, onRecovered) => {
-                                            actions.openMetadataRecovery(targetId, onRecovered);
-                                        }}
                                         onToggleFavorite={(id) => toggleFavorite(id)}
                                         onTogglePin={actions.handlePinImage}
-                                        availableTags={availableTags}
                                         onViewerOpenChange={onMaintenanceViewerOpenChange}
                                         onOpenReferencedImage={onOpenReferencedImage}
                                         isShortcutBlocked={isViewerShortcutBlocked}
-                                        modelOptions={modelOptions}
                                     />
                                 </React.Suspense>
                             ) : (images.length > 0 || isSearchPending) ? (

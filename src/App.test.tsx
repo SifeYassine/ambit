@@ -104,7 +104,6 @@ type ViewerProbe = {
     onTogglePin: (id: string, pinned: boolean) => void;
     onDelete: (id: string) => void;
     onOpenSettings: () => void;
-    onSearch: (term: string) => void;
     onRevertMetadata: (id: string) => void;
     onRecoverMetadata: () => void;
     onOpenReferencedImage: (id: string) => Promise<boolean>;
@@ -211,13 +210,7 @@ const mocks = vi.hoisted(() => ({
     handleBulkMask: vi.fn(),
     handleShortcutFavorite: vi.fn(),
     handleShortcutPin: vi.fn(),
-    handlers: {
-        handleUpdatePrompt: vi.fn(),
-        handleUpdateNegativePrompt: vi.fn(),
-        handleUpdateModel: vi.fn(),
-        handleUpdateTool: vi.fn(),
-        handleRevertMetadata: vi.fn()
-    },
+    handlers: {},
     startInvokeSync: vi.fn(),
     selectInvokeOwnerScope: vi.fn(),
     retryInvokeOwnerScope: vi.fn(),
@@ -1390,20 +1383,13 @@ describe('App orchestration', () => {
         await waitFor(() => expect(captured.viewer?.image.id).toBe('one'));
         viewer = requireProbe(captured.viewer, 'ImageViewer');
 
-        viewer.onUpdatePrompt('one', 'prompt');
-        viewer.onUpdateNegativePrompt('one', 'negative');
-        viewer.onUpdateModel('one', 'model');
-        viewer.onUpdateTool('one', GeneratorTool.COMFYUI);
         viewer.onToggleFavorite('one');
         viewer.onTogglePin('one', true);
         viewer.onDelete('one');
-        viewer.onRevertMetadata('one');
         viewer.onOpenSettings();
         viewer.onToggleSidebar();
         viewer.onClose();
 
-        expect(mocks.handlers.handleUpdatePrompt).toHaveBeenCalledWith('one', 'prompt');
-        expect(mocks.handlers.handleUpdateNegativePrompt).toHaveBeenCalledWith('one', 'negative');
         expect(mocks.handleFavoriteImage).toHaveBeenCalledWith('one', { showToast: false });
         expect(mocks.handlePinImage).toHaveBeenCalledWith('one', true, { showToast: false });
         expect(mocks.handleDeleteViewerImage).toHaveBeenCalledWith('one');
@@ -2043,19 +2029,6 @@ describe('App orchestration', () => {
 
         expect(requireProbe(captured.appLayout, 'AppLayout').scopeName).toBe('Smart A');
         expect(requireProbe(captured.appLayout, 'AppLayout').scopeTotal).toBe(2);
-    });
-
-    it('updates searches and delegates viewer recovery launch', async () => {
-        render(<App />);
-        act(() => requireProbe(captured.appLayout, 'AppLayout').setViewingImageId('one'));
-        await waitFor(() => expect(captured.viewer?.image.id).toBe('one'));
-        const viewer = requireProbe(captured.viewer, 'ImageViewer');
-
-        viewer.onSearch('new term');
-        await waitFor(() => expect(mocks.setFilters).toHaveBeenCalled());
-        expect(mocks.setRecentSearches).toHaveBeenCalledWith(expect.any(Function));
-        viewer.onRecoverMetadata();
-        expect(mocks.openMetadataRecovery).toHaveBeenCalledWith();
     });
 
     it('imports selected browser files through the hidden input', () => {

@@ -25,7 +25,6 @@ vi.mock('../ui/ConfirmDialog', () => ({
 vi.mock('../../features/settings/components/SettingsModal', () => ({ SettingsModal: (props: Record<string, unknown>) => modalButton('settings', props) }));
 vi.mock('../../features/library/components/ExportModal', () => ({ ExportModal: (props: Record<string, unknown>) => modalButton('export', props) }));
 vi.mock('../../features/viewer/components/SlideshowModal', () => ({ SlideshowModal: (props: Record<string, unknown>) => modalButton('slideshow', props) }));
-vi.mock('../../features/library/components/MetadataRecoveryModal', () => ({ MetadataRecoveryModal: (props: Record<string, unknown>) => modalButton('recovery', props) }));
 vi.mock('../../features/collections/components/AddToCollectionModal', () => ({ AddToCollectionModal: (props: Record<string, unknown>) => modalButton('addToCollection', props) }));
 vi.mock('../ui/CommandPalette', () => ({ CommandPalette: (props: Record<string, unknown>) => modalButton('commandPalette', props) }));
 vi.mock('../ui/ShortcutsModal', () => ({ ShortcutsModal: (props: Record<string, unknown>) => modalButton('shortcuts', props) }));
@@ -67,7 +66,6 @@ const allOpen: Record<string, boolean> = {
     deleteConfirm: true,
     deleteCollection: true,
     slideshow: true,
-    recovery: true,
     addToCollection: true,
     commandPalette: true,
     shortcuts: true,
@@ -88,7 +86,6 @@ const setup = (overrides: Partial<React.ComponentProps<typeof GlobalModals>> = {
         onExportConfirm: vi.fn(),
         onDeleteConfirm: vi.fn(),
         onDeleteCollectionConfirm: vi.fn(),
-        onRecoverMetadata: vi.fn(),
         onCollectionAction: vi.fn(),
         onCloseExport: vi.fn(),
         exportIds: new Set(),
@@ -96,7 +93,6 @@ const setup = (overrides: Partial<React.ComponentProps<typeof GlobalModals>> = {
         collectionToDeleteId: 'regular',
         addToCollectionMode: 'move',
         sourceCollectionId: 'source',
-        isRecoveringMetadata: true,
         isExporting: true,
         slideshowShuffle: true,
         initialSettingsTab: 'resources',
@@ -145,7 +141,7 @@ describe('GlobalModals', () => {
     it('renders every modal with its public data contract and routes all close actions', async () => {
         const props = setup();
         await screen.findByText('close-settings');
-        expect(Object.keys(captures.props)).toHaveLength(10);
+        expect(Object.keys(captures.props)).toHaveLength(9);
 
         expect(captures.props.settings).toMatchObject({
             initialTab: 'resources',
@@ -155,7 +151,6 @@ describe('GlobalModals', () => {
         });
         expect(captures.props.export).toMatchObject({ count: 2, isExporting: true });
         expect(captures.props.slideshow).toMatchObject({ initialIndex: 0, isShuffleDefault: true });
-        expect(captures.props.recovery).toMatchObject({ isProcessing: true });
         expect(captures.props.addToCollection).toMatchObject({ selectedIds: ['a', 'b'], mode: 'move', sourceCollectionId: 'source' });
         expect(captures.props.shortcuts).toMatchObject({
             initialTab: 'search',
@@ -166,7 +161,7 @@ describe('GlobalModals', () => {
         for (const name of Object.keys(captures.props)) {
             fireEvent.click(screen.getByText(`close-${name}`));
         }
-        expect(props.setModals).toHaveBeenCalledTimes(10);
+        expect(props.setModals).toHaveBeenCalledTimes(9);
         expect(props.onCloseExport).toHaveBeenCalledOnce();
 
         const updates = vi.mocked(props.setModals).mock.calls.map(([update]) =>
@@ -272,7 +267,7 @@ describe('GlobalModals', () => {
     it('suppresses conditional modals and supplies collection-editor defaults', async () => {
         const onSave = vi.fn();
         setup({
-            modals: { ...allOpen, settings: false, export: false, slideshow: false, recovery: false, addToCollection: false, commandPalette: false, shortcuts: false, donation: false, compare: true },
+            modals: { ...allOpen, settings: false, export: false, slideshow: false, addToCollection: false, commandPalette: false, shortcuts: false, donation: false, compare: true },
             selectedIds: new Set(['a']),
             filteredImages: [image('a')],
             smartCollections: undefined,

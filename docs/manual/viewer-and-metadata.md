@@ -54,17 +54,7 @@ Photo probes are limited to 64 MiB of input. Malformed or over-budget probes rem
 
 ## Metadata Tab
 
-Use Metadata to inspect and edit catalog metadata. Prompt fields provide a formatted reading surface and an edit control; changed fields save on blur. Original-prompt inspection is read-only. Blank, cancelled, and unchanged generator/model edits do not create overrides. Model choices include the library's checkpoint inventory and a custom value.
-
-The Positive Prompt section can show:
-
-- the current saved prompt
-- an Original toggle when Ambit has the imported prompt and the saved prompt differs
-- Copy for the displayed prompt
-- AI Prompt Recovery when Gemini intelligence features are configured
-- Revert when local metadata edits can be restored to the imported original
-
-The Negative Prompt field supports viewing and editing negative prompt data.
+Use Metadata to read the generation data Ambit parsed from the file. Everything in the tab is read-only: prompts, generator, model, parameters, and resources show what the image contains and cannot be edited in Ambit. The Positive Prompt section has Copy for the prompt, and search terms are highlighted in both prompts.
 
 For images imported with InvokeAI source facts, Source identifies InvokeAI and can show the original image name, category, and origin. This section is available even when the image has no generation parameters. Unrecognized source categories are displayed as recorded instead of being guessed or discarded.
 
@@ -78,27 +68,23 @@ Select an available entry to open it directly in the same viewer. This also work
 Generation Parameters is an expandable section for generation parameters and source-compatible copies. It can show:
 
 - Copy generation data in the section header for prompt and parameter text
-- sampler, steps, CFG Scale, seed, VAE, Clip Skip, denoising, hires fix fields, and model hash when available
-- modification markers when saved metadata differs from the imported original
+- sampler, steps, CFG Scale, seed, VAE, Clip Skip, denoising, hires fix fields, and model hash when available, each with its name above a value box
 
-Resource sections list parsed LoRAs, embeddings, hypernetworks, ControlNet, and IP-Adapter references. Selecting a resource chip starts a search from the viewer; exact filter behavior depends on the resource type.
+Resource sections list parsed LoRAs, embeddings, hypernetworks, ControlNet, IP-Adapter, and supporting-model references. LoRAs, ControlNets, and IP-Adapters show their weight beside the name, to two decimals, when it was recorded. For ComfyUI, ControlNet and IP-Adapter weights come from the active nodes that apply them; a model applied at different weights in one workflow shows none.
 
-Smart Tags are short prompt fragments extracted from the positive prompt. Selecting one searches for that tag and closes the viewer.
+## Comparing Two Images
+
+The comparer's Differences sidebar shows the positive and negative prompts, then the model, sampler, seed, steps, CFG, size, and resources of both images, each with its name above one value box per image, followed by each file's SHA-256. In diff view, prompts and resources mark what changed: red for entries only the first image has, green for entries only the second has, and orange for a changed weight.
 
 Internal Metadata opens a technical inspector with Parsed, Text, and, when workflow JSON exists, JSON views. This is useful when a generator embedded raw parameters or workflow data that is not shown elsewhere.
 
-## Local Edits
+## Catalog Changes
 
-The viewer no longer has a Details tab. Change collection membership from the library context menu or selection bar, and Image Kind from the context menu or selection bar. Notes saved by earlier versions stay in the catalog but are not shown or edited in the viewer. The image comparison sidebar lists both files' SHA-256 hashes below the generation settings and highlights them when they differ.
-
-Positive and negative prompt corrections live under Metadata. For A1111, Forge, and unknown generator records, Parse Prompt from Clipboard can read A1111-style parameter text containing `Steps:` and apply the prompts it finds.
+The viewer has no Details tab and does not change metadata. Change collection membership from the library context menu or selection bar, and Image Kind from the context menu or selection bar. Notes and metadata edits saved by earlier versions stay in the catalog but cannot be changed in the viewer.
 
 Image Kind offers Automatic, Generated, Photo, and Other. Automatic follows Ambit's conservative metadata detection. Manual choices are catalog-only and survive rescans; they do not rewrite the image file.
 
-Positive Prompt and Negative Prompt fields save local prompt corrections to Ambit's catalog on blur. Unchanged fields do not create overrides. Imported original prompts remain available for read-only inspection.
-
-These edits update Ambit's catalog. They do not rewrite the original image file or change the original generator workflow.
-Revert is available when actual metadata overrides exist.
+These changes update Ambit's catalog. They do not rewrite the original image file or change the original generator workflow.
 
 ## Workflow Tab
 
@@ -134,11 +120,11 @@ Some images have no recorded workflow. Some workflow data is valid JSON but not 
 
 ## Video Playback And Metadata
 
-Videos open with playback controls and start muted. Space toggles playback; J and L seek backward or forward by ten seconds. Previous/Next navigates the current result set. Open in Default App remains available when the Windows media runtime cannot decode a cataloged file. Export Original copies the original video without transcoding. Image comparison, image versions, slideshows, and Gemini image recovery are image-only.
+Videos open with playback controls and start muted. Space toggles playback; J and L seek backward or forward by ten seconds. Previous/Next navigates the current result set. Open in Default App remains available when the Windows media runtime cannot decode a cataloged file. Export Original copies the original video without transcoding. Image comparison, image versions, and slideshows are image-only.
 
 Grid and timeline cards use static posters or a generic placeholder. A masked video does not create a player or play audio until revealed; re-enabling privacy protection stops playback and restores the gate.
 
-Video Metadata can show ComfyUI prompts, generation mode, model, parameters, LoRAs, ControlNet, and IP-Adapter resources with evidence-source badges. Missing metadata is left unknown. User edits are local overrides; Revert user overrides restores the recovered metadata.
+Video Metadata can show ComfyUI prompts, generation mode, model, parameters, LoRAs, ControlNet, and IP-Adapter resources with evidence-source badges. Missing metadata is left unknown, and the video metadata is read-only.
 
 Ambit reads embedded ComfyUI evidence and an exact sibling sidecar: for `clip.mp4`, use `clip.workflow.json` containing a `media` value of `clip.mp4` and a `workflow` value containing the workflow. Sidecars must be regular non-symlink UTF-8 JSON files no larger than 2 MiB. Valid matching sidecar evidence takes precedence over embedded evidence; conflicting values are retained rather than blended. Live Watch tracks sidecar changes for cataloged videos, and Refresh All Metadata can reconcile changes made while Ambit was closed.
 
@@ -163,8 +149,6 @@ If metadata is missing or looks wrong:
 1. Inspect Metadata and, for generated images, Internal Metadata to see what Ambit parsed.
 2. Open Workflow to check whether workflow JSON exists or can be loaded from file headers.
 3. Refresh metadata for the folder if the source file has newer metadata.
-4. Use AI Prompt Recovery only when you intentionally want Gemini to infer a prompt from the image.
-5. Use Revert when you want to restore locally edited prompt or generation fields to the imported original.
 
 Metadata quality depends on what the generator embedded in the file.
 
