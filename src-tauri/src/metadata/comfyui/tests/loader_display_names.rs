@@ -207,7 +207,7 @@ fn ip_adapter_workflow(apply_mode: i64) -> HashMap<String, String> {
                     { "name": "ipadapter", "type": "IPADAPTER", "link": 2 }
                 ],
                 "outputs": [{ "name": "MODEL", "type": "MODEL", "links": [3] }],
-                "widgets_values": [1, "linear", "concat", 0, 1, "V only"]
+                "widgets_values": [0.4000000000000001, "linear", "concat", 0, 1, "V only"]
             },
             {
                 "id": 4, "type": "KSampler", "mode": 0,
@@ -248,6 +248,8 @@ fn ip_adapter_advanced_records_its_adapter_and_passes_the_model_through() {
 
     assert_eq!(meta.model, clean("WAI-illustrious-SDXL-v10.0"));
     assert_eq!(meta.ip_adapters, vec![clean("noobIPAMARK1_mark1.safetensors")]);
+    let weight = meta.ip_adapter_weights[&clean("noobIPAMARK1_mark1.safetensors")];
+    assert!((weight - 0.4).abs() < 1e-6, "{weight}");
 }
 
 #[test]
@@ -255,6 +257,122 @@ fn a_bypassed_ip_adapter_is_not_recorded() {
     let meta = extract_comfyui_metadata(&ip_adapter_workflow(4));
 
     assert!(meta.ip_adapters.is_empty(), "{:?}", meta.ip_adapters);
+    assert!(meta.ip_adapter_weights.is_empty());
+}
+
+/// ControlNetApplyAdvanced keeps its strength as the first widget: [strength, start, end].
+#[test]
+fn ui_workflow_controlnet_strength_comes_from_the_apply_node() {
+    let workflow = json!({
+        "nodes": [
+            {
+                "id": 1, "type": "CheckpointLoaderSimple", "mode": 0, "inputs": [],
+                "outputs": [{ "name": "MODEL", "type": "MODEL", "links": [1] }],
+                "widgets_values": ["WAI-illustrious-SDXL-v10.0"]
+            },
+            {
+                "id": 2, "type": "ControlNetLoader", "mode": 0, "inputs": [],
+                "outputs": [{ "name": "CONTROL_NET", "type": "CONTROL_NET", "links": [2] }],
+                "widgets_values": ["control_v11p_sd15_openpose.pth"]
+            },
+            {
+                "id": 3, "type": "ControlNetApplyAdvanced", "mode": 0,
+                "inputs": [
+                    { "name": "positive", "type": "CONDITIONING", "link": 40 },
+                    { "name": "negative", "type": "CONDITIONING", "link": 41 },
+                    { "name": "control_net", "type": "CONTROL_NET", "link": 2 }
+                ],
+                "outputs": [
+                    { "name": "positive", "type": "CONDITIONING", "links": [30] },
+                    { "name": "negative", "type": "CONDITIONING", "links": [31] }
+                ],
+                "widgets_values": [0.65, 0, 1]
+            },
+            {
+                "id": 4, "type": "KSampler", "mode": 0,
+                "inputs": [
+                    { "name": "model", "type": "MODEL", "link": 1 },
+                    { "name": "positive", "type": "CONDITIONING", "link": 30 },
+                    { "name": "negative", "type": "CONDITIONING", "link": 31 }
+                ],
+                "outputs": [{ "name": "LATENT", "type": "LATENT", "links": [] }],
+                "widgets_values": [7, "fixed", 29, 3.5, "dpmpp_2m", "karras", 1]
+            },
+            {
+                "id": 40, "type": "CLIPTextEncode", "mode": 0, "inputs": [],
+                "outputs": [{ "name": "CONDITIONING", "type": "CONDITIONING", "links": [40] }],
+                "widgets_values": ["masterpiece, a dancer"]
+            },
+            {
+                "id": 41, "type": "CLIPTextEncode", "mode": 0, "inputs": [],
+                "outputs": [{ "name": "CONDITIONING", "type": "CONDITIONING", "links": [41] }],
+                "widgets_values": ["lowres"]
+            }
+        ],
+        "links": [
+            [1, 1, 0, 4, 0, "MODEL"],
+            [2, 2, 0, 3, 2, "CONTROL_NET"],
+            [30, 3, 0, 4, 1, "CONDITIONING"],
+            [31, 3, 1, 4, 2, "CONDITIONING"],
+            [40, 40, 0, 3, 0, "CONDITIONING"],
+            [41, 41, 0, 3, 1, "CONDITIONING"]
+        ]
+    });
+    let chunks = HashMap::from([("workflow".to_string(), workflow.to_string())]);
+
+    let meta = extract_comfyui_metadata(&chunks);
+
+    let name = clean("control_v11p_sd15_openpose.pth");
+    assert_eq!(meta.control_nets, vec![name.clone()]);
+    assert!((meta.control_net_weights[&name] - 0.65).abs() < 1e-6, "{:?}", meta.control_net_weights);
+}
+
+fn controlnet_prompt(second_strength: Option<f64>) -> HashMap<String, String> {
+    let mut prompt = json!({
+        "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "base.safetensors" } },
+        "5": { "class_type": "CLIPTextEncode", "inputs": { "text": "a dancer", "clip": ["1", 1] } },
+        "6": { "class_type": "CLIPTextEncode", "inputs": { "text": "lowres", "clip": ["1", 1] } },
+        "7": { "class_type": "ControlNetLoader", "inputs": { "control_net_name": "control_v11p_sd15_canny.pth" } },
+        "8": { "class_type": "LoadImage", "inputs": { "image": "edges.png" } },
+        "9": { "class_type": "ControlNetApplyAdvanced", "inputs": {
+            "positive": ["5", 0], "negative": ["6", 0], "control_net": ["7", 0], "image": ["8", 0],
+            "strength": 0.8, "start_percent": 0, "end_percent": 1
+        } },
+        "4": { "class_type": "KSampler", "inputs": {
+            "model": ["1", 0], "seed": 1, "steps": 20, "cfg": 7, "sampler_name": "euler",
+            "scheduler": "normal", "denoise": 1, "positive": ["9", 0], "negative": ["9", 1],
+            "latent_image": ["3", 0]
+        } },
+        "3": { "class_type": "EmptyLatentImage", "inputs": { "width": 512, "height": 512, "batch_size": 1 } }
+    });
+    if let Some(strength) = second_strength {
+        prompt["10"] = json!({ "class_type": "ControlNetApplyAdvanced", "inputs": {
+            "positive": ["9", 0], "negative": ["9", 1], "control_net": ["7", 0], "image": ["8", 0],
+            "strength": strength, "start_percent": 0, "end_percent": 1
+        } });
+        prompt["4"]["inputs"]["positive"] = json!(["10", 0]);
+        prompt["4"]["inputs"]["negative"] = json!(["10", 1]);
+    }
+    HashMap::from([("prompt".to_string(), prompt.to_string())])
+}
+
+#[test]
+fn api_prompt_controlnet_strength_is_read_from_inputs() {
+    let meta = extract_comfyui_metadata(&controlnet_prompt(None));
+
+    let name = clean("control_v11p_sd15_canny.pth");
+    assert_eq!(meta.control_nets, vec![name.clone()]);
+    assert!((meta.control_net_weights[&name] - 0.8).abs() < 1e-6, "{:?}", meta.control_net_weights);
+}
+
+#[test]
+fn a_controlnet_applied_at_two_strengths_gets_no_single_weight() {
+    let agreeing = extract_comfyui_metadata(&controlnet_prompt(Some(0.8)));
+    assert_eq!(agreeing.control_net_weights.len(), 1);
+
+    let conflicting = extract_comfyui_metadata(&controlnet_prompt(Some(0.3)));
+    assert_eq!(conflicting.control_nets, vec![clean("control_v11p_sd15_canny.pth")]);
+    assert!(conflicting.control_net_weights.is_empty(), "{:?}", conflicting.control_net_weights);
 }
 
 /// Supporting models count only when their loader is active and an active node consumes it.

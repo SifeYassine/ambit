@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, HashMap};
 
 mod auxiliary_resources;
 mod conditioning;
+mod guidance_weights;
 mod diagnostics;
 mod eval_core;
 mod eval_utils;
@@ -25,6 +26,7 @@ use self::diagnostics::{
     ComfyParseDiagnostics, ComfyParseLayer,
 };
 use self::auxiliary_resources::collect_auxiliary_resources;
+use self::guidance_weights::guidance_weights;
 use self::evaluator::{is_sampler_node, ComfyEvaluator};
 use self::graph::ComfyGraph;
 use self::strategies::{global_scan, scan_explicit_nodes};
@@ -455,6 +457,11 @@ fn merge_graph_metadata(
         graph_diagnostics,
         diagnostics,
     );
+    for (name, weight) in std::mem::take(&mut graph.control_net_weights) {
+        if base.control_nets.contains(&name) {
+            base.control_net_weights.entry(name).or_insert(weight);
+        }
+    }
     merge_graph_resources(
         &mut base.ip_adapters,
         std::mem::take(&mut graph.ip_adapters),
@@ -462,6 +469,11 @@ fn merge_graph_metadata(
         graph_diagnostics,
         diagnostics,
     );
+    for (name, weight) in std::mem::take(&mut graph.ip_adapter_weights) {
+        if base.ip_adapters.contains(&name) {
+            base.ip_adapter_weights.entry(name).or_insert(weight);
+        }
+    }
     merge_graph_resources(
         &mut base.embeddings,
         std::mem::take(&mut graph.embeddings),
@@ -978,6 +990,9 @@ fn extract_comfyui_graph_with_diagnostics(
     }
 
     meta.lora_weights = lora_weights_from_sources(&graph, &meta.loras, &diagnostics);
+    let guidance = guidance_weights(&graph, &meta.control_nets, &meta.ip_adapters, &diagnostics);
+    meta.control_net_weights = guidance.control_nets;
+    meta.ip_adapter_weights = guidance.ip_adapters;
     let auxiliary = collect_auxiliary_resources(&graph);
     meta.merge_auxiliary_resources(auxiliary.vaes, auxiliary.upscalers, auxiliary.clip_visions, auxiliary.detectors);
     (meta, diagnostics)

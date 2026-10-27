@@ -3,6 +3,14 @@ use super::utils::{
 };
 use super::{is_missing_prompt_value, ImageMetadata};
 
+/// The `Weight:` of one ControlNet unit, e.g. `Module: canny, Model: x [hash], Weight: 0.8, ...`.
+fn parse_controlnet_unit_weight(unit: &str) -> Option<f64> {
+    unit.split(',')
+        .find_map(|part| part.trim().strip_prefix("Weight:"))
+        .and_then(|weight| weight.trim().trim_matches('"').parse::<f64>().ok())
+        .filter(|weight| weight.is_finite())
+}
+
 fn split_a1111_params(s: &str) -> Vec<String> {
     let mut result = Vec::new();
     let mut current = String::new();
@@ -138,6 +146,8 @@ pub fn extract_a1111_metadata(text: &str, default_tool: Option<String>) -> Image
         let pairs = split_a1111_params(&params_content);
         let mut variation_seed = String::new();
         let mut variation_strength = String::new();
+        // (is IP-Adapter, model, weight) per ControlNet unit; weights are kept when units agree.
+        let mut guidance_units: Vec<(bool, String, f64)> = Vec::new();
 
         for pair in pairs {
             if let Some((key, val)) = pair.split_once(": ") {
@@ -329,6 +339,11 @@ pub fn extract_a1111_metadata(text: &str, default_tool: Option<String>) -> Image
                                             "other".to_string(),
                                         ));
 
+                                    let is_ip_adapter =
+                                        matches!(cat, super::guidance::GuidanceCategory::IPAdapter);
+                                    if let Some(weight) = parse_controlnet_unit_weight(val) {
+                                        guidance_units.push((is_ip_adapter, model_name.to_string(), weight));
+                                    }
                                     match cat {
                                         super::guidance::GuidanceCategory::IPAdapter => {
                                             if !meta.ip_adapters.contains(&model_name.to_string()) {
@@ -370,6 +385,13 @@ pub fn extract_a1111_metadata(text: &str, default_tool: Option<String>) -> Image
         if !variation_seed.is_empty() && !variation_strength.is_empty() {
             meta.variation_id = Some(format!("{}:{}", variation_seed, variation_strength));
         }
+
+        meta.control_net_weights = super::consistent_weights(
+            guidance_units.iter().filter(|(ip, _, _)| !ip).map(|(_, name, weight)| (name.clone(), *weight)),
+        );
+        meta.ip_adapter_weights = super::consistent_weights(
+            guidance_units.iter().filter(|(ip, _, _)| *ip).map(|(_, name, weight)| (name.clone(), *weight)),
+        );
     }
 
     // --- Unified Prompt Extraction (Embeddings, LoRAs, Hypernetworks) ---
@@ -646,6 +668,21 @@ Steps: 20, TI hashes: "(oil on canvas by Rembrandt van Rijn)+++: invalid, EasyNe
 #[cfg(test)]
 mod supporting_model_tests {
     use super::extract_a1111_metadata;
+
+    #[test]
+    fn a1111_controlnet_units_record_their_weight() {
+        let meta = extract_a1111_metadata(
+            "a dancer\nSteps: 20, Sampler: Euler a, CFG scale: 7, Seed: 1, Model: base, \
+             ControlNet 0: \"Module: openpose, Model: control_v11p_sd15_openpose [cab727d4], Weight: 0.75, Resize Mode: Crop and Resize\", \
+             ControlNet 1: \"Module: canny, Model: control_v11p_sd15_canny [d14c016b], Weight: 1, Resize Mode: Crop and Resize\"",
+            None,
+        );
+        assert_eq!(meta.control_nets.len(), 2, "{:?}", meta.control_nets);
+        let openpose = meta.control_nets.iter().find(|name| name.contains("openpose")).unwrap();
+        assert!((meta.control_net_weights[openpose] - 0.75).abs() < 1e-6, "{:?}", meta.control_net_weights);
+        let canny = meta.control_nets.iter().find(|name| name.contains("canny")).unwrap();
+        assert!((meta.control_net_weights[canny] - 1.0).abs() < 1e-6);
+    }
 
     #[test]
     fn a1111_vae_and_hires_upscaler_become_supporting_models() {

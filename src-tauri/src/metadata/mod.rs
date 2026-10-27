@@ -22,10 +22,36 @@ pub use parsers::{extract_png_chunks, scan_jpeg_metadata, scan_webp_metadata};
 /// Current parser version. Increment when any parser logic changes.
 /// Images with parser_version < CURRENT_PARSER_VERSION will be queued
 /// for background re-parsing from their stored original_metadata_json.
-pub const CURRENT_PARSER_VERSION: u32 = 48;
+pub const CURRENT_PARSER_VERSION: u32 = 49;
 
 /// Video metadata evolves independently from the mature image parsers.
 pub const VIDEO_PARSER_VERSION: u32 = 1;
+
+/// Weights within this distance are the same weight (they print identically to two decimals).
+pub(crate) const WEIGHT_TOLERANCE: f64 = 0.005;
+
+/// One weight per name, kept only when every application of that name used the same weight;
+/// a model applied at different strengths has no single weight, so it gets none.
+pub(crate) fn consistent_weights(entries: impl IntoIterator<Item = (String, f64)>) -> BTreeMap<String, f64> {
+    let mut weights = BTreeMap::new();
+    let mut conflicting = std::collections::BTreeSet::new();
+    for (name, weight) in entries {
+        if !weight.is_finite() || conflicting.contains(&name) {
+            continue;
+        }
+        match weights.get(&name) {
+            Some(existing) if (existing - weight).abs() >= WEIGHT_TOLERANCE => {
+                weights.remove(&name);
+                conflicting.insert(name);
+            }
+            Some(_) => {}
+            None => {
+                weights.insert(name, weight);
+            }
+        }
+    }
+    weights
+}
 
 pub(crate) fn is_missing_prompt_value(value: &str) -> bool {
     value.trim().is_empty() || is_placeholder_prompt_value(value)
@@ -73,8 +99,14 @@ pub struct ImageMetadata {
     pub lora_weights: BTreeMap<String, f64>,
     #[serde(rename = "controlNets", skip_serializing_if = "Vec::is_empty")]
     pub control_nets: Vec<String>,
+    /// Strength per entry of `control_nets`, when every unit applying it agrees.
+    #[serde(rename = "controlNetWeights", default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub control_net_weights: BTreeMap<String, f64>,
     #[serde(rename = "ipAdapters", skip_serializing_if = "Vec::is_empty")]
     pub ip_adapters: Vec<String>,
+    /// Weight per entry of `ip_adapters`, when every node applying it agrees.
+    #[serde(rename = "ipAdapterWeights", default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub ip_adapter_weights: BTreeMap<String, f64>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub embeddings: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -173,10 +205,16 @@ impl ImageMetadata {
                 self.control_nets.push(x);
             }
         }
+        for (name, weight) in other.control_net_weights {
+            self.control_net_weights.entry(name).or_insert(weight);
+        }
         for x in other.ip_adapters {
             if !self.ip_adapters.contains(&x) {
                 self.ip_adapters.push(x);
             }
+        }
+        for (name, weight) in other.ip_adapter_weights {
+            self.ip_adapter_weights.entry(name).or_insert(weight);
         }
         for x in other.embeddings {
             if !self.embeddings.contains(&x) {
@@ -268,7 +306,9 @@ impl Default for ImageMetadata {
             loras: Vec::new(),
             lora_weights: BTreeMap::new(),
             control_nets: Vec::new(),
+            control_net_weights: BTreeMap::new(),
             ip_adapters: Vec::new(),
+            ip_adapter_weights: BTreeMap::new(),
             embeddings: Vec::new(),
             hypernetworks: Vec::new(),
             vaes: Vec::new(),
@@ -394,11 +434,17 @@ pub fn merge_metadata(base: &mut ImageMetadata, secondary: ImageMetadata) {
             base.control_nets.push(cn);
         }
     }
+    for (name, weight) in secondary.control_net_weights {
+        base.control_net_weights.entry(name).or_insert(weight);
+    }
 
     for ip in secondary.ip_adapters {
         if !base.ip_adapters.contains(&ip) {
             base.ip_adapters.push(ip);
         }
+    }
+    for (name, weight) in secondary.ip_adapter_weights {
+        base.ip_adapter_weights.entry(name).or_insert(weight);
     }
 
     for emb in secondary.embeddings {

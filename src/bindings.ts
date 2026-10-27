@@ -917,7 +917,15 @@ export type ImageMetadata = { tool: string; model: string; rawParameters?: strin
 /**
  * Model strength per entry of `loras`, for parsers whose LoRA names carry no weight.
  */
-loraWeights: Partial<{ [key in string]: number }>; controlNets: string[]; ipAdapters: string[]; embeddings: string[]; hypernetworks: string[]; 
+loraWeights: Partial<{ [key in string]: number }>; controlNets: string[]; 
+/**
+ * Strength per entry of `control_nets`, when every unit applying it agrees.
+ */
+controlNetWeights: Partial<{ [key in string]: number }>; ipAdapters: string[]; 
+/**
+ * Weight per entry of `ip_adapters`, when every node applying it agrees.
+ */
+ipAdapterWeights: Partial<{ [key in string]: number }>; embeddings: string[]; hypernetworks: string[]; 
 /**
  * Supporting models: VAEs, upscale models, CLIP Vision encoders, and detection models.
  */

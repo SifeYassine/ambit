@@ -712,6 +712,20 @@ fn core_loader_widget_index(node_type: &str, key: &str) -> Option<usize> {
     }
 }
 
+/// ControlNet and IP-Adapter apply nodes keep their strength as the first widget. Only the
+/// standard nodes are listed: variants such as IPAdapterStyleComposition put other values first.
+fn apply_node_strength_index(node_type: &str, key: &str) -> Option<usize> {
+    match (node_type, key) {
+        ("ControlNetApply" | "ControlNetApplyAdvanced" | "ControlNetApplySD3", "strength")
+        | (
+            "IPAdapter" | "IPAdapterAdvanced" | "IPAdapterTiled" | "IPAdapterBatch" | "IPAdapterFaceID"
+            | "IPAdapterFaceIDBatch" | "IPAdapterApply" | "IPAdapterApplyFaceID",
+            "weight",
+        ) => Some(0),
+        _ => None,
+    }
+}
+
 fn is_core_loader_widget_value(key: &str, value: &Value) -> bool {
     if key.starts_with("strength") {
         value.is_number()
@@ -992,6 +1006,13 @@ pub fn get_node_param<'a>(node: &'a Value, key: &str) -> Option<&'a Value> {
         if let Some(value) = core_loader_widget_index(t, key)
             .and_then(|index| arr.get(index))
             .filter(|value| is_core_loader_widget_value(key, value))
+        {
+            return Some(value);
+        }
+
+        if let Some(value) = apply_node_strength_index(t, key)
+            .and_then(|index| arr.get(index))
+            .filter(|value| value.is_number())
         {
             return Some(value);
         }

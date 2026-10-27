@@ -701,7 +701,7 @@ fn get_conditioning_source_id(
     }
 }
 
-fn trace_controlnet_name_valid(graph: &ComfyGraph, node_id: &str) -> Option<(String, String)> {
+pub(super) fn trace_controlnet_name_valid(graph: &ComfyGraph, node_id: &str) -> Option<(String, String)> {
     let mut current_id = node_id.to_string();
     for _ in 0..10 {
         if let Some(node) = graph.get_node(&current_id) {
