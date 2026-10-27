@@ -39,7 +39,8 @@ export const MetadataDisclosureSection: React.FC<MetadataDisclosureSectionProps>
     return (
         <section className={className}>
             <div className="flex items-center justify-between gap-2">
-                <h3 id={headingId} className="min-w-0 flex-1">
+                {/* The button's own padding is pulled back so its label lines up with plain section headers. */}
+                <h3 id={headingId} className="-ml-2 min-w-0 flex-1">
                     <button
                         type="button"
                         aria-expanded={isExpanded}

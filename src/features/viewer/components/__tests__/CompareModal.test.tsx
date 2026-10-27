@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '../../../../test/testUtils';
+import { act, fireEvent, render, screen, waitFor, within } from '../../../../test/testUtils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GeneratorTool, type AIImage } from '../../../../types';
 import { CompareModal } from '../CompareModal';
@@ -298,7 +298,26 @@ describe('CompareModal', () => {
         expect(sectionOrder[1].compareDocumentPosition(sectionOrder[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('lists each file SHA-256 below the generation settings and highlights differing hashes', async () => {
+    it('compares the sampler and diffs resources with their weights', () => {
+        const imageA = createImage('a', {});
+        const imageB = createImage('b', {});
+        imageA.metadata = { ...imageA.metadata, sampler: 'euler', loras: ['frostbite', 'moriimee'], loraWeights: { frostbite: 1, moriimee: 0.5 } };
+        imageB.metadata = { ...imageB.metadata, sampler: 'dpmpp_2m', loras: ['frostbite', 'gothic'], loraWeights: { frostbite: 0.75, gothic: 1 } };
+        renderModal({ imageA, imageB });
+
+        expect(screen.getByText('Sampler')).toBeTruthy();
+        expect(screen.getByText('dpmpp_2m')).toBeTruthy();
+        const loras = screen.getByRole('region', { name: 'LoRAs comparison' });
+        const entry = (name: string, index = 0) => within(loras).getAllByText(name)[index].closest('span') as HTMLElement;
+        expect(entry('moriimee').className).toContain('bg-red-500/50');
+        expect(entry('gothic').className).toContain('bg-sage-500/50');
+        expect(entry('frostbite', 0).className).toContain('bg-orange-500/40');
+        expect(entry('frostbite', 0).textContent).toBe('frostbite1.00');
+        expect(entry('frostbite', 1).textContent).toBe('frostbite0.75');
+        expect(screen.getByText('Size').compareDocumentPosition(loras) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('lists each file SHA-256 below the generation settings in neutral boxes', async () => {
         const hashA = 'a'.repeat(64);
         const hashB = 'b'.repeat(64);
         computeImageFileHashMock.mockImplementation(async (id: string) => (id === 'a' ? hashA : hashB));
@@ -306,7 +325,8 @@ describe('CompareModal', () => {
 
         const valueA = await screen.findByText(hashA);
         expect(screen.getByText(hashB)).toBeTruthy();
-        expect(valueA.className).toContain('text-ember-300');
+        expect(valueA.className).toContain('bg-zinc-900');
+        expect(valueA.className).not.toContain('ember');
         expect(screen.getByText('Size').compareDocumentPosition(screen.getByText('SHA-256')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 });

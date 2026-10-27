@@ -2,28 +2,24 @@ import * as React from 'react';
 import { Boxes, type LucideIcon } from 'lucide-react';
 import { MetadataDisclosureSection } from './MetadataDisclosureSection';
 import { MetadataSourceBadge } from './MetadataSourceBadge';
-import { buildResourceSearchTerm, ResourceChips, type ResourceFilterKind } from './ResourceChips';
+import { ResourceChips } from './ResourceChips';
 
 export interface MetadataResourceGroup {
     title: string;
     icon: LucideIcon;
     items: readonly unknown[] | null | undefined;
-    filterKind?: ResourceFilterKind;
+    weights?: Partial<Record<string, number>>;
     source?: string;
 }
 
 interface ResourcesSectionProps {
     groups: readonly MetadataResourceGroup[];
-    onSearch?: (term: string) => void;
-    onClose?: () => void;
     expanded?: boolean;
     onExpandedChange?: (expanded: boolean) => void;
 }
 
 export const ResourcesSection: React.FC<ResourcesSectionProps> = ({
     groups,
-    onSearch,
-    onClose,
     expanded,
     onExpandedChange,
 }) => {
@@ -39,7 +35,7 @@ export const ResourcesSection: React.FC<ResourcesSectionProps> = ({
             count={totalCount}
             expanded={expanded}
             onExpandedChange={onExpandedChange}
-            contentClassName="mt-3 space-y-4 pl-6"
+            contentClassName="mt-3 space-y-4"
         >
             {visibleGroups.map(group => {
                 const Icon = group.icon;
@@ -54,13 +50,7 @@ export const ResourcesSection: React.FC<ResourcesSectionProps> = ({
                             </h4>
                             {group.source ? <MetadataSourceBadge source={group.source} /> : null}
                         </div>
-                        <ResourceChips
-                            items={items}
-                            onSelect={onSearch ? name => {
-                                onSearch(group.filterKind ? buildResourceSearchTerm(group.filterKind, name) : name);
-                                onClose?.();
-                            } : undefined}
-                        />
+                        <ResourceChips items={items} weights={group.weights} />
                     </section>
                 );
             })}

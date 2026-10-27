@@ -48,7 +48,6 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'none';
 
 export type ImportMode = 'manual' | 'startup' | 'background';
 
-export type RecoveryStyle = 'generic' | 'midjourney' | 'sdxl' | 'danbooru';
 
 export interface ImageMetadata {
   tool: GeneratorTool;
@@ -65,6 +64,10 @@ export interface ImageMetadata {
 
   // Advanced Metadata
   loras?: string[];
+  /** Weights for resources whose names carry none (ComfyUI), keyed by the exact list entry. */
+  loraWeights?: Partial<Record<string, number>>;
+  controlNetWeights?: Partial<Record<string, number>>;
+  ipAdapterWeights?: Partial<Record<string, number>>;
   embeddings?: string[];
   hypernetworks?: string[];
   /** Supporting models; optional because older records and saved filters predate them. */

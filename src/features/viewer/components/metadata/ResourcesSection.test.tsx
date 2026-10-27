@@ -1,15 +1,10 @@
 import * as React from 'react';
 import { Code, Puzzle, Target } from 'lucide-react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '../../../../test/testUtils';
 import { ResourcesSection, type MetadataResourceGroup } from './ResourcesSection';
 
-const renderSection = (groups: readonly MetadataResourceGroup[]) => {
-    const onSearch = vi.fn();
-    const onClose = vi.fn();
-    const view = render(<ResourcesSection groups={groups} onSearch={onSearch} onClose={onClose} />);
-    return { ...view, onSearch, onClose };
-};
+const renderSection = (groups: readonly MetadataResourceGroup[]) => render(<ResourcesSection groups={groups} />);
 
 describe('ResourcesSection', () => {
     it('renders nothing when every resource group is empty', () => {
@@ -37,43 +32,40 @@ describe('ResourcesSection', () => {
 
         fireEvent.click(disclosure);
         expect(disclosure.getAttribute('aria-expanded')).toBe('false');
-        expect(screen.queryByRole('button', { name: 'one' })).toBeNull();
+        expect(screen.queryByText('one')).toBeNull();
     });
 
-    it('indents resource subgroups beneath the parent disclosure', () => {
+    it('lines resource subgroups up with the other sections instead of indenting them', () => {
         renderSection([{ title: 'LoRAs', icon: Puzzle, items: ['portrait'] }]);
 
         const subgroup = screen.getByRole('heading', { name: 'LoRAs' }).closest('section');
-        expect(subgroup?.parentElement?.className).toContain('pl-6');
+        expect(subgroup?.parentElement?.className).not.toContain('pl-6');
     });
 
-    it.each([
-        ['LoRAs', Puzzle, 'lora', 'Portrait.safetensors (0.75)', 'Portrait', 'lora:Portrait'],
-        ['Embeddings', Code, 'embedding', 'detail.pt (-1)', 'detail', 'embedding:detail'],
-        ['Hypernetworks', Code, 'hypernet', 'lighting.ckpt (2.0)', 'lighting', 'hypernet:lighting'],
-        ['ControlNets', Target, 'controlnet', 'pose.safetensors', 'pose', 'cn:pose'],
-        ['IP adapters', Code, 'ipadapter', 'face.pt', 'face', 'ip:face'],
-    ] as const)('preserves %s resource filtering', (title, icon, filterKind, item, name, expected) => {
-        const { onSearch, onClose } = renderSection([{ title, icon, filterKind, items: [item] }]);
+    it('shows resources as static chips with their weights', () => {
+        renderSection([
+            { title: 'LoRAs', icon: Puzzle, items: ['Portrait.safetensors (0.75)', 'frostbite'], weights: { frostbite: 1.0000000000000002 } },
+            { title: 'ControlNets', icon: Target, items: ['pose.safetensors'] },
+        ]);
 
-        fireEvent.click(screen.getByRole('button', { name: new RegExp(name) }));
-
-        expect(onSearch).toHaveBeenCalledWith(expected);
-        expect(onClose).toHaveBeenCalledTimes(1);
+        expect(screen.queryAllByRole('button').map(button => button.getAttribute('aria-expanded'))).toEqual(['true']);
+        const weightOf = (name: string) => screen.getByText(name).parentElement?.querySelector('[title="Weight"]')?.textContent ?? null;
+        expect(weightOf('Portrait')).toBe('0.75');
+        expect(weightOf('frostbite')).toBe('1.00');
+        expect(weightOf('pose')).toBeNull();
+        // The weight segment stretches to the chip's full height.
+        expect(screen.getByText('Portrait').parentElement?.className).toContain('items-stretch');
     });
 
-    it('keeps unweighted dotted names and renders non-string evidence inertly', () => {
-        const { onSearch } = renderSection([{
+    it('keeps unweighted dotted names and renders non-string evidence', () => {
+        renderSection([{
             title: 'Other',
             icon: Code,
             items: ['adapter.SAFETENSORS', 'name.with.dots', 42],
         }]);
 
-        fireEvent.click(screen.getByRole('button', { name: 'adapter' }));
-        fireEvent.click(screen.getByRole('button', { name: 'name.with.dots' }));
-
-        expect(onSearch).toHaveBeenNthCalledWith(1, 'adapter');
-        expect(onSearch).toHaveBeenNthCalledWith(2, 'name.with.dots');
-        expect(screen.getByText('42').closest('button')).toBeNull();
+        expect(screen.getByText('adapter')).toBeTruthy();
+        expect(screen.getByText('name.with.dots')).toBeTruthy();
+        expect(screen.getByText('42')).toBeTruthy();
     });
 });

@@ -16,6 +16,7 @@ import { useSettingsStore } from '../../../stores/settingsStore';
 import { TooltipButton } from '../../../components/ui/InfoTooltip';
 import { buildTagSegments, diffPromptTags, hasTagChanges, PromptTagDiff, PromptTagEntry, PromptTagStatus } from '../utils/promptTags';
 import { formatImageFileHash, ImageFileHashState, useImageFileHash } from '../hooks/useImageFileHash';
+import { diffResources, type ResourceDiffEntry, type ResourceDiffStatus, type ResourceGroupDiff } from '../utils/resourceDiff';
 
 interface CompareModalProps {
     imageA: AIImage;
@@ -47,6 +48,54 @@ const TAG_STATUS_CLASS_NAMES: Record<PromptTagStatus, string> = {
     edited: '',
     reweighted: `${PILL_CLASS_NAME} bg-orange-500/40 text-orange-100`,
     moved: `${PILL_CLASS_NAME} bg-blue-500/40 text-blue-100`,
+};
+
+// Every value box in the sidebar uses the same neutral surface; differences show in the content.
+const VALUE_BOX_CLASS_NAME = 'rounded-md border border-white/10 bg-zinc-900 px-2 py-1.5 text-gray-300';
+const ROW_LABEL_CLASS_NAME = 'text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1.5';
+
+const RESOURCE_STATUS_CLASS_NAMES: Record<ResourceDiffStatus, string> = {
+    same: `${PILL_CLASS_NAME} bg-white/5 text-gray-300`,
+    added: TAG_STATUS_CLASS_NAMES.added,
+    removed: TAG_STATUS_CLASS_NAMES.removed,
+    reweighted: TAG_STATUS_CLASS_NAMES.reweighted,
+};
+
+const ResourceDiffSide = ({ entries, highlight }: { entries: ResourceDiffEntry[], highlight: boolean }) => {
+    if (entries.length === 0) return <span className="text-xs italic text-gray-600">None</span>;
+    return (
+        <div className="flex flex-wrap gap-1">
+            {entries.map((entry, index) => (
+                <span
+                    key={`${entry.name}-${index}`}
+                    title={entry.weight ? `${entry.name} (${entry.weight})` : entry.name}
+                    className={`inline-block max-w-full truncate align-top font-mono text-xs ${RESOURCE_STATUS_CLASS_NAMES[highlight ? entry.status : 'same']}`}
+                >
+                    {entry.name}
+                    {entry.weight && <span className="ml-1 opacity-70">{entry.weight}</span>}
+                </span>
+            ))}
+        </div>
+    );
+};
+
+/** One row per resource kind either image uses: removed / added / re-weighted, like the prompt diff. */
+const ResourcesDiff = ({ diffs, highlight }: { diffs: ResourceGroupDiff[], highlight: boolean }) => {
+    if (diffs.length === 0) return null;
+    return (
+        <div className="border-y border-white/10 py-2">
+            <div className="px-4 pt-2 pb-1 text-xs text-gray-500 font-bold uppercase tracking-wider">Resources</div>
+            {diffs.map(diff => (
+                <section key={diff.group.key} aria-label={`${diff.group.title} comparison`} className="px-4 py-2 text-sm">
+                    <div className={ROW_LABEL_CLASS_NAME}>{diff.group.title}</div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className={VALUE_BOX_CLASS_NAME}><ResourceDiffSide entries={diff.a} highlight={highlight} /></div>
+                        <div className={VALUE_BOX_CLASS_NAME}><ResourceDiffSide entries={diff.b} highlight={highlight} /></div>
+                    </div>
+                </section>
+            ))}
+        </div>
+    );
 };
 
 interface MediaFrame {
@@ -290,6 +339,7 @@ export const CompareModal: React.FC<CompareModalProps> = ({
 
     const fileHashA = useImageFileHash(imageA);
     const fileHashB = useImageFileHash(imageB);
+    const resourceDiffs = useMemo(() => diffResources(imageA.metadata, imageB.metadata), [imageA.metadata, imageB.metadata]);
 
     useEffect(() => {
         if (privacyExposureBlocked) onClose();
@@ -482,31 +532,23 @@ export const CompareModal: React.FC<CompareModalProps> = ({
         setIsDraggingSlider(true);
     };
 
-    // Key above, one rounded value box per image; differing values switch both boxes to ember.
-    const valueBoxClassName = (isDiff: boolean) => `rounded-md border px-2 py-1.5 ${isDiff
-        ? 'border-ember-500/40 bg-ember-500/10 text-ember-300 font-medium'
-        : 'border-white/10 bg-zinc-900 text-gray-300'}`;
-
-    const DiffRow = ({ label, valA, valB }: { label: string, valA: string | number, valB: string | number }) => {
-        const isDiff = valA !== valB;
-        return (
-            <div className="px-4 py-2 text-sm">
-                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1.5">{label}</div>
-                <div className="grid grid-cols-2 gap-2">
-                    <div className={`truncate ${valueBoxClassName(isDiff)}`} title={String(valA)}>{valA}</div>
-                    <div className={`truncate ${valueBoxClassName(isDiff)}`} title={String(valB)}>{valB}</div>
-                </div>
+    // Key above, one rounded value box per image.
+    const DiffRow = ({ label, valA, valB }: { label: string, valA: string | number, valB: string | number }) => (
+        <div className="px-4 py-2 text-sm">
+            <div className={ROW_LABEL_CLASS_NAME}>{label}</div>
+            <div className="grid grid-cols-2 gap-2">
+                <div className={`truncate ${VALUE_BOX_CLASS_NAME}`} title={String(valA)}>{valA}</div>
+                <div className={`truncate ${VALUE_BOX_CLASS_NAME}`} title={String(valB)}>{valB}</div>
             </div>
-        );
-    };
+        </div>
+    );
 
     // Hashes are too long to truncate like DiffRow values, so they wrap in full.
     const HashRow = ({ hashA, hashB }: { hashA: ImageFileHashState, hashB: ImageFileHashState }) => {
-        const isDiff = hashA.status === 'ready' && hashB.status === 'ready' && hashA.hash !== hashB.hash;
-        const valueClassName = `break-all font-mono text-xs ${valueBoxClassName(isDiff)}`;
+        const valueClassName = `break-all font-mono text-xs ${VALUE_BOX_CLASS_NAME}`;
         return (
             <div className="px-4 py-2 text-sm">
-                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1.5">SHA-256</div>
+                <div className={ROW_LABEL_CLASS_NAME}>SHA-256</div>
                 <div className="grid grid-cols-2 gap-2">
                     <div className={valueClassName}>{formatImageFileHash(hashA)}</div>
                     <div className={valueClassName}>{formatImageFileHash(hashB)}</div>
@@ -806,10 +848,12 @@ export const CompareModal: React.FC<CompareModalProps> = ({
                         </div>
 
                         <DiffRow label="Model" valA={imageA.metadata.model} valB={imageB.metadata.model} />
+                        <DiffRow label="Sampler" valA={imageA.metadata.sampler || 'Unknown'} valB={imageB.metadata.sampler || 'Unknown'} />
                         <DiffRow label="Seed" valA={imageA.metadata.seed ?? 'Unknown'} valB={imageB.metadata.seed ?? 'Unknown'} />
                         <DiffRow label="Steps" valA={imageA.metadata.steps} valB={imageB.metadata.steps} />
                         <DiffRow label="CFG" valA={imageA.metadata.cfg} valB={imageB.metadata.cfg} />
                         <DiffRow label="Size" valA={`${imageA.width}x${imageA.height}`} valB={`${imageB.width}x${imageB.height}`} />
+                        <ResourcesDiff diffs={resourceDiffs} highlight={diffMode === 'diff'} />
                         <HashRow hashA={fileHashA} hashB={fileHashB} />
                     </div>
                 </div>
