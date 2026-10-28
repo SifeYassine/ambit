@@ -551,12 +551,16 @@ const PROMPT_WHITESPACE_SQL = "' ' || char(9) || char(10) || char(13)";
 // Mirrors hasPrompt() in types.ts.
 const HAS_PROMPT_SQL = `(TRIM(COALESCE(images.positive_prompt, ''), ${PROMPT_WHITESPACE_SQL}) != ''
     OR TRIM(COALESCE(images.negative_prompt, ''), ${PROMPT_WHITESPACE_SQL}) != '')`;
-// Millisecond timestamps stay below this until the year 2286, so prompted images
-// rank first and each half keeps newest-first order under a single sort key.
+// Millisecond timestamps stay below this until the year 2286, so prompted (or, for
+// no_prompt_rank, unprompted) images rank first and each half keeps newest-first order
+// under a single sort key.
 export const PROMPT_RANK_OFFSET = 10_000_000_000_000;
 export const PROMPT_RANK_SORT_FIELD = 'prompt_rank';
+export const NO_PROMPT_RANK_SORT_FIELD = 'no_prompt_rank';
 const SORT_EXPRESSIONS: Record<string, string> = {
     [PROMPT_RANK_SORT_FIELD]: `((CASE WHEN ${HAS_PROMPT_SQL} THEN ${PROMPT_RANK_OFFSET} ELSE 0 END)
+        + COALESCE(images.display_timestamp, images.timestamp, 0))`,
+    [NO_PROMPT_RANK_SORT_FIELD]: `((CASE WHEN ${HAS_PROMPT_SQL} THEN 0 ELSE ${PROMPT_RANK_OFFSET} END)
         + COALESCE(images.display_timestamp, images.timestamp, 0))`,
 };
 

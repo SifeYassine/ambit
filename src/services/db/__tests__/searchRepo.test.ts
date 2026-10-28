@@ -165,6 +165,21 @@ describe('searchRepo basic queries', () => {
         expect(db.select.mock.calls[0]?.[1]).toEqual([0, cursorVal, 'image-1']);
     });
 
+    it('sorts unprompted images first through the inverted no_prompt_rank key', async () => {
+        const db = { select: vi.fn().mockResolvedValue([]) };
+        getDbMock.mockResolvedValue(db);
+        const { searchImages, PROMPT_RANK_OFFSET, NO_PROMPT_RANK_SORT_FIELD } = await import('../searchRepo');
+
+        await searchImages('WHERE is_deleted = ?', [0], 10, NO_PROMPT_RANK_SORT_FIELD, 'DESC', false, undefined, undefined, {
+            val: PROMPT_RANK_OFFSET + 100, id: 'image-1'
+        });
+
+        const sql = (db.select.mock.calls[0]?.[0] as string).replace(/\s+/g, ' ');
+        expect(sql).not.toContain('images.no_prompt_rank');
+        expect(sql).toContain(`THEN 0 ELSE ${PROMPT_RANK_OFFSET} END) + COALESCE(images.display_timestamp, images.timestamp, 0)) DESC, images.id DESC`);
+        expect(sql).toMatch(/AND \(\(\(CASE WHEN .+\), images\.id\) < \(\?, \?\)/);
+    });
+
     it.each([
         ['timestamp', ''],
         ['timestamp', ' AND privacy_hidden = 0'],

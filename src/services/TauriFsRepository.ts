@@ -141,7 +141,7 @@ const isPersistedFilterState = (value: unknown): boolean => {
         && hasValidOptionalValue(value, 'collectionId', item => item === null || typeof item === 'string')
         && numberKeys.every(key => hasValidOptionalValue(value, key, item => typeof item === 'number'))
         && hasValidOptionalValue(value, 'sortOption', item =>
-            isEnumValue(item, ['date_desc', 'date_asc', 'name_asc', 'name_desc', 'size_desc', 'size_asc', 'prompt_first']))
+            isEnumValue(item, ['date_desc', 'date_asc', 'name_asc', 'name_desc', 'size_desc', 'size_asc', 'prompt_first', 'prompt_last']))
         && hasValidOptionalValue(value, 'matchModes', item =>
             isRecordWithValues(item, mode => isEnumValue(mode, ['any', 'all'])))
         && hasValidOptionalValue(value, 'assetFilterAliases', item =>

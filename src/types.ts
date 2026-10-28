@@ -342,7 +342,7 @@ export interface SmartCollection extends Collection {
   filters: FilterState;
 }
 
-export type SortOption = 'date_desc' | 'date_asc' | 'name_asc' | 'name_desc' | 'size_desc' | 'size_asc' | 'prompt_first';
+export type SortOption = 'date_desc' | 'date_asc' | 'name_asc' | 'name_desc' | 'size_desc' | 'size_asc' | 'prompt_first' | 'prompt_last';
 
 export type MetadataRefreshScope = 'full' | 'images-only';
 

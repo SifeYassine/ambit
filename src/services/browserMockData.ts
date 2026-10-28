@@ -611,6 +611,10 @@ const sortImages = (images: AIImage[], sortOption: SortOption): AIImage[] => {
                 return Number(hasPrompt(b)) - Number(hasPrompt(a))
                     || getEffectiveDisplayTimestamp(b) - getEffectiveDisplayTimestamp(a)
                     || b.id.localeCompare(a.id);
+            case 'prompt_last':
+                return Number(hasPrompt(a)) - Number(hasPrompt(b))
+                    || getEffectiveDisplayTimestamp(b) - getEffectiveDisplayTimestamp(a)
+                    || b.id.localeCompare(a.id);
             case 'date_desc':
             default:
                 return getEffectiveDisplayTimestamp(b) - getEffectiveDisplayTimestamp(a) || b.id.localeCompare(a.id);
