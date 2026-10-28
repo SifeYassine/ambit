@@ -38,6 +38,9 @@ const chunk = <T,>(arr: T[], size: number): T[][] => {
     );
 };
 
+export const TIMELINE_PADDING = 24;
+export const TIMELINE_GAP = 16;
+
 export const useTimelineLayout = ({ groups, width, thumbnailSize, scrollTop }: UseTimelineLayoutProps) => {
     const [activeHeaderData, setActiveHeaderData] = useState<{ date: string, count: number } | null>(null);
     const activeHeaderIdRef = useRef<string | null>(null);
@@ -45,8 +48,8 @@ export const useTimelineLayout = ({ groups, width, thumbnailSize, scrollTop }: U
     const { layoutItems, totalHeight, headers } = useMemo(() => {
         if (width === 0) return { layoutItems: [], totalHeight: 0, headers: [] };
 
-        const padding = 24;
-        const gap = 16;
+        const padding = TIMELINE_PADDING;
+        const gap = TIMELINE_GAP;
         const effectiveWidth = width - (padding * 2);
         const cols = Math.max(1, Math.floor((effectiveWidth + gap) / (thumbnailSize + gap)));
         const itemWidth = (effectiveWidth - (cols - 1) * gap) / cols;

@@ -6,7 +6,7 @@ import { ImageCard } from './ImageCard';
 import { Clock } from 'lucide-react';
 import { useTimeline } from '../../../hooks/useTimeline';
 import { isImageMasked } from '../../../utils/maskingUtils';
-import { useTimelineLayout } from '../hooks/useTimelineLayout';
+import { TIMELINE_GAP, TIMELINE_PADDING, useTimelineLayout } from '../hooks/useTimelineLayout';
 import { useTimelineSelection } from '../hooks/useTimelineSelection';
 import { useTimelineScroll } from '../hooks/useTimelineScroll';
 import { useSettingsStore } from '../../../stores/settingsStore';
@@ -80,6 +80,8 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
         setActiveHeaderData,
         activeHeaderIdRef
     } = useTimelineLayout({ groups, width, thumbnailSize, scrollTop });
+    // The sticky date box is as wide as one card in a 5-column layout.
+    const stickyHeaderWidth = Math.max(0, (width - TIMELINE_PADDING * 2 - TIMELINE_GAP * 4) / 5);
 
     const handleTimelineRangeSelection = React.useCallback((selectedIndexes: number[], isAdditive: boolean) => {
         if (!onRangeSelection) return;
@@ -118,14 +120,14 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             {/* Sticky Header Overlay */}
             <div
                 ref={stickyHeaderRef}
-                className="absolute left-6 right-8 px-4 flex items-center gap-3 z-20 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-gray-200 dark:border-white/10 shadow-lg rounded-2xl transition-opacity duration-75 will-change-transform"
-                style={{ top: 20, height: 60, opacity: 0, pointerEvents: 'none' }}
+                className="absolute left-6 min-w-0 px-4 flex items-center gap-3 z-20 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-gray-200 dark:border-white/10 shadow-lg rounded-2xl transition-opacity duration-75 will-change-transform"
+                style={{ top: 20, height: 60, width: stickyHeaderWidth, opacity: 0, pointerEvents: 'none' }}
             >
                 <div className="p-2 bg-sage-100 dark:bg-sage-900/50 rounded-full text-sage-600 dark:text-sage-400">
                     <Clock className="w-4 h-4" />
                 </div>
-                <div>
-                    <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider">
+                <div className="min-w-0">
+                    <h3 className="truncate text-sm font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider">
                         {activeHeaderData?.date}
                     </h3>
                     <div className="text-[10px] text-gray-500 font-medium">{activeHeaderData?.count} images</div>
@@ -135,7 +137,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             {/* Scroll Container */}
             <div
                 ref={containerRef}
-                className="h-full w-full overflow-y-auto custom-scrollbar relative"
+                className="isolate h-full w-full overflow-y-auto custom-scrollbar relative"
                 onScroll={handleScroll}
                 onMouseDown={handleMouseDown}
             >

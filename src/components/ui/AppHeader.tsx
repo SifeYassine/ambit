@@ -298,7 +298,7 @@ export const AppHeader = React.memo(({
                         layoutMode={layoutMode}
                         setLayoutMode={setLayoutMode}
                         showSlideshowButton={showSlideshowButton && toolbarDensity === 'normal'}
-                        showThumbnailSize={showSlideshowButton}
+                        showThumbnailSize={showSlideshowButton || viewMode === 'presets'}
                         compact={toolbarDensity !== 'normal'}
                         onSlideshow={onSlideshow}
                         sortOption={sortOption}

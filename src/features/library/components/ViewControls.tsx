@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { LayoutGrid, Columns, AlignJustify, Play, ArrowUpDown, Check, Sliders, Eye, CalendarArrowDown, CalendarArrowUp, ArrowDownAZ, ArrowUpAZ, ArrowDownWideNarrow, ArrowUpNarrowWide, MessageSquareText, type LucideIcon } from 'lucide-react';
+import { LayoutGrid, Columns, AlignJustify, Play, ArrowUpDown, Check, Sliders, Eye, CalendarArrowDown, CalendarArrowUp, ArrowDownAZ, ArrowUpAZ, ArrowDownWideNarrow, ArrowUpNarrowWide, MessageSquareText, MessageSquareOff, type LucideIcon } from 'lucide-react';
 import { LayoutMode, SortOption } from '../../../types';
 import { useSearch } from '../../../contexts/SearchContext';
 import { TooltipButton } from '../../../components/ui/InfoTooltip';
@@ -45,6 +45,7 @@ const SORT_OPTIONS: Array<{ val: SortOption; label: string; icon: LucideIcon }> 
     { val: 'size_desc', label: 'Largest (Size)', icon: ArrowDownWideNarrow },
     { val: 'size_asc', label: 'Smallest (Size)', icon: ArrowUpNarrowWide },
     { val: 'prompt_first', label: 'Has prompt', icon: MessageSquareText },
+    { val: 'prompt_last', label: 'No prompt', icon: MessageSquareOff },
 ];
 
 const sortLabel = (sortOption: SortOption) => SORT_OPTIONS.find(option => option.val === sortOption)?.label ?? 'Sort';
@@ -62,10 +63,11 @@ export const SortOptionList = ({
         {SORT_OPTIONS.map(option => (
             <button key={option.val} type="button" onClick={() => onSelect(option.val)} className={compact
                 ? `flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs ${sortOption === option.val ? 'bg-sage-500/15 text-sage-700 dark:text-sage-200' : 'text-gray-600 hover:bg-gray-100 dark:text-zinc-300 dark:hover:bg-white/5'}`
-                : `w-full text-left px-3 py-2 text-xs transition-colors flex justify-between items-center ${sortOption === option.val ? 'bg-sage-50 text-sage-600 dark:bg-sage-900/40 dark:text-sage-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`
+                : `w-full text-left px-3 py-2 text-xs transition-colors flex justify-between items-center gap-4 ${sortOption === option.val ? 'bg-sage-50 text-sage-600 dark:bg-sage-900/40 dark:text-sage-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`
             }>
                 <span className="flex items-center gap-2"><option.icon aria-hidden className="h-3.5 w-3.5 shrink-0 opacity-70" />{option.label}</span>
-                {sortOption === option.val && <Check aria-hidden className="w-3 h-3 shrink-0" />}
+                {/* The check's space is always reserved so a content-sized menu keeps one width. */}
+                {sortOption === option.val ? <Check aria-hidden className="w-3 h-3 shrink-0" /> : <span aria-hidden className="w-3 shrink-0" />}
             </button>
         ))}
     </>
@@ -160,7 +162,7 @@ export const ViewControls: React.FC<ViewControlsProps> = ({
                         <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{sortLabel(sortOption)}</span>
                     </button>
                     {showSortMenu && (
-                        <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-xl shadow-2xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="absolute top-full right-0 mt-2 w-max bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-xl shadow-2xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                             <SortOptionList sortOption={sortOption} onSelect={selectSort} />
                         </div>
                     )}
@@ -173,7 +175,7 @@ export const ViewControls: React.FC<ViewControlsProps> = ({
                     <span className="text-xs font-medium">View</span>
                 </button>
                 {showViewMenu && (
-                    <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-xl shadow-2xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className={`absolute top-full right-0 mt-2 ${hasHiddenContentControls ? 'w-64' : 'w-max'} bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-xl shadow-2xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200`}>
                         {showLayoutSwitcher && <div role="group" aria-label="Layout" className="border-b border-gray-100 p-3 dark:border-white/5">
                                 <span className="px-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">Layout</span>
                                 <div className="mt-1 flex items-center gap-1 px-1">

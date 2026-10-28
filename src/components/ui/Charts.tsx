@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Lightbulb, X, BarChart3, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { AIImage } from '../../types';
 // Note: useLibraryStats hook is deprecated for large library performance. Using DB stats.
 import { useLibraryContext } from '../../hooks/useLibraryContext';
@@ -18,16 +18,6 @@ interface ChartsProps {
     images: AIImage[];
     onFilter: (type: StatsFilterType, value: string | number) => void;
 }
-
-const TIPS = [
-    "Right-click an image to quickly add it to a collection.",
-    "Use 'steps:>50' in the search bar to find high-step generations.",
-    "Enable AI Features to search your library using natural language.",
-    "Press 'Space' to quickly open the image viewer.",
-    "Shift+Click images to select a range.",
-    "Double click an image in the viewer to zoom 200%.",
-    "Drag and drop images to import them."
-];
 
 const DIMENSIONS: { value: SettingBreakdownDimension; label: string; title: string }[] = [
     { value: 'model', label: 'Models', title: 'Top 10 Models' },
@@ -85,11 +75,6 @@ export const StatsDashboard: React.FC<ChartsProps> = ({ images, onFilter }) => {
         staleTime: 1000 * 60 * 5,
     });
 
-    const [showTip, setShowTip] = useState(true);
-
-    // Fix: Initialize tip once on mount so it doesn't change when filtering
-    const [randomTip] = useState(() => TIPS[Math.floor(Math.random() * TIPS.length)]);
-
     React.useEffect(() => {
         setKeywordStatsEnabled(true);
         return () => setKeywordStatsEnabled(false);
@@ -97,38 +82,8 @@ export const StatsDashboard: React.FC<ChartsProps> = ({ images, onFilter }) => {
 
     return (
         <div className="h-full flex flex-col overflow-hidden">
-            {/* Floating Pill Header - Matching AppHeader & Maintenance Style */}
-            <div className="flex-shrink-0 pt-4 pl-6 pr-8 pb-4 z-20">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-2xl shadow-lg">
-                    <div>
-                        <div className="flex items-center gap-3 mb-1">
-                            <div className="p-2 bg-sage-100 dark:bg-sage-900/30 rounded-lg text-sage-600 dark:text-sage-300">
-                                <BarChart3 className="w-5 h-5" />
-                            </div>
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Gallery Statistics</h2>
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 pl-1">Analyze your generation habits, models, and prompts.</p>
-                    </div>
-                </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-6 pb-8" style={{ scrollbarGutter: 'stable' }}>
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-6 pb-8 pt-4" style={{ scrollbarGutter: 'stable' }}>
                 <div className="w-full space-y-6 pb-24">
-
-                    {showTip && (
-                        <div className="relative flex items-start gap-3 rounded-xl border border-harbor-200 bg-harbor-50 p-4 animate-in fade-in slide-in-from-top-2 dark:border-harbor-400/30 dark:bg-harbor-500/15">
-                            <div className="rounded-lg bg-harbor-100 p-2 text-harbor-600 dark:bg-harbor-500/20 dark:text-harbor-300">
-                                <Lightbulb className="w-5 h-5" />
-                            </div>
-                            <div className="flex-1 pr-8">
-                                <h4 className="mb-1 text-sm font-bold text-harbor-600 dark:text-harbor-300">Tip of the Day</h4>
-                                <p className="text-sm text-harbor-600 dark:text-harbor-300">{randomTip}</p>
-                            </div>
-                            <button type="button" aria-label="Dismiss Tip" onClick={() => setShowTip(false)} className="absolute right-2 top-2 p-1 text-harbor-600 hover:text-harbor-600 dark:text-harbor-300 dark:hover:text-harbor-300">
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-                    )}
 
                     {/* Setting chart */}
                     <section className={CARD_CLASS} aria-labelledby="stats-chart-title">

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { AlertCircle, Boxes, CheckCircle, ImageOff, Layers, Loader2, RotateCcw } from 'lucide-react';
+import { AlertCircle, CheckCircle, ImageOff, Layers, Loader2, RotateCcw } from 'lucide-react';
 import type { FilterState, PresetFilter } from '../../../types';
 import type { GenerationPreset } from '../../../services/db/presetRepo';
 import { PrivacyAwareThumbnail } from '../../../components/ui/PrivacyAwareThumbnail';
@@ -8,6 +8,8 @@ import { getEffectiveMaskedKeywords, isImageMasked } from '../../../utils/maskin
 import { formatModelName } from '../../../utils/formatUtils';
 import { usePresets } from '../hooks/usePresets';
 import { usePresetsViewStore } from '../presetsViewStore';
+
+const MIN_CARD_WIDTH = 160;
 
 export { usePresetsViewStore };
 
@@ -160,27 +162,13 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
     const setMatchWeights = usePresetsViewStore(state => state.setMatchWeights);
     const toggleId = React.useId();
     const { presets, isLoading, isRefreshing, error, retry } = usePresets(filters, matchWeights);
+    // Cards follow the gallery's Thumbnail Size slider, with a floor that keeps their text readable.
+    const thumbnailSize = useSettingsStore(state => state.settings.thumbnailSize);
+    const cardMinWidth = Math.max(thumbnailSize, MIN_CARD_WIDTH);
 
     return (
         <div className="flex h-full flex-col overflow-hidden">
-            {/* Floating header, matching Statistics and Maintenance */}
-            <div className="z-20 flex-shrink-0 pb-4 pl-6 pr-8 pt-4">
-            <header className="flex flex-col justify-between gap-4 rounded-2xl border border-gray-200 bg-white/80 p-4 shadow-lg backdrop-blur-xl md:flex-row md:items-center dark:border-white/10 dark:bg-zinc-900/80">
-                <div>
-                    <div className="mb-1 flex items-center gap-3">
-                        <div className="rounded-lg bg-sage-100 p-2 text-sage-600 dark:bg-sage-900/30 dark:text-sage-300">
-                            <Boxes className="h-5 w-5" aria-hidden="true" />
-                        </div>
-                        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Presets</h1>
-                    </div>
-                    <p className="pl-1 text-xs text-gray-500 dark:text-gray-400">
-                        Your most used model, LoRA, and sampler combinations. Select a preset to see its images.
-                    </p>
-                </div>
-            </header>
-            </div>
-
-            <div className="custom-scrollbar flex-1 overflow-y-auto px-6 pb-8" style={{ scrollbarGutter: 'stable' }}>
+            <div className="custom-scrollbar flex-1 overflow-y-auto px-6 pb-8 pt-4" style={{ scrollbarGutter: 'stable' }}>
             {/* Same round check as gallery selection; the native checkbox stays for keyboard and screen readers. */}
             <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
             <label htmlFor={toggleId} className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-zinc-200">
@@ -234,7 +222,11 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
                     <p>Presets appear once images with a recorded model or LoRA are in the library.</p>
                 </div>
             ) : (
-                <ol aria-label="Presets" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-start gap-4">
+                <ol
+                    aria-label="Presets"
+                    className="grid items-start gap-4"
+                    style={{ gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${cardMinWidth}px), 1fr))` }}
+                >
                     {presets.map((preset, index) => (
                         <PresetCard
                             key={preset.key}
