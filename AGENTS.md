@@ -3,8 +3,12 @@
 ## Purpose
 Ambit is a local-first desktop manager for large AI-generated image libraries with video import, playback, and metadata support. The repo is a Tauri v2 app with a React/TypeScript frontend and a Rust/SQLite backend. Most agent tasks here touch feature UI, Tauri commands, metadata parsing, or library/query performance.
 
-## Delivery Posture
-Use **Assure** by default. Ambit is public open-source desktop software distributed through signed installers and an auto-updater, and changes can affect existing local libraries, filesystem scope, migrations, privacy behavior, or release compatibility. Keep ceremony proportional for low-risk work, but use explicit regression coverage and release-aware verification for those boundaries.
+## Fork Context
+This repository is a personal feature fork of [AsuraAce/ambit](https://github.com/AsuraAce/ambit), not an upstream contribution workspace. Implement the requested features without breaking existing behavior, and skip upstream release ceremony, policy debate, and release gates.
+
+- `origin` is the fork (`SifeYassine/ambit`). Never pull, merge, or sync from upstream.
+- Work on `feat/additional-features`. Commit and push only when asked, with Conventional Commit messages authored by the configured git identity and no AI attribution.
+- Workflow: implement, run `pnpm run app:dev` so the owner can test, then on approval build the installer with `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-installer.ps1` (GNU toolchain; it runs lint and typecheck first).
 
 ## Priorities
 When working in this repository, optimize for:
@@ -70,7 +74,10 @@ Production app builds run `verify:release` before `tauri build --ci`.
 - If you discover recurring structural debt that should survive the current task, record it in `docs/refactor.md`.
 
 ## Verification
-- Run the narrowest relevant script from `package.json` for the area you touched.
+- Verify with `pnpm run typecheck` and `pnpm run lint`, plus only the existing tests that cover the logic you touched. Do not run the full frontend suite unless asked.
+- Write tests only when something would definitely break silently without them: wrong data or SQL/search results, privacy masking, settings persistence or migration, metadata or workflow parsing, or the Rust/TypeScript bindings contract. Never write tests for UI layout, component wiring, or design changes; the owner checks those in the running app.
+- When a change removes behavior that an existing test guards, delete that test instead of rewriting it.
+- Run Rust tests only when Rust parsing or database code changes. On this machine's GNU toolchain the test binaries need Tauri's comctl32 manifest resource, so build them with `cargo rustc --lib --profile test -- -C "link-arg=-Wl,--whole-archive" -C "link-arg=<target/debug/build/app-*/out/libresource.a>" -C "link-arg=-Wl,--no-whole-archive"` from `src-tauri` (after one normal `cargo build` creates that file), then run the newest `target/debug/deps/app_lib-*.exe`.
 - If you change Rust command signatures or Rust-backed types, make sure `src/bindings.ts` is regenerated or explain why not.
 - If you touch search, filtering, or library rendering, verify that virtualized browsing still works for large result sets.
 - If you cannot run checks, say so explicitly.
