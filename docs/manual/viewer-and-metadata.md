@@ -107,10 +107,9 @@ Widget names come from the workflow when it records them. Older workflows and no
 The Workflow tab can:
 
 - lazy-load workflow data from file headers if the catalog does not already have it
-- show the node count and whether the graph came from the workflow or the API prompt
+- show the node count
 - search nodes by title or type; matches stay highlighted in the graph, and choosing one centers it
-- click a node in the graph to inspect its values and connections in the sidebar; following a connection moves the graph to that node
-- switch between All Nodes and Selected Branch; Selected Branch dims nodes outside the saved output's dependency branch
+- click a node in the graph to preview it in the sidebar, drawn exactly as it appears in the graph
 - Copy workflow JSON
 - Download workflow JSON to a file
 

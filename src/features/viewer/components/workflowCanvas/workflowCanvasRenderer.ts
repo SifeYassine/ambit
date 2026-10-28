@@ -604,18 +604,24 @@ export interface DrawWorkflowOptions {
     textWidgetNodeIds?: ReadonlySet<string>;
     /** Implicit Use Everywhere connections to show, drawn as glowing translucent links. */
     broadcastLinks?: readonly BroadcastLink[];
+    /** Draw only the graph content on a transparent canvas, with no background fill or grid. */
+    plain?: boolean;
 }
 
 export const drawWorkflowGraph = (
     ctx: CanvasRenderingContext2D,
     graph: WorkflowCanvasGraph,
     viewport: WorkflowViewport,
-    { width, height, devicePixelRatio: dpr, selectedNodeIds, selectionRect, highlightedNodeIds, textWidgetNodeIds, broadcastLinks }: DrawWorkflowOptions
+    { width, height, devicePixelRatio: dpr, selectedNodeIds, selectionRect, highlightedNodeIds, textWidgetNodeIds, broadcastLinks, plain }: DrawWorkflowOptions
 ) => {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = COLORS.background;
-    ctx.fillRect(0, 0, width, height);
-    drawGrid(ctx, viewport, width, height);
+    if (plain) {
+        ctx.clearRect(0, 0, width, height);
+    } else {
+        ctx.fillStyle = COLORS.background;
+        ctx.fillRect(0, 0, width, height);
+        drawGrid(ctx, viewport, width, height);
+    }
 
     const { scale, offsetX, offsetY } = viewport;
     const isDimmed = (node: WorkflowCanvasNode) => highlightedNodeIds !== null && !highlightedNodeIds.has(node.id);

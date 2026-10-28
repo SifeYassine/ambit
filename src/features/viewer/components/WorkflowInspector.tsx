@@ -6,19 +6,9 @@ import { Box, Workflow, Search, ChevronDown, ChevronRight, Copy, Check, Download
 import { AIImage, isVideoAsset } from '../../../types';
 import { scanImageWorkflow } from '../../../services/metadataParser';
 import { updateImageWorkflow, updateImageWorkflowHint } from '../../../services/db/imageRepo';
-import {
-    commands,
-    type ComfyParserDiagnosticsReport,
-    type ComfyWorkflowGraphReport
-} from '../../../bindings';
-import { useSettingsStore } from '../../../stores/settingsStore';
-import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
+import { commands, type ComfyWorkflowGraphReport } from '../../../bindings';
 import { TooltipButton } from '../../../components/ui/InfoTooltip';
 import { MetadataSectionHeader } from './metadata/MetadataSectionHeader';
-import {
-    buildComfySupportBundle,
-    buildDiagnosticsClipboardPayload
-} from './comfySupportBundle';
 import {
     isWorkflowGraph,
     groupWorkflowNodes,
@@ -32,12 +22,10 @@ import {
     type WorkflowNodeConnections
 } from './workflowGraphUtils';
 import { WorkflowCanvas } from './workflowCanvas/WorkflowCanvas';
+import { WorkflowNodePreview } from './workflowCanvas/WorkflowNodePreview';
 import {
     buildAutoLayoutDocument,
-    locateCanvasNode,
-    parseWorkflowCanvasDocument,
-    resolveGraphAtPath,
-    type WorkflowCanvasDocument
+    parseWorkflowCanvasDocument
 } from './workflowCanvas/workflowCanvasModel';
 
 interface WorkflowInspectorProps {
@@ -45,76 +33,10 @@ interface WorkflowInspectorProps {
     onWorkflowLoaded?: (workflowJson: string) => void;
     /**
      * When provided, the workflow is drawn as a ComfyUI-style node graph inside this element
-     * (the viewer's main stage) and the sidebar shows search results and the selected node instead of node cards.
+     * (the viewer's main stage) and the sidebar shows search results and a preview of the selected node.
      */
     graphStage?: HTMLElement | null;
 }
-
-/** Display node for a canvas-only node (no backend-normalized entry), built from its saved widgets. */
-const canvasNodeToDisplayNode = (
-    document: WorkflowCanvasDocument,
-    displayNodeId: string
-): WorkflowDisplayNode | undefined => {
-    const located = locateCanvasNode(document, displayNodeId);
-    if (!located) return undefined;
-    const node = resolveGraphAtPath(document, located.path).graph.nodeById.get(located.nodeId);
-    if (!node || node.kind !== 'node') return undefined;
-    const inputs: Record<string, string> = {};
-    node.widgets.forEach((widget, index) => {
-        inputs[widget.name || `value ${index + 1}`] = widget.value;
-    });
-    return { id: displayNodeId, title: node.title, type: node.type, inputs };
-};
-
-const formatDiagnosticLabel = (value: string) =>
-    value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
-
-const formatDiagnosticValue = (value: string | number | null | undefined) =>
-    value === null || value === undefined || value === '' ? 'None' : String(value);
-
-const formatResourceFieldLabel = (field: string) => {
-    switch (field) {
-        case 'loras': return 'LoRAs';
-        case 'control_nets': return 'ControlNets';
-        case 'ip_adapters': return 'IP-Adapters';
-        default: return formatDiagnosticLabel(field);
-    }
-};
-
-const getDiagnosticLayerBadgeClass = (_layer: string | null | undefined) =>
-    'border-gray-200 bg-gray-50 text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-300';
-
-const getDiagnosticLayerTitle = (layer: string | null | undefined) => {
-    if (layer === 'sampler_fallback') {
-        return 'Sampler fallback: found by scanning samplers, weaker than saved-output traversal.';
-    }
-    if (layer === 'sampler_traversal') {
-        return 'Sampler traversal: found by following the saved image output path.';
-    }
-    if (layer === 'flat_parameters') {
-        return 'Flat parameters: embedded saver metadata, stronger than fallback scans but weaker than saved-output traversal.';
-    }
-    return formatDiagnosticLabel(layer ?? '');
-};
-
-const getTraversalIssueTitle = (reason: string) => {
-    switch (reason) {
-        case 'unresolved_link':
-            return 'The workflow declares a connection that could not be resolved.';
-        case 'missing_source_node':
-            return 'The connected source node is missing from the embedded graph.';
-        case 'unsupported_node':
-            return 'The selected output path reaches a node this parser cannot resolve for this field.';
-        case 'generated_value_unavailable':
-            return 'The value is generated at runtime and no literal result is embedded in the image.';
-        case 'cycle_detected':
-            return 'Traversal stopped after detecting a cycle.';
-        case 'depth_limit':
-            return 'Traversal stopped at the diagnostic depth limit.';
-        default:
-            return formatDiagnosticLabel(reason);
-    }
-};
 
 const workflowNodeElementId = (nodeId: string | number) => `workflow-node-${String(nodeId)}`;
 
@@ -174,403 +96,6 @@ const WorkflowOutputAnchors: React.FC<{
                 </div>
             ) : null}
         </section>
-    );
-};
-
-const ComfyDiagnosticsPanel: React.FC<{
-    image: Pick<AIImage, 'id' | 'filename' | 'width' | 'height'>;
-    chunks?: Record<string, string>;
-    nodeById: Map<string, WorkflowDisplayNode>;
-    onFocusNode: (nodeId: string) => void;
-}> = ({ image, chunks, nodeById, onFocusNode }) => {
-    const [expanded, setExpanded] = useState(false);
-    const [diagnosticsResult, setDiagnosticsResult] = useState<{
-        chunks: Record<string, string>;
-        report: ComfyParserDiagnosticsReport;
-    } | null>(null);
-    const diagnostics = diagnosticsResult?.chunks === chunks ? diagnosticsResult?.report ?? null : null;
-    const [error, setError] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [copiedDiagnostics, setCopiedDiagnostics] = useState(false);
-    const [isExportConfirmOpen, setIsExportConfirmOpen] = useState(false);
-    const [isExporting, setIsExporting] = useState(false);
-    const [exportError, setExportError] = useState<string | null>(null);
-    const [showAllTraversalIssues, setShowAllTraversalIssues] = useState(false);
-    const chunkCount = chunks ? Object.keys(chunks).length : 0;
-
-    React.useEffect(() => {
-        setShowAllTraversalIssues(false);
-
-        if (!expanded) {
-            return;
-        }
-
-        if (!chunks || chunkCount === 0) {
-            setDiagnosticsResult(null);
-            setError(null);
-            setIsLoading(false);
-            return;
-        }
-
-        let cancelled = false;
-        setIsLoading(true);
-        setError(null);
-
-        commands.inspectComfyuiMetadataChunks(chunks)
-            .then((result) => {
-                if (cancelled) return;
-                if (result.status === 'ok') {
-                    setDiagnosticsResult({ chunks, report: result.data });
-                } else {
-                    setDiagnosticsResult(null);
-                    setError(result.error);
-                }
-            })
-            .catch((err) => {
-                if (cancelled) return;
-                setDiagnosticsResult(null);
-                setError(err instanceof Error ? err.message : String(err));
-            })
-            .finally(() => {
-                if (!cancelled) setIsLoading(false);
-            });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [chunks, chunkCount, expanded, image.id]);
-
-    const fieldSources = diagnostics
-        ? Object.entries(diagnostics.fieldSources).sort(([a], [b]) => a.localeCompare(b))
-        : [];
-    const resourceSources = diagnostics?.resourceSources ?? [];
-    const traversalIssues = diagnostics?.traversalIssues ?? [];
-    const hasHiddenTraversalIssues = traversalIssues.length > 4;
-    const visibleTraversalIssues = showAllTraversalIssues
-        ? traversalIssues
-        : traversalIssues.slice(0, 4);
-
-    const handleCopyDiagnostics = async () => {
-        const payload = buildDiagnosticsClipboardPayload(image, chunks!, diagnostics!);
-        await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-        setCopiedDiagnostics(true);
-        setTimeout(() => setCopiedDiagnostics(false), 2000);
-    };
-
-    const handleExportDiagnostics = async () => {
-        setIsExporting(true);
-        setExportError(null);
-
-        try {
-            const bundle = buildComfySupportBundle(
-                image,
-                chunks!,
-                diagnostics!,
-                new Date().toISOString()
-            );
-            const contents = JSON.stringify(bundle, null, 2);
-            const [{ save }, { writeTextFile }] = await Promise.all([
-                import('@tauri-apps/plugin-dialog'),
-                import('@tauri-apps/plugin-fs')
-            ]);
-            const filePath = await save({
-                filters: [{ name: 'JSON', extensions: ['json'] }],
-                defaultPath: 'ambit-comfyui-support.json'
-            });
-
-            if (filePath) {
-                await writeTextFile(filePath, contents);
-            }
-            setIsExportConfirmOpen(false);
-        } catch (err) {
-            setIsExportConfirmOpen(false);
-            setExportError(err instanceof Error ? err.message : String(err));
-        } finally {
-            setIsExporting(false);
-        }
-    };
-
-    return (
-        <>
-        <div className="rounded-xl border border-ember-200 dark:border-ember-500/20 bg-ember-50/70 dark:bg-ember-500/10 p-3 text-xs">
-            <div className="flex flex-col items-stretch gap-2">
-                <button
-                    type="button"
-                    aria-expanded={expanded}
-                    onClick={() => setExpanded((current) => !current)}
-                    className="flex min-w-0 items-center gap-2 rounded-md font-bold text-ember-600 outline-none transition-colors hover:text-ember-700 focus-visible:ring-2 focus-visible:ring-ember-500/50 dark:text-ember-300 dark:hover:text-ember-200"
-                >
-                    <Activity className="h-3.5 w-3.5 shrink-0" />
-                    <span className="whitespace-nowrap">Parser Diagnostics</span>
-                    {expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
-                </button>
-                {expanded && diagnostics && (
-                    <div role="group" aria-label="Parser diagnostics actions" className="flex flex-wrap items-center justify-end gap-2">
-                            <button
-                                onClick={handleCopyDiagnostics}
-                                title="Copy parser diagnostics summary"
-                                className="flex items-center gap-1 whitespace-nowrap rounded-md border border-ember-300/70 dark:border-ember-400/20 bg-white/70 dark:bg-black/20 px-1.5 py-0.5 font-bold uppercase tracking-wide text-[10px] text-ember-600 dark:text-ember-300 hover:bg-white dark:hover:bg-black/30 transition-colors"
-                            >
-                                {copiedDiagnostics ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                                {copiedDiagnostics ? 'Copied' : 'Copy Diagnostics'}
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setExportError(null);
-                                    setIsExportConfirmOpen(true);
-                                }}
-                                title="Export parser support bundle"
-                                className="flex items-center gap-1 whitespace-nowrap rounded-md border border-ember-300/70 dark:border-ember-400/20 bg-white/70 dark:bg-black/20 px-1.5 py-0.5 font-bold uppercase tracking-wide text-[10px] text-ember-600 dark:text-ember-300 hover:bg-white dark:hover:bg-black/30 transition-colors"
-                            >
-                                <Download className="w-3 h-3" />
-                                Export Bundle
-                            </button>
-                            <span className="font-mono text-[10px] text-ember-600/70 dark:text-ember-300/70">
-                                {diagnostics.graphNodeCount} nodes
-                            </span>
-                    </div>
-                )}
-            </div>
-
-            {expanded ? (
-            <>
-            {!chunks || chunkCount === 0 ? (
-                <div className="mt-2 text-ember-600/70 dark:text-ember-300/70">Raw chunks unavailable.</div>
-            ) : isLoading ? (
-                <div className="mt-2 text-ember-600/70 dark:text-ember-300/70">Loading diagnostics...</div>
-            ) : error ? (
-                <div className="mt-2 text-red-600 dark:text-red-300">Diagnostics unavailable: {error}</div>
-            ) : diagnostics ? (
-                <div className="mt-3 space-y-3 text-ember-600 dark:text-ember-300">
-                    <div className="grid grid-cols-1 gap-3">
-                        <div>
-                            <div className="text-[10px] uppercase font-bold text-ember-600/60 dark:text-ember-300/60">Chunks</div>
-                            <div className="font-mono break-words">{diagnostics.chunkKeys.join(', ') || 'None'}</div>
-                        </div>
-                        <div>
-                            <div className="text-[10px] uppercase font-bold text-ember-600/60 dark:text-ember-300/60">Layers</div>
-                            <div className="font-mono break-words">{diagnostics.attemptedLayers.join(' -> ') || 'None'}</div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <div className="text-[10px] uppercase font-bold text-ember-600/60 dark:text-ember-300/60">Output Selection</div>
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5 font-mono text-[10px]">
-                            <span className="rounded-md border border-ember-300/70 dark:border-ember-400/20 bg-white/70 dark:bg-black/20 px-1.5 py-0.5">
-                                {diagnostics.selectedOutputCandidateCount} output{diagnostics.selectedOutputCandidateCount === 1 ? '' : 's'} / {diagnostics.uniqueOutputRootSamplerCount} root{diagnostics.uniqueOutputRootSamplerCount === 1 ? '' : 's'}
-                            </span>
-                            {diagnostics.outputAmbiguous && (
-                                <span
-                                    title="Multiple saved-output roots were found, so no branch received strong traversal authority."
-                                    className="rounded-md border border-red-300/70 bg-red-50/80 px-1.5 py-0.5 text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
-                                >
-                                    Ambiguous
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                        <div>
-                            <div className="text-[10px] uppercase font-bold text-ember-600/60 dark:text-ember-300/60">Model</div>
-                            <div className="font-mono break-all">{formatDiagnosticValue(diagnostics.metadata.model)}</div>
-                        </div>
-                        <div>
-                            <div className="text-[10px] uppercase font-bold text-ember-600/60 dark:text-ember-300/60">Sampler</div>
-                            <div className="font-mono break-all">{formatDiagnosticValue(diagnostics.metadata.sampler)}</div>
-                        </div>
-                        <div>
-                            <div className="text-[10px] uppercase font-bold text-ember-600/60 dark:text-ember-300/60">Seed</div>
-                            <div className="font-mono break-all">{formatDiagnosticValue(diagnostics.metadata.seed)}</div>
-                        </div>
-                        <div>
-                            <div className="text-[10px] uppercase font-bold text-ember-600/60 dark:text-ember-300/60">Steps / CFG</div>
-                            <div className="font-mono break-all">{diagnostics.metadata.steps} / {diagnostics.metadata.cfg}</div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <div className="text-[10px] uppercase font-bold text-ember-600/60 dark:text-ember-300/60">Positive Prompt</div>
-                        <div className="font-mono line-clamp-3 break-words">{formatDiagnosticValue(diagnostics.metadata.positivePrompt)}</div>
-                    </div>
-
-                    <div>
-                        <div className="text-[10px] uppercase font-bold text-ember-600/60 dark:text-ember-300/60">Field Sources</div>
-                        <div className="mt-1 flex flex-wrap gap-1.5">
-                            {fieldSources.length > 0 ? fieldSources.map(([field, layer]) => {
-                                const sourceNodeIds = diagnostics.fieldSourceNodeIds?.[field] ?? [];
-                                return (
-                                    <div key={field} className="flex flex-wrap items-center gap-1">
-                                        <span
-                                            title={getDiagnosticLayerTitle(layer)}
-                                            className={`rounded-md border px-1.5 py-0.5 font-mono text-[10px] ${getDiagnosticLayerBadgeClass(layer)}`}
-                                        >
-                                            {formatDiagnosticLabel(field)}: {formatDiagnosticLabel(layer ?? '')}
-                                        </span>
-                                        {sourceNodeIds.map((nodeId) => {
-                                            const node = nodeById.get(nodeId);
-                                            return node ? (
-                                                <button
-                                                    key={nodeId}
-                                                    type="button"
-                                                    onClick={() => onFocusNode(nodeId)}
-                                                    title={`Jump to source node ${nodeId}: ${node.title}`}
-                                                    className="rounded-md border border-ember-300/70 bg-white/80 px-1.5 py-0.5 font-mono text-[10px] text-ember-600 transition-colors hover:border-sage-400 hover:bg-sage-50 hover:text-sage-600 dark:border-ember-400/20 dark:bg-black/20 dark:text-ember-300 dark:hover:border-sage-500/50 dark:hover:bg-sage-500/10 dark:hover:text-sage-300"
-                                                >
-                                                    #{nodeId}
-                                                </button>
-                                            ) : (
-                                                <span
-                                                    key={nodeId}
-                                                    title={`Source node ${nodeId} is not available in the normalized workflow graph.`}
-                                                    className="rounded-md border border-dashed border-ember-300/50 px-1.5 py-0.5 font-mono text-[10px] text-ember-600/60 dark:border-ember-400/20 dark:text-ember-300/50"
-                                                >
-                                                    #{nodeId}
-                                                </span>
-                                            );
-                                        })}
-                                    </div>
-                                );
-                            }) : (
-                                <span className="text-ember-600/70 dark:text-ember-300/70">None</span>
-                            )}
-                        </div>
-                    </div>
-
-                    {resourceSources.length > 0 && (
-                        <div className="border-t border-ember-300/40 pt-3 dark:border-ember-400/15">
-                            <div className="text-[10px] uppercase font-bold text-ember-600/60 dark:text-ember-300/60">Resource Sources</div>
-                            <div className="mt-1.5 space-y-1.5">
-                                {resourceSources.map((source) => (
-                                    <div
-                                        key={`${source.field}:${source.value}`}
-                                        className="flex flex-wrap items-center gap-1.5 font-mono text-[10px]"
-                                    >
-                                        <span className="font-bold text-ember-600 dark:text-ember-300">
-                                            {formatResourceFieldLabel(source.field)}:
-                                        </span>
-                                        <span className="break-all text-ember-600 dark:text-ember-300">{source.value}</span>
-                                        <span
-                                            title={getDiagnosticLayerTitle(source.layer)}
-                                            className={`rounded-md border px-1.5 py-0.5 ${getDiagnosticLayerBadgeClass(source.layer)}`}
-                                        >
-                                            {formatDiagnosticLabel(source.layer ?? 'unknown')}
-                                        </span>
-                                        {source.nodeIds.map((nodeId) => {
-                                            const node = nodeById.get(nodeId);
-                                            return node ? (
-                                                <button
-                                                    key={nodeId}
-                                                    type="button"
-                                                    onClick={() => onFocusNode(nodeId)}
-                                                    aria-label={`Jump to ${formatResourceFieldLabel(source.field)} resource source node ${node.title} (${nodeId})`}
-                                                    title={`Jump to resource source node ${nodeId}: ${node.title}`}
-                                                    className="rounded-md border border-ember-300/70 bg-white/80 px-1.5 py-0.5 text-ember-600 transition-colors hover:border-sage-400 hover:bg-sage-50 hover:text-sage-600 dark:border-ember-400/20 dark:bg-black/20 dark:text-ember-300 dark:hover:border-sage-500/50 dark:hover:bg-sage-500/10 dark:hover:text-sage-300"
-                                                >
-                                                    #{nodeId}
-                                                </button>
-                                            ) : (
-                                                <span
-                                                    key={nodeId}
-                                                    title={`Resource source node ${nodeId} is not available in the normalized workflow graph.`}
-                                                    className="rounded-md border border-dashed border-ember-300/50 px-1.5 py-0.5 text-ember-600/60 dark:border-ember-400/20 dark:text-ember-300/50"
-                                                >
-                                                    #{nodeId}
-                                                </span>
-                                            );
-                                        })}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {visibleTraversalIssues.length > 0 && (
-                        <div>
-                            <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-1 text-[10px] uppercase font-bold text-ember-600/60 dark:text-ember-300/60">
-                                    <AlertTriangle className="w-3 h-3" />
-                                    Traversal Blockers
-                                </div>
-                                {hasHiddenTraversalIssues && (
-                                    <button
-                                        type="button"
-                                        aria-expanded={showAllTraversalIssues}
-                                        onClick={() => setShowAllTraversalIssues((current) => !current)}
-                                        className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold text-ember-600 transition-colors hover:bg-ember-100 dark:text-ember-300 dark:hover:bg-ember-500/10"
-                                    >
-                                        {showAllTraversalIssues ? (
-                                            <ChevronDown className="h-3 w-3" />
-                                        ) : (
-                                            <ChevronRight className="h-3 w-3" />
-                                        )}
-                                        {showAllTraversalIssues ? 'Show less' : `Show all (${traversalIssues.length})`}
-                                    </button>
-                                )}
-                            </div>
-                            <div className="mt-1 space-y-1">
-                                {visibleTraversalIssues.map((issue, index) => {
-                                    const node = nodeById.get(issue.nodeId);
-                                    return (
-                                        <div
-                                            key={`${issue.field}-${issue.nodeId}-${issue.inputName ?? ''}-${issue.reason}-${index}`}
-                                            title={getTraversalIssueTitle(issue.reason)}
-                                            className="rounded-md border border-ember-300/70 bg-ember-50/70 px-2 py-1 font-mono text-[10px] text-ember-600 dark:border-ember-400/30 dark:bg-ember-500/10 dark:text-ember-300"
-                                        >
-                                            <span className="font-bold">{formatDiagnosticLabel(issue.field)}</span>
-                                            {' at '}
-                                            {node ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => onFocusNode(issue.nodeId)}
-                                                    aria-label={`Jump to traversal blocker node ${node.title} (${issue.nodeId})`}
-                                                    title={`Jump to traversal blocker node ${issue.nodeId}: ${node.title}`}
-                                                    className="rounded border border-ember-400/50 bg-white/70 px-1 py-0.5 font-mono text-[10px] font-bold text-ember-600 transition-colors hover:border-sage-400 hover:bg-sage-50 hover:text-sage-600 dark:border-ember-300/30 dark:bg-black/20 dark:text-ember-300 dark:hover:border-sage-500/50 dark:hover:bg-sage-500/10 dark:hover:text-sage-300"
-                                                >
-                                                    #{issue.nodeId}
-                                                </button>
-                                            ) : (
-                                                <span
-                                                    title={`Traversal blocker node ${issue.nodeId} is not available in the normalized workflow graph.`}
-                                                    className="rounded border border-dashed border-ember-400/40 px-1 py-0.5 font-mono text-[10px] text-ember-600/70 dark:border-ember-300/20 dark:text-ember-300/60"
-                                                >
-                                                    #{issue.nodeId}
-                                                </span>
-                                            )}
-                                            {' '}{`(${issue.nodeType})`}
-                                            {issue.inputName ? ` / ${issue.inputName}` : ''}
-                                            {': '}{formatDiagnosticLabel(issue.reason)}
-                                        </div>
-                                    );
-                                })}
-                                {diagnostics.traversalIssuesTruncated && (
-                                    <div className="text-[10px] text-ember-600/70 dark:text-ember-300/70">
-                                        Additional traversal blockers were omitted after the diagnostics limit.
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            ) : null}
-            {exportError && (
-                <div className="mt-2 text-red-600 dark:text-red-300">
-                    Support bundle export failed: {exportError}
-                </div>
-            )}
-            </>
-            ) : null}
-        </div>
-        <ConfirmDialog
-            isOpen={isExportConfirmOpen}
-            title="Export ComfyUI support bundle?"
-            message="This local JSON file includes the image's raw metadata chunks. It may contain prompts, model names, workflow settings, and local filenames. Ambit will not upload it."
-            confirmLabel="Export Bundle"
-            isLoading={isExporting}
-            onConfirm={handleExportDiagnostics}
-            onCancel={() => setIsExportConfirmOpen(false)}
-        />
-        </>
     );
 };
 
@@ -779,7 +304,6 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
     const isCanvasMode = graphStage !== undefined;
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-    const [nodeMode, setNodeMode] = useState<'all' | 'selected'>('all');
     const [copied, setCopied] = useState(false);
     const [localWorkflow, setLocalWorkflow] = useState<string | undefined>(image.metadata.workflowJson);
     const [backendWorkflowGraph, setBackendWorkflowGraph] = useState<{
@@ -792,10 +316,6 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
     } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const hasAttempted = React.useRef<string | null>(null);
-    const isDeveloperMode = useSettingsStore((state) => state.settings.devMode === true);
-    const showParserDiagnostics = !isVideoAsset(image)
-        && isDeveloperMode
-        && image.metadata.tool === 'ComfyUI';
     const originalWorkflow = image.originalChunks?.workflow;
     const originalPrompt = image.originalChunks?.prompt;
     const originalChunks = useMemo(() => ({
@@ -833,7 +353,6 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
     );
     const selectedOutputNodeIds = workflowGraphSource?.selectedOutputNodeIds ?? [];
     const rootSamplerNodeIds = workflowGraphSource?.rootSamplerNodeIds ?? [];
-    const selectedBranchNodeIds = workflowGraphSource?.selectedBranchNodeIds ?? [];
     const outputAmbiguous = workflowGraphSource?.outputAmbiguous ?? false;
     const visibleSelectedOutputNodeIds = useMemo(
         () => selectedOutputNodeIds.filter((nodeId) => nodeById.has(nodeId)),
@@ -843,10 +362,6 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
         () => rootSamplerNodeIds.filter((nodeId) => nodeById.has(nodeId)),
         [nodeById, rootSamplerNodeIds]
     );
-    const visibleSelectedBranchNodeIds = useMemo(
-        () => selectedBranchNodeIds.filter((nodeId) => nodeById.has(nodeId)),
-        [nodeById, selectedBranchNodeIds]
-    );
     const selectedOutputNodeIdSet = useMemo(
         () => new Set(visibleSelectedOutputNodeIds),
         [visibleSelectedOutputNodeIds]
@@ -855,35 +370,14 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
         () => new Set(visibleRootSamplerNodeIds),
         [visibleRootSamplerNodeIds]
     );
-    const selectedBranchNodeIdSet = useMemo(
-        () => new Set(visibleSelectedBranchNodeIds),
-        [visibleSelectedBranchNodeIds]
-    );
-    const selectedBranchAvailable = workflowGraphSource?.normalizedByBackend === true
-        && !outputAmbiguous
-        && visibleRootSamplerNodeIds.length === 1
-        && visibleSelectedBranchNodeIds.length > 0;
-    const selectedBranchUnavailableTitle = outputAmbiguous
-        ? 'Unavailable because selected outputs resolve to different root samplers.'
-        : visibleSelectedOutputNodeIds.length === 0
-            ? 'Unavailable because no saved output was selected.'
-            : visibleRootSamplerNodeIds.length === 0
-                ? 'Unavailable because no root sampler was found.'
-                : workflowGraphSource?.normalizedByBackend !== true
-                    ? 'Unavailable without a normalized ComfyUI graph.'
-                    : 'Unavailable because the selected dependency branch could not be resolved.';
-
     const handleFollowConnection = React.useCallback((nodeId: string) => {
-        if (nodeMode === 'selected' && !selectedBranchNodeIdSet.has(nodeId)) {
-            setNodeMode('all');
-        }
         setSearchQuery('');
         setSelectedNodeId(nodeId);
         setFocusedConnection((current) => ({
             nodeId,
             requestId: (current?.requestId ?? 0) + 1
         }));
-    }, [nodeMode, selectedBranchNodeIdSet]);
+    }, []);
 
     const handleCanvasSelectNode = React.useCallback((nodeId: string | null) => {
         setSelectedNodeId(nodeId);
@@ -892,14 +386,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
 
     React.useEffect(() => {
         setFocusedConnection(null);
-        setNodeMode('all');
     }, [image.id, workflowGraphSource?.json, workflowGraphSource?.normalizedByBackend, workflowGraphSource?.source]);
-
-    React.useEffect(() => {
-        if (nodeMode === 'selected' && !selectedBranchAvailable) {
-            setNodeMode('all');
-        }
-    }, [nodeMode, selectedBranchAvailable]);
 
     React.useEffect(() => {
         if (image.metadata.tool !== 'ComfyUI' || Object.keys(originalChunks).length === 0) {
@@ -1004,22 +491,16 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
         }
     };
 
-    const modeNodes = useMemo(
-        () => nodeMode === 'selected' && selectedBranchAvailable
-            ? workflowNodes.filter((node) => selectedBranchNodeIdSet.has(String(node.id)))
-            : workflowNodes,
-        [nodeMode, selectedBranchAvailable, selectedBranchNodeIdSet, workflowNodes]
-    );
     const filteredNodes = useMemo(() => {
-        if (!searchQuery) return modeNodes;
+        if (!searchQuery) return workflowNodes;
         const lowerQ = searchQuery.toLowerCase();
-        return modeNodes.filter(node =>
+        return workflowNodes.filter(node =>
             node.title.toLowerCase().includes(lowerQ) ||
             node.type.toLowerCase().includes(lowerQ) ||
             String(node.id).toLowerCase().includes(lowerQ) ||
             node.subgraphPath?.some(segment => segment.toLowerCase().includes(lowerQ))
         );
-    }, [modeNodes, searchQuery]);
+    }, [searchQuery, workflowNodes]);
     const filteredNodeGroups = useMemo(() => groupWorkflowNodes(filteredNodes), [filteredNodes]);
 
     const preservedWorkflowJson = localWorkflow || image.metadata.workflowJson || originalWorkflow;
@@ -1039,14 +520,8 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
     }, [isCanvasMode, savedLayoutDocument, workflowEdges, workflowNodes]);
     const canvasHighlightedNodeIds = useMemo(() => {
         if (!isCanvasMode) return null;
-        if (searchQuery) return new Set(filteredNodes.map((node) => String(node.id)));
-        return nodeMode === 'selected' && selectedBranchAvailable ? selectedBranchNodeIdSet : null;
-    }, [filteredNodes, isCanvasMode, nodeMode, searchQuery, selectedBranchAvailable, selectedBranchNodeIdSet]);
-    const selectedDisplayNode = useMemo(() => {
-        if (!selectedNodeId) return undefined;
-        return nodeById.get(selectedNodeId)
-            ?? (canvasDocument ? canvasNodeToDisplayNode(canvasDocument, selectedNodeId) : undefined);
-    }, [canvasDocument, nodeById, selectedNodeId]);
+        return searchQuery ? new Set(filteredNodes.map((node) => String(node.id))) : null;
+    }, [filteredNodes, isCanvasMode, searchQuery]);
 
     React.useEffect(() => {
         if (!focusedConnection || searchQuery) return;
@@ -1058,14 +533,6 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, [filteredNodes, focusedConnection, searchQuery]);
 
-    const graphSourceLabel = image.metadata.tool === 'ComfyUI' && workflowGraphSource
-        ? workflowGraphSource.source === 'prompt'
-            ? 'API Prompt'
-            : workflowGraphSource.normalizedByBackend
-                ? 'Expanded Workflow'
-                : 'Workflow'
-        : null;
-
     return (
         <div className="flex flex-col h-full overflow-hidden animate-in fade-in slide-in-from-right-4 duration-300">
 
@@ -1076,13 +543,8 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
                     icon={Workflow}
                     trailing={<>
                         <div className="shrink-0 rounded-full bg-gray-100 px-2 py-1 font-mono text-[10px] text-gray-400 dark:bg-white/5">
-                            {nodeMode === 'selected' ? `${modeNodes.length}/${workflowNodes.length}` : workflowNodes.length}
+                            {workflowNodes.length}
                         </div>
-                        {graphSourceLabel && (
-                            <div className="rounded-full border border-sage-200 bg-sage-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-sage-600 dark:border-sage-800 dark:bg-sage-900/20 dark:text-sage-300">
-                                {graphSourceLabel}
-                            </div>
-                        )}
                         {workflowJsonForActions ? (
                         <div className="flex shrink-0 items-center gap-1">
                             <TooltipButton
@@ -1111,39 +573,6 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
                     </>}
                 />
 
-                {image.metadata.tool === 'ComfyUI' && workflowNodes.length > 0 && (
-                    <div
-                        role="group"
-                        aria-label="Workflow node view"
-                        className="grid grid-cols-2 rounded-md border border-gray-200 bg-gray-100 p-0.5 dark:border-white/10 dark:bg-black/20"
-                    >
-                        <button
-                            type="button"
-                            aria-pressed={nodeMode === 'all'}
-                            onClick={() => setNodeMode('all')}
-                            className={`min-h-8 rounded px-3 text-[10px] font-bold uppercase tracking-wide transition-colors ${nodeMode === 'all'
-                                ? 'bg-white text-gray-800 shadow-sm dark:bg-zinc-700 dark:text-gray-100'
-                                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
-                        >
-                            All Nodes
-                        </button>
-                        <button
-                            type="button"
-                            aria-pressed={nodeMode === 'selected'}
-                            disabled={!selectedBranchAvailable}
-                            title={selectedBranchAvailable ? 'Show the parser-selected saved-output dependency branch.' : selectedBranchUnavailableTitle}
-                            onClick={() => setNodeMode('selected')}
-                            className={`min-h-8 rounded px-3 text-[10px] font-bold uppercase tracking-wide transition-colors ${nodeMode === 'selected'
-                                ? 'bg-sage-600 text-white shadow-sm dark:bg-sage-500 dark:text-zinc-950'
-                                : selectedBranchAvailable
-                                    ? 'text-gray-500 hover:text-sage-600 dark:text-gray-400 dark:hover:text-sage-300'
-                                    : 'cursor-not-allowed text-gray-300 dark:text-gray-600'}`}
-                        >
-                            Selected Branch
-                        </button>
-                    </div>
-                )}
-
                 {workflowNodes.length > 0 && (
                     <div className="relative group">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-focus-within:text-sage-500 transition-colors" />
@@ -1157,29 +586,21 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
                     </div>
                 )}
 
-                <WorkflowOutputAnchors
-                    selectedOutputNodeIds={visibleSelectedOutputNodeIds}
-                    rootSamplerNodeIds={visibleRootSamplerNodeIds}
-                    outputAmbiguous={outputAmbiguous}
-                    nodeById={nodeById}
-                    onFocusNode={handleFollowConnection}
-                />
+                {/* The canvas shows these nodes in place; the node list still needs the shortcuts. */}
+                {!isCanvasMode && (
+                    <WorkflowOutputAnchors
+                        selectedOutputNodeIds={visibleSelectedOutputNodeIds}
+                        rootSamplerNodeIds={visibleRootSamplerNodeIds}
+                        outputAmbiguous={outputAmbiguous}
+                        nodeById={nodeById}
+                        onFocusNode={handleFollowConnection}
+                    />
+                )}
 
             </div>
 
             {/* Node List */}
             <div className="flex-1 overflow-y-auto custom-scrollbar px-6 pb-6">
-                {showParserDiagnostics && (
-                    <div className="mb-4">
-                        <ComfyDiagnosticsPanel
-                            key={image.id}
-                            image={image}
-                            chunks={image.originalChunks}
-                            nodeById={nodeById}
-                            onFocusNode={handleFollowConnection}
-                        />
-                    </div>
-                )}
                 {isCanvasMode && canvasDocument ? (
                     searchQuery ? (
                         <section aria-label="Matching workflow nodes" className="space-y-1">
@@ -1201,28 +622,13 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({ image, onW
                                 <p className="py-6 text-center text-xs text-gray-400">No matching nodes found.</p>
                             )}
                         </section>
-                    ) : selectedDisplayNode ? (
-                        <WorkflowNode
-                            key={String(selectedDisplayNode.id)}
-                            id={selectedDisplayNode.id}
-                            title={selectedDisplayNode.title}
-                            type={selectedDisplayNode.type}
-                            inputs={selectedDisplayNode.inputs}
-                            connections={connectionIndex.get(String(selectedDisplayNode.id)) ?? { incoming: [], outgoing: [] }}
-                            nodeById={nodeById}
-                            isSelectedOutput={selectedOutputNodeIdSet.has(String(selectedDisplayNode.id))}
-                            isRootSampler={rootSamplerNodeIdSet.has(String(selectedDisplayNode.id))}
-                            outputAmbiguous={outputAmbiguous}
-                            isFocused
-                            focusRequestId={null}
-                            defaultExpanded
-                            onFollowConnection={handleFollowConnection}
-                        />
+                    ) : selectedNodeId ? (
+                        <WorkflowNodePreview key={selectedNodeId} workflowDocument={canvasDocument} nodeId={selectedNodeId} />
                     ) : (
                         <div className="mt-2 flex flex-col items-center gap-2 rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center dark:border-white/5">
                             <MousePointerClick className="h-6 w-6 text-gray-300 dark:text-gray-600" />
                             <p className="text-xs text-gray-400 text-balance">
-                                Click a node in the graph to inspect its values and connections. Drag to pan, scroll to zoom
+                                Click a node in the graph to preview it here. Drag to pan, scroll to zoom
                                 {canvasDocument.subgraphs.size > 0 ? ', and double-click a subgraph to open it.' : '.'}
                             </p>
                         </div>

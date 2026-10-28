@@ -225,7 +225,6 @@ const commandCases: CommandCase[] = [
     { name: 'scanImagesBulk', invokeName: 'scan_images_bulk', args: [['C:/image.png'], null, true, false, null, 'run-1'], payload: { paths: ['C:/image.png'], thumbnailDir: null, skipThumbnail: true, extractWorkflow: false, defaultTool: null, progressRunId: 'run-1' }, returnsResult: true },
     { name: 'scanImageWorkflow', invokeName: 'scan_image_workflow', args: ['C:/image.png'], payload: { path: 'C:/image.png' }, returnsResult: true },
     { name: 'readImageMetadata', invokeName: 'read_image_metadata', args: ['C:/image.png', null], payload: { path: 'C:/image.png', defaultTool: null }, returnsResult: true },
-    { name: 'inspectComfyuiMetadataChunks', invokeName: 'inspect_comfyui_metadata_chunks', args: [{ prompt: '{}' }], payload: { chunks: { prompt: '{}' } }, returnsResult: true },
     { name: 'inspectComfyuiWorkflowGraph', invokeName: 'inspect_comfyui_workflow_graph', args: [{ prompt: '{}' }], payload: { chunks: { prompt: '{}' } }, returnsResult: true },
     { name: 'getFileSizesBulk', invokeName: 'get_file_sizes_bulk', args: [['C:/image.png']], payload: { paths: ['C:/image.png'] }, returnsResult: true },
     { name: 'probeFileMetadataBulk', invokeName: 'probe_file_metadata_bulk', args: [['C:/image.png']], payload: { paths: ['C:/image.png'] }, returnsResult: true },

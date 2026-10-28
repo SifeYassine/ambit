@@ -645,14 +645,6 @@ pub struct ComfyParserDiagnosticsReport {
     pub metadata: ComfyMetadataPreview,
 }
 
-#[tauri::command(rename_all = "camelCase")]
-#[specta::specta]
-pub async fn inspect_comfyui_metadata_chunks(
-    chunks: HashMap<String, String>,
-) -> Result<ComfyParserDiagnosticsReport, String> {
-    Ok(build_comfyui_diagnostics_report(&chunks))
-}
-
 pub(crate) fn build_comfyui_diagnostics_report(
     chunks: &HashMap<String, String>,
 ) -> ComfyParserDiagnosticsReport {
