@@ -7,7 +7,7 @@ import { useSettingsStore } from '../../../stores/settingsStore';
 import { getEffectiveMaskedKeywords, isImageMasked } from '../../../utils/maskingUtils';
 import { formatModelName } from '../../../utils/formatUtils';
 import { usePresets } from '../hooks/usePresets';
-import { usePresetsViewStore } from '../presetsViewStore';
+import { usePresetsViewStore } from '../../../stores/presetsViewStore';
 
 const MIN_CARD_WIDTH = 160;
 

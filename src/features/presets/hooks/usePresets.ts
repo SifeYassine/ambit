@@ -9,7 +9,7 @@ import { getInvokeOwnerQueryScopeKey } from '../../../utils/invokeOwnerQueryScop
 import { getEffectiveMaskedKeywords } from '../../../utils/maskingUtils';
 import { buildSqlWhereClause } from '../../../utils/sqlHelpers';
 import { createPresetScopeFilters } from '../../../utils/filterState';
-import { usePresetsViewStore } from '../presetsViewStore';
+import { usePresetsViewStore } from '../../../stores/presetsViewStore';
 
 export interface PresetsState {
     presets: GenerationPreset[];
