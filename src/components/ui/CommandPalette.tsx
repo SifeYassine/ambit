@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Monitor, Moon, Sun, LayoutGrid, Clock, BarChart3, Boxes, Eraser, Settings, Import, FolderPlus, Sparkles, ScanSearch } from 'lucide-react';
+import { Search, Monitor, Moon, Sun, LayoutGrid, Clock, BarChart3, Boxes, Wrench, Settings, Import, FolderPlus, Sparkles, ScanSearch } from 'lucide-react';
 import { AppSettings, ViewMode } from '../../types';
 
 interface CommandPaletteProps {
@@ -44,7 +44,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { id: 'nav-stats', label: 'Go to Dashboard', icon: <BarChart3 className="w-4 h-4" />, group: 'Navigation', action: () => onNavigate('dashboard') },
     { id: 'nav-presets', label: 'Go to Presets', icon: <Boxes className="w-4 h-4" />, group: 'Navigation', action: () => onNavigate('presets') },
     { id: 'nav-similarity', label: 'Go to Similarity Search', icon: <ScanSearch className="w-4 h-4" />, group: 'Navigation', action: () => onNavigate('similarity') },
-    { id: 'nav-maint', label: 'Go to Maintenance', icon: <Eraser className="w-4 h-4" />, group: 'Navigation', action: () => onNavigate('maintenance') },
+    { id: 'nav-maint', label: 'Go to Maintenance', icon: <Wrench className="w-4 h-4" />, group: 'Navigation', action: () => onNavigate('maintenance') },
     
     { id: 'act-import', label: 'Import Images', icon: <Import className="w-4 h-4" />, group: 'Actions', action: onImport },
     { id: 'act-col', label: 'Create Collection', icon: <FolderPlus className="w-4 h-4" />, group: 'Actions', action: onCreateCollection },

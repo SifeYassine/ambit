@@ -455,6 +455,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                                             setFilters(previous => createPresetSelectionFilters(previous, preset));
                                             changeViewMode('grid');
                                         }}
+                                        onGroupingChange={() => {
+                                            // A preset's key and number belong to the grouping it was picked from.
+                                            setFilters(previous => previous.preset ? { ...previous, preset: undefined } : previous);
+                                        }}
                                     />
                                 </React.Suspense>
                             ) : viewMode === 'similarity' ? (

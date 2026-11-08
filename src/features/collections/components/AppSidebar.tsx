@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Grid, Clock, Eraser, BarChart3, Boxes, Filter, Heart, Gift, HelpCircle, Settings, Pin, ScanSearch } from 'lucide-react';
+import { Grid, Clock, Wrench, BarChart3, Boxes, Filter, Heart, Gift, HelpCircle, Settings, Pin, ScanSearch } from 'lucide-react';
 import { ViewMode, FilterState } from '../../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TooltipButton } from '../../../components/ui/InfoTooltip';
@@ -29,18 +29,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   onOpenDonation,
   showSupportPulse
 }) => {
-  const brandGlyphSrc = '/branding/ambit-glyph.svg';
-
   return (
     <aside className="hidden md:flex w-20 flex-col items-center py-6 h-full rounded-3xl bg-white/90 dark:bg-zinc-900/95 backdrop-blur-xl border border-gray-200 dark:border-white/10 z-20 shadow-2xl transition-all duration-500 ease-spring">
-      <div className="mb-8 shrink-0 [@media(max-height:860px)]:mb-4 p-3 bg-sage-500/10 dark:bg-sage-500/20 rounded-2xl shadow-lg border border-sage-500/20">
-        <img
-          src={brandGlyphSrc}
-          alt=""
-          className="w-10 h-10 drop-shadow-[0_4px_12px_rgba(0,0,0,0.25)]"
-        />
-      </div>
-
       {/* One equal-height row per icon, so every icon is evenly spaced over the full height.
           Rows stop shrinking at a minimum size; shorter windows scroll instead. */}
       <div className="no-scrollbar grid min-h-0 w-full flex-1 auto-rows-[minmax(3.5rem,1fr)] place-items-center overflow-y-auto [@media(max-height:860px)]:auto-rows-[minmax(3rem,1fr)]">
@@ -54,7 +44,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           state="view"
           active={viewMode === 'maintenance'}
           onClick={() => setViewMode('maintenance')}
-          icon={<Eraser />}
+          icon={<Wrench />}
           tooltip="Maintenance"
         />
 

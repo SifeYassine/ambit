@@ -273,6 +273,9 @@ export interface PresetFilter {
   key: string;
   /** True when LoRA weights are part of the preset (strict key), false when merged (loose key). */
   matchWeights: boolean;
+  /** Short name shown on the filter chip, e.g. "Preset 1". */
+  name: string;
+  /** Full model · LoRAs · sampler description, shown as the chip's tooltip. */
   label: string;
 }
 

@@ -281,7 +281,7 @@ export const ActiveFilters: React.FC<ActiveFiltersProps> = () => {
 
             {filters.preset && (
                 <div title={filters.preset.label} className="flex items-center gap-1 rounded-full border border-sage-200 bg-sage-50 px-2 py-0.5 text-xs text-sage-700 dark:border-sage-500/30 dark:bg-sage-500/10 dark:text-sage-200">
-                    <span className={WIDE_FILTER_CHIP_LABEL_CLASS}>Preset: {filters.preset.label}</span>
+                    <span className={WIDE_FILTER_CHIP_LABEL_CLASS}>{filters.preset.name}</span>
                     <button type="button" aria-label="Clear Preset Filter" onClick={() => setFilters(f => ({ ...f, preset: undefined }))}><X className="w-3 h-3" /></button>
                 </div>
             )}

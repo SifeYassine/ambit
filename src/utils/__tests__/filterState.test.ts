@@ -158,7 +158,7 @@ describe('filterState', () => {
 });
 
 describe('preset filters', () => {
-    const preset = { key: 'abc', matchWeights: true, label: 'WAI · euler' };
+    const preset = { key: 'abc', matchWeights: true, name: 'Preset 1', label: 'WAI · euler' };
 
     it('selects one preset over the library, keeping only view toggles', () => {
         const selected = createPresetSelectionFilters(

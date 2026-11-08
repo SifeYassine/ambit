@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eraser } from 'lucide-react';
+import { Wrench } from 'lucide-react';
 import { MaintenanceTab } from '../../../hooks/useMaintenanceData';
 
 interface MaintenanceTabDefinition {
@@ -56,7 +56,7 @@ export const MaintenanceTabs: React.FC<MaintenanceTabsProps> = ({ activeTab, onT
                 <div className="shrink-0">
                     <div className="flex items-center gap-3 mb-1">
                         <div className="p-2 bg-sage-100 dark:bg-sage-900/30 rounded-lg text-sage-600 dark:text-sage-400">
-                            <Eraser className="w-5 h-5" />
+                            <Wrench className="w-5 h-5" />
                         </div>
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white">Gallery Maintenance</h2>
                     </div>

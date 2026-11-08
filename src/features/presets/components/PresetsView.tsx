@@ -16,6 +16,8 @@ export { usePresetsViewStore };
 interface PresetsViewProps {
     filters: FilterState;
     onSelectPreset: (preset: PresetFilter) => void;
+    /** Called when the LoRA-weight grouping changes, which invalidates any active preset filter. */
+    onGroupingChange: () => void;
 }
 
 const HAS_LORA_WEIGHT = /\s\(-?\d+(?:\.\d+)?\)$/;
@@ -155,7 +157,7 @@ const PresetCard = ({ preset, rank, matchWeights, onSelect }: {
     );
 };
 
-export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPreset }) => {
+export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPreset, onGroupingChange }) => {
     const matchWeights = usePresetsViewStore(state => state.matchWeights);
     // The checkbox reads as "ignore", so checked merges presets that differ only in LoRA weights.
     const ignoreWeights = !matchWeights;
@@ -176,7 +178,10 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
                     id={toggleId}
                     type="checkbox"
                     checked={ignoreWeights}
-                    onChange={event => setMatchWeights(!event.target.checked)}
+                    onChange={event => {
+                        setMatchWeights(!event.target.checked);
+                        onGroupingChange();
+                    }}
                     className="peer sr-only"
                 />
                 <span
@@ -233,7 +238,7 @@ export const PresetsView: React.FC<PresetsViewProps> = ({ filters, onSelectPrese
                             preset={preset}
                             rank={index + 1}
                             matchWeights={matchWeights}
-                            onSelect={() => onSelectPreset({ key: preset.key, matchWeights, label: getPresetLabel(preset, matchWeights) })}
+                            onSelect={() => onSelectPreset({ key: preset.key, matchWeights, name: `Preset ${index + 1}`, label: getPresetLabel(preset, matchWeights) })}
                         />
                     ))}
                 </ol>
