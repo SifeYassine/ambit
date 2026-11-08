@@ -1,7 +1,7 @@
 
 import * as React from 'react';
 import { useEffect } from 'react';
-import { AIImage, ViewMode } from '../types';
+import { AIImage, ViewMode, isStandaloneView } from '../types';
 import type { VirtualGridHandle } from '../features/library/components/VirtualGrid';
 
 interface GlobalShortcutsProps {
@@ -177,8 +177,8 @@ export const useGlobalShortcuts = ({
             // 7. Selection Shortcuts
             if (hasPrimaryModifier && key === 'a') {
                 e.preventDefault();
-                // Prevent bleed into Maintenance Mode, Dashboard, or Presets which have their own context
-                if (viewMode === 'maintenance' || viewMode === 'dashboard' || viewMode === 'presets') return;
+                // Prevent bleed into Maintenance Mode, Dashboard, Presets, or Similarity which have their own context
+                if (isStandaloneView(viewMode)) return;
 
                 const allIds = filteredImages.map(img => img.id);
                 setSelectedIds(new Set(allIds));

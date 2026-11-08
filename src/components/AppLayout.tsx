@@ -33,6 +33,7 @@ setupGlobalLogging();
 
 const StatsDashboard = React.lazy(() => import('./ui/Charts').then(module => ({ default: module.StatsDashboard })));
 const PresetsView = React.lazy(() => import('../features/presets/components/PresetsView').then(module => ({ default: module.PresetsView })));
+const SimilarityView = React.lazy(() => import('../features/similarity/components/SimilarityView').then(module => ({ default: module.SimilarityView })));
 const MaintenanceView = React.lazy(() => import('../features/maintenance/components/MaintenanceView').then(module => ({ default: module.MaintenanceView })));
 const LibraryEmptyState = React.lazy(() => import('../features/library/components/LibraryEmptyState'));
 const FILTER_PANEL_LAYOUT_TRANSITION_MS = 540;
@@ -117,6 +118,8 @@ interface AppLayoutProps {
     setViewingImageId: (id: string | null) => void;
     onMaintenanceViewerOpenChange: (isOpen: boolean) => void;
     onOpenReferencedImage: (imageId: string) => Promise<boolean>;
+    /** Opens the viewer on `images[index]`, navigating within `images`. */
+    onOpenImageSession: (images: AIImage[], index: number) => void;
     isViewerShortcutBlocked: boolean;
     toggleFavorite: (id: string) => void | Promise<void>;
     actions: ReturnType<typeof useAppActions>;
@@ -148,7 +151,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     viewMode, changeViewMode, searchProps, layoutMode, setLayoutMode,
     sortOption, setSortOption, displayedCount, scopeTotal, scopeName,
     fileOps, onOpenImportModal, workspaceRef, scrollContainerRef,
-    handlers, setViewingImageId, onMaintenanceViewerOpenChange, onOpenReferencedImage, isViewerShortcutBlocked,
+    handlers, setViewingImageId, onMaintenanceViewerOpenChange, onOpenReferencedImage, onOpenImageSession, isViewerShortcutBlocked,
     actions, selectedIds,
     handleImageClick, setSelectedImageIndex, handleSelectionToggle,
     activeCollection, activeSmartCollection, handleRangeSelection,
@@ -453,6 +456,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                                             changeViewMode('grid');
                                         }}
                                     />
+                                </React.Suspense>
+                            ) : viewMode === 'similarity' ? (
+                                <React.Suspense fallback={<ViewLoadingFallback />}>
+                                    <SimilarityView filters={filters} onOpenResult={onOpenImageSession} />
                                 </React.Suspense>
                             ) : viewMode === 'maintenance' ? (
                                 <React.Suspense fallback={<ViewLoadingFallback />}>

@@ -44,6 +44,7 @@ interface ImageViewerProps {
     onToggleSidebar?: () => void;
     searchHighlights?: PromptHighlightSpec;
     onOpenReferencedImage?: (imageId: string) => Promise<boolean>;
+    onFindSimilar?: (image: AIImage) => void;
 }
 
 import { AIResultModal } from './AIResultModal';
@@ -120,7 +121,8 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     isSidebarOpen = true,
     onToggleSidebar,
     searchHighlights,
-    onOpenReferencedImage
+    onOpenReferencedImage,
+    onFindSimilar
 }) => {
     const metadataDisclosure = useMetadataDisclosureState();
     const settings = useSettingsStore(s => s.settings);
@@ -435,6 +437,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
                     onTogglePin={onTogglePin ? handleTogglePin : undefined}
                     onDelete={onDelete ? () => onDelete(displayImage.id) : undefined}
                     onToggleSidebar={onToggleSidebar}
+                    onFindSimilar={onFindSimilar ? () => onFindSimilar(displayImage) : undefined}
                     onClose={onClose}
                 />
 

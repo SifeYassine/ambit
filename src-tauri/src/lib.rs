@@ -6,6 +6,7 @@ mod media;
 mod metadata;
 mod scanner;
 mod security;
+mod similarity;
 mod startup;
 mod startup_log;
 #[cfg(windows)]
@@ -70,6 +71,14 @@ pub fn create_builder() -> tauri_specta::Builder<tauri::Wry> {
             db::commands::maintenance::cancel_image_file_hash_backfill,
             db::commands::maintenance::compute_image_file_hash,
             db::commands::preset_commands::rebuild_generation_presets,
+            similarity::get_similarity_status,
+            similarity::download_similarity_model,
+            similarity::cancel_similarity_model_download,
+            similarity::delete_similarity_model,
+            similarity::index_similarity_embeddings,
+            similarity::cancel_similarity_indexing,
+            similarity::search_similar_images,
+            similarity::cluster_similar_images,
             db::commands::image_commands::refresh_boards_native,
             db::commands::image_commands::get_image_count_for_path_prefix,
             db::commands::image_commands::refresh_privacy_mask_index,
@@ -245,6 +254,7 @@ pub fn run() {
         .manage(ModelDiscoveryState::default())
         .manage(ReparseState::default())
         .manage(FileHashBackfillState::default())
+        .manage(similarity::SimilarityState::default())
         .manage(VideoImportState::new())
         .manage(thumb::optimizer::ThumbnailOptimizationState::default())
         .manage(StartupState::with_journal(

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Grid, Clock, Eraser, BarChart3, Boxes, Filter, Heart, Gift, HelpCircle, Settings, Pin } from 'lucide-react';
+import { Grid, Clock, Eraser, BarChart3, Boxes, Filter, Heart, Gift, HelpCircle, Settings, Pin, ScanSearch } from 'lucide-react';
 import { ViewMode, FilterState } from '../../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TooltipButton } from '../../../components/ui/InfoTooltip';
@@ -48,6 +48,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         <NavButton state="view" active={viewMode === 'grid' && !filters.favoritesOnly} current={viewMode === 'grid'} onClick={() => { setViewMode('grid'); setFilters(f => ({ ...f, favoritesOnly: false })); }} icon={<Grid />} tooltip="Grid View" />
         <NavButton state="view" active={viewMode === 'timeline'} onClick={() => setViewMode('timeline')} icon={<Clock />} tooltip="Timeline View" />
         <NavButton state="view" active={viewMode === 'presets'} onClick={() => setViewMode('presets')} icon={<Boxes />} tooltip="Presets" />
+        <NavButton state="view" active={viewMode === 'similarity'} onClick={() => setViewMode('similarity')} icon={<ScanSearch />} tooltip="Similarity Search" />
         <NavButton state="view" active={viewMode === 'dashboard'} onClick={() => setViewMode('dashboard')} icon={<BarChart3 />} tooltip="Statistics" />
         <NavButton
           state="view"

@@ -40,7 +40,11 @@ export enum ModelType {
   ANIMAGINE = 'Animagine XL'
 }
 
-export type ViewMode = 'grid' | 'timeline' | 'dashboard' | 'maintenance' | 'presets';
+export type ViewMode = 'grid' | 'timeline' | 'dashboard' | 'maintenance' | 'presets' | 'similarity';
+
+/** Views that show their own page instead of the gallery: searching returns to Grid, and Select All does not apply. */
+export const isStandaloneView = (viewMode: ViewMode): boolean =>
+  viewMode === 'dashboard' || viewMode === 'maintenance' || viewMode === 'presets' || viewMode === 'similarity';
 
 export type LayoutMode = 'grid' | 'masonry' | 'justified';
 

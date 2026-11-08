@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Import, MoreHorizontal, Play } from 'lucide-react';
-import { AppSettings, FilterState, LayoutMode, SortOption, ViewMode, type LibraryScopeCounts, type SourceKindCounts } from '../../types';
+import { AppSettings, FilterState, LayoutMode, SortOption, ViewMode, isStandaloneView, type LibraryScopeCounts, type SourceKindCounts } from '../../types';
 import { useLibraryContext } from '../../hooks/useLibraryContext';
 import { useLibraryStore } from '../../stores/libraryStore';
 import { SortOptionList, ViewControls } from '../../features/library/components/ViewControls';
@@ -242,7 +242,7 @@ export const AppHeader = React.memo(({
                                 scopeName={scopeName}
                                 displayedCount={displayedCount}
                                 isFiltering={isFiltering ?? false}
-                                submitNavigatesToGrid={viewMode === 'dashboard' || viewMode === 'maintenance' || viewMode === 'presets'}
+                                submitNavigatesToGrid={isStandaloneView(viewMode)}
                                 onDraftPendingChange={onSearchDraftPendingChange}
                             />
                         </React.Suspense>
@@ -298,7 +298,7 @@ export const AppHeader = React.memo(({
                         layoutMode={layoutMode}
                         setLayoutMode={setLayoutMode}
                         showSlideshowButton={showSlideshowButton && toolbarDensity === 'normal'}
-                        showThumbnailSize={showSlideshowButton || viewMode === 'presets'}
+                        showThumbnailSize={showSlideshowButton || viewMode === 'presets' || viewMode === 'similarity'}
                         compact={toolbarDensity !== 'normal'}
                         onSlideshow={onSlideshow}
                         sortOption={sortOption}

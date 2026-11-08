@@ -17,9 +17,10 @@ import { useSettingsStore } from './stores/settingsStore';
 import { useCollectionStore } from './stores/collectionStore';
 import { getCollectionCount } from './utils/collectionCount';
 import { useLibraryStore } from './stores/libraryStore';
+import { useSimilarityStore } from './stores/similarityStore';
 import { useAppHandlers } from './hooks/useAppHandlers';
 import { VirtualGridHandle } from './features/library/components/VirtualGrid';
-import { ViewMode, LayoutMode, AIImage, ContextMenuState, Collection, SmartCollection, isVideoAsset, type InvokeOwnerSelection } from './types';
+import { ViewMode, LayoutMode, AIImage, ContextMenuState, Collection, SmartCollection, isStandaloneView, isVideoAsset, type InvokeOwnerSelection } from './types';
 
 // Hooks
 import { useSelection } from './hooks/useSelection';
@@ -540,7 +541,7 @@ export default function App() {
         }
 
         void submitSearch(query);
-        if (viewMode === 'dashboard' || viewMode === 'maintenance' || viewMode === 'presets') {
+        if (isStandaloneView(viewMode)) {
             changeViewMode('grid');
         }
     }, [changeViewMode, submitSearch, viewMode]);
@@ -651,6 +652,26 @@ export default function App() {
             return false;
         }
     }, [addToast, images, queryClient, setSelectedImageIndex, setViewingImageId]);
+    /** Opens the viewer on a list that is not the gallery (Similarity results), navigating within it. */
+    const handleOpenImageSession = useCallback((sessionImages: AIImage[], index: number) => {
+        if (index < 0 || index >= sessionImages.length) return;
+        referenceNavigationRequestRef.current += 1;
+        setViewerRevealGrantId(null);
+        setDirectViewerImage(null);
+        setViewingImageId(null);
+        setSelectedImageIndex(index);
+        viewerSessionImagesRef.current = sessionImages;
+        setViewerSessionImages(sessionImages);
+    }, [setSelectedImageIndex, setViewingImageId]);
+    const handleFindSimilar = useCallback((image: AIImage) => {
+        useSimilarityStore.getState().findSimilarTo(image);
+        referenceNavigationRequestRef.current += 1;
+        setViewerRevealGrantId(null);
+        setSelectedImageIndex(null);
+        setViewingImageId(null);
+        setDirectViewerImage(null);
+        changeViewMode('similarity');
+    }, [changeViewMode, setSelectedImageIndex, setViewingImageId]);
     const searchHighlights = React.useMemo(
         () => derivePromptHighlightSpec(filters.searchQuery),
         [filters.searchQuery]
@@ -925,6 +946,7 @@ export default function App() {
                 setViewingImageId={setViewingImageId}
                 onMaintenanceViewerOpenChange={setIsMaintenanceViewerOpen}
                 onOpenReferencedImage={handleOpenReferencedImage}
+                onOpenImageSession={handleOpenImageSession}
                 isViewerShortcutBlocked={isViewerShortcutBlocked}
 
                 toggleFavorite={toggleFavorite}
@@ -1136,6 +1158,7 @@ export default function App() {
                             onToggleSidebar={() => setSettings(p => ({ ...p, defaultTheaterMode: !p.defaultTheaterMode }))}
                             searchHighlights={searchHighlights}
                             onOpenReferencedImage={handleOpenReferencedImage}
+                            onFindSimilar={handleFindSimilar}
                         />
                     ) : null}
                 </AnimatePresence>

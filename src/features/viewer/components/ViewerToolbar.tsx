@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { X, Share2, Heart, Pin, Trash2, PanelRightClose, PanelRightOpen, Copy, Layout, ExternalLink } from 'lucide-react';
+import { X, Share2, Heart, Pin, Trash2, PanelRightClose, PanelRightOpen, Copy, Layout, ExternalLink, ScanSearch } from 'lucide-react';
 import { getFilename } from '../../../utils/pathUtils';
 import { AIImage } from '../../../types';
 import { ViewerToolbarButton } from './ViewerToolbarButton';
@@ -20,6 +20,7 @@ interface ViewerToolbarProps {
     onTogglePin?: () => void;
     onDelete?: () => void;
     onToggleSidebar?: () => void;
+    onFindSimilar?: () => void;
     onClose: () => void;
 }
 
@@ -38,6 +39,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
     onTogglePin,
     onDelete,
     onToggleSidebar,
+    onFindSimilar,
     onClose
 }) => {
     return (
@@ -77,6 +79,14 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
                 >
                     <Share2 className="w-5 h-5" />
                 </ViewerToolbarButton>
+                {onFindSimilar && (
+                    <ViewerToolbarButton
+                        label="Find Similar Images"
+                        onClick={onFindSimilar}
+                    >
+                        <ScanSearch className="w-5 h-5" />
+                    </ViewerToolbarButton>
+                )}
                 {onToggleFavorite && (
                     <ViewerToolbarButton
                         label={image.isFavorite ? "Remove from Favorites (F)" : "Add to Favorites (F)"}

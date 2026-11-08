@@ -16,8 +16,9 @@ interface ImageCardProps {
   isMasked?: boolean;
   isThumbnail?: boolean; // New Prop
   onClick: (e: React.MouseEvent, revealGranted?: boolean) => void;
-  onToggleSelection: (e: React.MouseEvent) => void;
-  onToggleFavorite: (e: React.MouseEvent) => void;
+  /** Omitted where the grid has no selection (Similarity results); the checkbox is then hidden. */
+  onToggleSelection?: (e: React.MouseEvent) => void;
+  onToggleFavorite?: (e: React.MouseEvent) => void;
   onTogglePin?: (e: React.MouseEvent) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   onDragStart?: (e: React.DragEvent, id: string) => void;
@@ -196,7 +197,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({
         </div>
       )}
 
-      <button
+      {onToggleSelection && <button
         type="button"
         aria-label={isSelected ? "Deselect Image" : "Select Image"}
         aria-pressed={isSelected}
@@ -212,7 +213,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({
         <div className={`w-5 h-5 rounded-full border flex items-center justify-center shadow-sm backdrop-blur-sm transition-colors ${isSelected ? 'bg-sage-500 border-sage-500' : 'bg-black/40 border-white/30 hover:bg-black/60'}`}>
           {isSelected && <CheckCircle className="w-3.5 h-3.5 text-white" />}
         </div>
-      </button>
+      </button>}
 
       {invokeAssetLabel && (
         <span
@@ -275,7 +276,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({
                   <Pin className={`w-4 h-4 ${image.isPinned ? 'fill-current' : ''}`} />
                 </TooltipButton>
               )}
-              <TooltipButton
+              {onToggleFavorite && <TooltipButton
                 label={image.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
                 content={image.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
                 aria-pressed={image.isFavorite}
@@ -286,7 +287,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({
                 }}
               >
                 <Heart className={`w-4 h-4 ${image.isFavorite ? 'fill-red-500 text-red-500' : 'text-white'}`} />
-              </TooltipButton>
+              </TooltipButton>}
             </div>
           </div>
         </div>

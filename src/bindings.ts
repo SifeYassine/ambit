@@ -201,6 +201,72 @@ async rebuildGenerationPresets() : Promise<Result<number, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async getSimilarityStatus() : Promise<Result<SimilarityStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_similarity_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The only network path of this feature: a user-triggered download of the pinned model
+ * files from Hugging Face and the ONNX Runtime release from GitHub.
+ */
+async downloadSimilarityModel() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("download_similarity_model") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cancelSimilarityModelDownload() : Promise<void> {
+    await TAURI_INVOKE("cancel_similarity_model_download");
+},
+/**
+ * Removes the downloaded model files. Stored embeddings are kept, so re-downloading
+ * the same model does not require re-indexing.
+ */
+async deleteSimilarityModel() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_similarity_model") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async indexSimilarityEmbeddings() : Promise<Result<SimilarityIndexResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("index_similarity_embeddings") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cancelSimilarityIndexing() : Promise<void> {
+    await TAURI_INVOKE("cancel_similarity_indexing");
+},
+async searchSimilarImages(query: SimilarityQuery, limit: number, threshold: number) : Promise<Result<SimilarityMatch[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("search_similar_images", { query, limit, threshold }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * SmartSim's `/search/cluster`: groups indexed library images, returning image ids per cluster
+ * in scikit-learn's label order with each cluster's images oldest first, as SmartSim shows them.
+ */
+async clusterSimilarImages(options: ClusterOptions) : Promise<Result<string[][], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cluster_similar_images", { options }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async refreshBoardsNative(boardMapping: Partial<{ [key in string]: string }>) : Promise<Result<number, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("refresh_boards_native", { boardMapping }) };
@@ -879,6 +945,10 @@ export type A1111DiscoveryResult = { detectedVariant: string; candidates: A1111D
 export type AmbitCollectionScopeMode = "global" | "all" | "owner"
 export type BackupInfo = { name: string; path: string; createdAt: string; sizeBytes: number }
 export type CaptureTimeMetadata = { local: string; offset: string | null; subsecond: string | null }
+/**
+ * SmartSim's clustering parameters; every field is optional.
+ */
+export type ClusterOptions = { maxClusters: number | null; similarityThreshold: number | null; minImages: number | null; maxImages: number | null }
 export type CollectionMembershipMutationInput = { operation: CollectionMembershipOperation; imageIds: string[]; sourceCollectionId: string | null; targetCollectionId: string | null }
 export type CollectionMembershipMutationResult = { affectedIds: string[]; sourceCollectionId: string | null; targetCollectionId: string | null }
 export type CollectionMembershipOperation = "add" | "remove" | "move"
@@ -985,6 +1055,14 @@ thumbnailSource: string | null; chunks: Partial<{ [key in string]: string }>; me
  * Error message if scan failed or resulted in a partial result
  */
 error: string | null; thumbnailVersion: number; detectedSourceKind: SourceKind; photoMetadata: PhotoMetadata | null; photoMetadataError: string | null; captureWallTimeMs: number | null }
+export type SimilarityIndexResult = { indexed: number; failed: number; remaining: number; wasCancelled: boolean }
+export type SimilarityMatch = { imageId: string; similarity: number }
+export type SimilarityQuery = { kind: "text"; text: string } | { kind: "libraryImage"; imageId: string } | { kind: "file"; path: string }
+export type SimilarityStatus = { modelInstalled: boolean; modelDownloading: boolean; indexing: boolean; 
+/**
+ * Download size in bytes (a float so it is a plain number in TypeScript).
+ */
+modelSizeBytes: number; indexedCount: number; pendingCount: number }
 export type SourceKind = "generated" | "photograph" | "other"
 export type StartupCacheAction = "restored" | "selective" | "full"
 export type StartupDatabaseRole = "ambit" | "invoke-source" | "mixed"

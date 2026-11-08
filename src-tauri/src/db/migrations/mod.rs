@@ -55,6 +55,8 @@ pub mod m84_thumbnail_repair_version;
 pub mod m85_generation_presets;
 pub mod m86_supporting_model_resources;
 pub mod m87_preset_cache_state;
+pub mod m88_image_clip_vectors;
+pub mod m89_clip_vector_retry;
 
 pub fn init_db() -> Vec<Migration> {
     get_migrations()
@@ -118,6 +120,8 @@ pub fn get_migrations() -> Vec<Migration> {
     migrations.push(m85_generation_presets::migration85());
     migrations.push(m86_supporting_model_resources::migration86());
     migrations.push(m87_preset_cache_state::migration87());
+    migrations.push(m88_image_clip_vectors::migration88());
+    migrations.push(m89_clip_vector_retry::migration89());
 
     migrations.sort_by_key(|m| m.version);
 
@@ -200,6 +204,9 @@ mod tests {
         assert!(versions.contains(&84));
         assert!(versions.contains(&85));
         assert!(versions.contains(&86));
+        assert!(versions.contains(&87));
+        assert!(versions.contains(&88));
+        assert!(versions.contains(&89));
     }
 
     #[test]
@@ -232,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    fn database_at_mainline_49_has_migrations_through_preset_cache_state_87_pending() {
+    fn database_at_mainline_49_has_migrations_through_clip_vector_retry_89_pending() {
         let migrations = get_migrations();
         let has_49 = migrations.iter().any(|migration| migration.version == 49);
         let pending_after_49: Vec<i64> = migrations
@@ -246,7 +253,7 @@ mod tests {
             pending_after_49,
             vec![
                 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70,
-                71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87
+                71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89
             ]
         );
     }
