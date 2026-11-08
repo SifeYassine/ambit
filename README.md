@@ -46,6 +46,7 @@ The public beta has a small set of disclosed network paths:
 *   Automatic update checks contact GitHub Releases when enabled. Updates are downloaded and installed only after you confirm the prompt.
 *   Gemini features are optional. Requests are sent only when you configure a key and run an AI action or key verification.
 *   CivitAI model-hash resolution is optional. It runs only after you confirm Resolve Online and sends unresolved model hash strings, not image files.
+*   Similarity Search is optional. When you click Download model, its CLIP model files (about 600 MB) are downloaded from Hugging Face and the ONNX Runtime library (a 78 MB archive) from Microsoft's GitHub releases, each pinned and SHA-256 verified. Indexing and searching then run locally and no images or queries are sent.
 *   GitHub Sponsors, Ko-fi, and project links open only when clicked.
 
 ## Getting Started

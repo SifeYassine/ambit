@@ -11,6 +11,7 @@ Use the left sidebar to switch between:
 - Grid View for thumbnail browsing.
 - Timeline View for time-based browsing.
 - Presets for your most used generation settings.
+- Similarity Search for finding images by description or by example image.
 - Statistics for your most used generation settings and prompt tags.
 - Maintenance for cleanup workflows.
 
@@ -69,9 +70,25 @@ Presets groups your images by the generation settings they share: the model, the
 
 **Ignore LoRA weights** is off by default, so `Frostbite (0.80)` and `Frostbite (0.50)` are different presets. Turn it on to merge presets that differ only in LoRA weights, which gives fewer, larger presets. The count next to it shows how many presets the current grouping has. Weights are compared to two decimals, and LoRA order, letter case, and file extensions are ignored. For ComfyUI images, weights come from each LoRA loader's model strength; LoRA names in the viewer stay without weights. A LoRA loaded at two different strengths in one workflow has no single weight and groups as weight 1.
 
-Select a preset to open Grid filtered to exactly the images that use it. The preset filter replaces other result filters and appears as a removable chip; Grid and intermediate visibility settings are kept, so the gallery matches the card's count. Preset filters are not saved into smart collections.
+Select a preset to open Grid filtered to exactly the images that use it. The preset filter replaces other result filters and appears as a removable chip named after the card (for example **Preset 1**), with the full model, LoRAs, and sampler on hover. Changing **Ignore LoRA weights** clears it, because the grouping it came from no longer applies; Grid and intermediate visibility settings are kept, so the gallery matches the card's count. Preset filters are not saved into smart collections.
 
 Ambit recomputes presets from current metadata each time library data changes and the Presets page opens. A preset filter that stays active while new images are imported includes them after the Presets page is opened again. Images with no recorded model and no LoRAs have no preset. Accuracy depends on the parsed metadata: workflows whose model, LoRAs, or sampler Ambit cannot fully trace may land in a separate preset.
+
+## Similarity Search
+
+Similarity Search finds images that look like a description ("red-haired knight in snow") or like an example image, using the CLIP ViT-B/16 model. It does not rely on prompts, so it also finds images without metadata.
+
+The first time, select **Download model**. Ambit downloads the model once from Hugging Face (about 600 MB) and the ONNX Runtime library it runs on from Microsoft's GitHub releases (78 MB) into its app data folder and verifies them; nothing else on this page uses the network, and no images or queries leave your computer. **Remove model** deletes the download again and keeps the index.
+
+After the download, Ambit indexes your library images on this computer. Images added later are indexed when you next open the page. **Stop** pauses indexing, and the next run continues where it stopped. Videos are not indexed, and an image that cannot be read is skipped until its file changes.
+
+- **Number of Results** (default 5) and **Similarity Threshold** (default 0.12) apply to both searches. Only images at or above the threshold are shown, best match first.
+- **Search by Text** ranks images by how well they match the description.
+- **Search by Image** uses an image file you choose, or a library image sent from the viewer with **Find Similar Images** in its toolbar. Searching from a library image leaves that image out of its own results.
+
+**Clustering** (the second tab) groups indexed images that look alike, the same way SmartSim does: average-linkage hierarchical clustering on cosine distance. All fields are optional. **Max Number of Clusters** splits the library into that many groups; **Similarity Threshold** instead keeps merging groups while they are at least that similar. With neither (or both) set, 10 clusters are made. **Min/Max Images per Cluster** hide clusters outside that size. Use **Previous** and **Next** to step through the clusters; select an image to open it in the viewer. Results are not saved and follow the same Privacy Mode and visibility rules as search.
+
+Each search result shows its similarity as a percentage. Select one to open the viewer, where Previous and Next step through the results. Results follow Privacy Mode, the InvokeAI owner scope, and the visibility settings in the View menu, but not the gallery's search or filters.
 
 ## Selection
 

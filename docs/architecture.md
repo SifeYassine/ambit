@@ -37,6 +37,46 @@ Related docs: `docs/manual/viewer-and-metadata.md`, `docs/plans/genai-video-libr
 
 MP4, WebM, MOV, M4V, and MKV candidates are probed through the bundled Windows MediaInfo executable. Poster extraction uses the Windows media path; browser playback success or failure determines playback status. Grid and timeline use static posters, with a generic fallback when extraction fails. Video metadata has its own `VIDEO_PARSER_VERSION`, independent of image reparsing. A validated exact sibling `<stem>.workflow.json` takes precedence over embedded evidence; original evidence and conflicts are retained, and explicit user overrides survive refresh. Sidecar changes route back to the associated video through the import service. The active video plan records remaining owner acceptance and later assurance work separately from implemented behavior.
 
+### Similarity Search
+Purpose: find library images by text or by example image with CLIP ViT-B/16 embeddings, ported from the owner's SmartSim app.
+Code: `src-tauri/src/similarity/`, `src-tauri/src/db/migrations/m88_image_clip_vectors.rs`, `src-tauri/src/db/migrations/m89_clip_vector_retry.rs`, `src/services/similarityService.ts`, `src/services/db/similarityRepo.ts`, `src/stores/similarityStore.ts`, `src/features/similarity/`
+Interacts with: app-local model files and `onnxruntime.dll` under `models/clip-vit-base-patch16/`, loaded at runtime through `ort`'s `load-dynamic` feature, the `image_clip_vectors` table, gallery scope SQL from `buildSqlWhereClause`, and the shared viewer through a results session
+Risks: CPU inference is heavy (about 0.75 s per image on a 4-core laptop CPU). ONNX Runtime is loaded dynamically because its import libraries are MSVC-only and the build uses the GNU toolchain; the `ort` crate version and the pinned runtime release must stay API-compatible. Dev builds optimize the image decoders and tokenizer through `[profile.dev.package]` overrides. Search scans every stored embedding, which is fine for small libraries but should move to an in-memory or ANN index before very large ones.
+
+The model (Xenova's fp32 ONNX export of `openai/clip-vit-base-patch16` plus OpenAI's tokenizer) and the ONNX Runtime CPU library are downloaded only on request, pinned and SHA-256 verified; the runtime is extracted from Microsoft's release archive. The weights file of the earlier candle engine is removed after an upgrade download, and stored vectors stay valid because both engines produce the same embeddings. Indexing embeds images that are new or whose file size changed, in batches of 16, decodes each file by its content rather than its extension (generation sites often save JPEG or WebP data as `.png`), and records undecodable images with a NULL embedding so they are not retried; migration 89 cleared those records once after extension-based decoding was replaced. Clustering reproduces SmartSim's scikit-learn `AgglomerativeClustering` (average linkage, precomputed cosine distance, cut by cluster count or `1 - similarity` threshold, default 10 clusters, then min/max size filters) with a nearest-neighbor-chain implementation in `similarity/cluster.rs`, numbering clusters exactly as scikit-learn does so they appear in SmartSim's order, with each cluster's images oldest first; it holds an n×n distance matrix, so it is capped at 20,000 indexed images, and results stay in memory. Search ranks by cosine similarity with SmartSim's top-K and threshold semantics, then keeps only ids visible in the current owner, privacy, and view scope. The Python CLIP preprocessing is matched in Rust.
+
+Search results and clusters are React Query data keyed by the submitted request (`useSimilarity.ts`); the store keeps only inputs, the active tab, the selected cluster, and download/index job progress, which `useSimilarityJobs.ts` reports through the shared `ProgressPayload` events.
+
+### Generation Presets
+Purpose: group images by the model, LoRA set, and sampler they were generated with, and open the gallery filtered to one preset.
+Code: `src-tauri/src/db/commands/preset_commands.rs`, `src-tauri/src/db/migrations/m85_generation_presets.rs`, `src-tauri/src/db/migrations/m87_preset_cache_state.rs`, `src/services/db/presetRepo.ts`, `src/features/presets/`, `src/stores/presetsViewStore.ts`
+Interacts with: stored metadata columns, the gallery filter state (`FilterState.preset`), and the same scope SQL as the gallery
+Risks: preset signatures depend on parsed LoRA strings; parser display-format changes must keep `parse_lora_entry` in step
+
+`image_presets` caches a strict (weighted) and a loose (unweighted) signature per image. Migration 87 marks the cache dirty through triggers on image insert/delete and on changes to the columns a signature reads; `rebuild_generation_presets` rebuilds only when dirty, so opening the page reuses the cache. Grouping, typical steps/CFG, and sample images are frontend SQL over the cache joined to `scoped_images`.
+
+### Supporting Model Resources
+Purpose: record the VAEs, upscale models, CLIP Vision encoders, and detection models a workflow loads beside its checkpoint, and expose them as filter facets, search prefixes, Assets entries, and viewer resources.
+Code: `src-tauri/src/metadata/comfyui/auxiliary_resources.rs`, `src-tauri/src/db/migrations/m86_supporting_model_resources.rs`, `SUPPORTING_MODEL_JUNCTIONS` in `src-tauri/src/db/mod.rs`, `src/constants/supportingModels.ts`
+Interacts with: ComfyUI graph traversal, facet caches, owner-scope invalidation triggers, and `vae:`, `upscaler:`, `clipvision:`, and `detector:` search prefixes
+Risks: migration 86 recreates the migration-78 image update triggers; future trigger changes must include the four new junction tables
+
+A loader counts only when it is active and an active node consumes its output, so bypassed or disconnected groups add nothing. The junction tables mirror the existing resource junctions, including canonical-name indexes and owner-scope dirty triggers.
+
+### Workflow Canvas
+Purpose: render a saved ComfyUI workflow in the viewer as a read-only LiteGraph-style canvas, preview the selected node in the sidebar, and highlight the nodes behind extracted metadata.
+Code: `src/features/viewer/components/workflowCanvas/`, `scripts/generate-comfy-registry-widgets.mjs`
+Interacts with: `WorkflowInspector.tsx` and the Rust-normalized ComfyUI graph used by the inspector
+Risks: widget labels come from a generated 2.9 MB table that ships inside the lazily loaded viewer chunk
+
+Saved widget values carry no names, so `registryWidgets.ts` matches them against `registryWidgetNames.json`, generated at development time from the Comfy Registry by `pnpm run comfyui:registry-widgets` (the app never contacts the Registry). `knownWidgetNames.ts` is hand-maintained for what the Registry does not describe: core ComfyUI and frontend nodes, custom nodes missing from the Registry, and older node versions it no longer lists.
+
+### Prompt Comparison
+Purpose: compare two images' prompts and resources in the Compare modal, tag by tag, with added, removed, moved, and re-weighted tags highlighted, plus each file's SHA-256.
+Code: `src/features/viewer/utils/promptDiff.ts`, `src/features/viewer/utils/promptTags.ts`, `src/features/viewer/utils/resourceDiff.ts`, `src/features/viewer/components/CompareModal.tsx`, `src/features/viewer/hooks/useImageFileHash.ts`
+Interacts with: stored prompt and resource metadata and the on-demand `compute_image_file_hash` command
+Risks: the text diff is a pure-frontend LCS pipeline; very long prompts fall back to a bisect diff under a time budget
+
 ### Thumbnail Generation and Optimization
 Purpose: generate cached WebP thumbnails, repair or upgrade thumbnail records in the background, expose maintenance controls, and throttle or cancel native work around foreground activity.
 Code: `src-tauri/src/thumb/`, `src/services/thumbnailService.ts`, `src/hooks/useThumbnailQueue.ts`, `src/hooks/useThumbnailOps.ts`
@@ -108,8 +148,8 @@ Related docs: `docs/progress.md#current-constraints`, `docs/refactor.md#frontend
 
 ### Network Surface
 Purpose: keep the core app local-first while supporting explicit public-beta network paths.
-Code: `src/hooks/useAppUpdater.ts`, `src/services/geminiService.ts`, `src-tauri/src/metadata/civitai.rs`, `src/features/settings/`
-Interacts with: GitHub Releases updater feed, optional Gemini API requests, optional CivitAI hash resolution, and user-clicked external support/project links
+Code: `src/hooks/useAppUpdater.ts`, `src/services/geminiService.ts`, `src-tauri/src/metadata/civitai.rs`, `src-tauri/src/similarity/mod.rs`, `src/features/settings/`
+Interacts with: GitHub Releases updater feed, optional Gemini API requests, optional CivitAI hash resolution, the user-triggered Similarity model download from Hugging Face and ONNX Runtime from GitHub releases (pinned versions, SHA-256 verified), and user-clicked external support/project links
 Risks: passive third-party assets or unclear copy can make local-first behavior hard to audit
 Related docs: `README.md#privacy-and-network-behavior`, `SECURITY.md`
 
@@ -119,7 +159,7 @@ Related docs: `README.md#privacy-and-network-behavior`, `SECURITY.md`
 - Generated binding updates are explicit: run `pnpm run bindings:generate`, then verify with `pnpm run bindings:check` or a broader gate that includes it.
 - Filesystem access must remain local-only and within Tauri-registered or scoped paths.
 - API keys are stored via Rust keyring commands, not persisted in `library.json`.
-- Passive visual assets must be bundled locally. Network calls should be limited to the documented updater, Gemini, CivitAI, and user-clicked external-link paths.
+- Passive visual assets must be bundled locally. Network calls should be limited to the documented updater, Gemini, CivitAI, Similarity model download, and user-clicked external-link paths.
 - Large library browsing paths must remain virtualized and performance-conscious.
 - Migration 80 generates regular and maintenance image-scope views from one SQL eligibility definition. Regular views retain their existing projections and planner freedom; narrow maintenance views require compact indexes so counts avoid metadata-heavy rows even after `ANALYZE`. The prompt-empty Boolean must be compared with `= 1`. Future visibility changes must rebuild all four views through the shared definition. Required-index failures surface as schema errors rather than falling back to heavy scans. Index creation has a one-time upgrade cost and relevant writes maintain the indexes.
 - Removed listings exclude archival JSON blobs from IPC. SQLite extracts the positive prompt needed for privacy masking with the same sparse-metadata fallback as full row mapping; full ID lookups retain archival metadata for lifecycle and InvokeAI consumers. Maintenance hydrates only the currently opened Removed viewer item, with no retained detail cache after closing or navigating away.

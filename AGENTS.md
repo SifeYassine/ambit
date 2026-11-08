@@ -67,7 +67,7 @@ Production app builds run `verify:release` before `tauri build --ci`.
 - Use React Query for async backend data and Zustand for transient UI state.
 - Keep business logic in hooks or feature modules rather than growing component bodies when practical.
 - Preserve virtualization for large library views; do not replace `VirtualGrid`-style flows with eager full renders.
-- Keep the product local-first. Preserve only the documented network paths: enabled updater checks, user-triggered Gemini actions/key verification, confirmed CivitAI hash resolution, and user-clicked external links. New network behavior requires an explicit product decision.
+- Keep the product local-first. Preserve only the documented network paths: enabled updater checks, user-triggered Gemini actions/key verification, confirmed CivitAI hash resolution, the user-triggered Similarity model download, and user-clicked external links. New network behavior requires an explicit product decision.
 - Respect Tauri filesystem scope registration and `APPLOCALDATA` or resource-safe access patterns.
 - For SQLite filters and sorts, prefer equality-friendly predicates when semantics allow.
 - Use feature branches (`feat/` or `fix/`) and conventional commits; release automation depends on that history.
